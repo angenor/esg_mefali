@@ -75,13 +75,31 @@ Le projet est organise en 8 modules :
 - ODD 8 (Travail decent), ODD 9 (Innovation), ODD 10 (Inclusion financiere)
 - ODD 12 (Production responsable), ODD 13 (Climat), ODD 17 (Partenariats)
 
+## Environnement Python
+
+Le backend utilise un environnement virtuel Python (`venv`). Toujours l'activer avant d'executer des commandes Python ou d'installer des packages.
+
+```bash
+# Creation (une seule fois)
+cd backend && python3 -m venv venv
+
+# Activation (a chaque session)
+source backend/venv/bin/activate
+
+# Installation des dependances
+pip install -r backend/requirements.txt
+```
+
+**Important** : Ne jamais installer de packages Python globalement. Toujours verifier que le venv est actif (`which python` doit pointer vers `backend/venv/bin/python`).
+
 ## Commandes Utiles
 
 ```bash
 # Frontend
 cd frontend && npm run dev
 
-# Backend
+# Backend (toujours activer le venv d'abord)
+source backend/venv/bin/activate
 cd backend && uvicorn app.main:app --reload
 
 # Base de donnees
