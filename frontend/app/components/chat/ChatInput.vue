@@ -48,7 +48,12 @@ function handleKeydown(event: KeyboardEvent) {
         class="shrink-0 w-9 h-9 rounded-full bg-brand-green text-white flex items-center justify-center hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         @click="handleSubmit"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+        <!-- Spinner pendant le streaming -->
+        <div
+          v-if="disabled"
+          class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+        />
+        <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
         </svg>
       </button>

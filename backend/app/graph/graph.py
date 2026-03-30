@@ -17,10 +17,12 @@ def build_graph() -> StateGraph:
 
 
 async def create_compiled_graph():
-    """Compiler le graphe avec le checkpointer PostgreSQL.
+    """Compiler le graphe avec le checkpointer.
 
     Appelé dans le lifespan FastAPI.
+    Utilise MemorySaver par defaut (le checkpointer PostgreSQL necessite
+    une gestion de connexion async context manager dans le lifespan).
     """
     graph = build_graph()
-    checkpointer = await create_checkpointer()
-    return graph.compile(checkpointer=checkpointer)
+    from langgraph.checkpoint.memory import MemorySaver
+    return graph.compile(checkpointer=MemorySaver())

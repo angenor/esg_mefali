@@ -7,6 +7,7 @@ const { logout } = useAuth()
 
 const navItems = [
   { label: 'Tableau de bord', to: '/', icon: 'dashboard' },
+  { label: 'Chat IA', to: '/chat', icon: 'chat' },
 ]
 </script>
 
@@ -34,8 +35,13 @@ const navItems = [
         class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover hover:text-brand-green transition-colors"
         active-class="bg-emerald-50 dark:bg-emerald-900/20 text-brand-green font-medium border-r-2 border-brand-green"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <!-- Icone dashboard -->
+        <svg v-if="item.icon === 'dashboard'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+        </svg>
+        <!-- Icone chat -->
+        <svg v-else-if="item.icon === 'chat'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
         </svg>
         <span v-if="uiStore.sidebarOpen">{{ item.label }}</span>
       </NuxtLink>

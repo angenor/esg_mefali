@@ -166,6 +166,39 @@ export function useChat() {
     }
   }
 
+  async function renameConversation(conversationId: string, title: string): Promise<void> {
+    const response = await fetch(
+      `${apiBase}/chat/conversations/${conversationId}`,
+      {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ title }),
+      },
+    )
+    if (response.status === 429) {
+      error.value = 'Trop de requêtes. Veuillez patienter quelques instants.'
+      return
+    }
+    if (!response.ok) throw new Error('Erreur lors du renommage')
+    const updated: Conversation = await response.json()
+    conversations.value = conversations.value.map(c =>
+      c.id === conversationId ? updated : c,
+    )
+    if (currentConversation.value?.id === conversationId) {
+      currentConversation.value = updated
+    }
+  }
+
+  const searchQuery = ref('')
+
+  const filteredConversations = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase()
+    if (!query) return conversations.value
+    return conversations.value.filter(c =>
+      c.title.toLowerCase().includes(query),
+    )
+  })
+
   return {
     conversations,
     currentConversation,
@@ -173,11 +206,14 @@ export function useChat() {
     isStreaming,
     streamingContent,
     error,
+    searchQuery,
+    filteredConversations,
     fetchConversations,
     createConversation,
     selectConversation,
     fetchMessages,
     sendMessage,
     deleteConversation,
+    renameConversation,
   }
 }

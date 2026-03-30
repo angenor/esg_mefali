@@ -4,6 +4,7 @@ import { ref, watch } from 'vue'
 export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
   const chatPanelOpen = ref(true)
+  const conversationDrawerOpen = ref(false)
   const theme = ref<'light' | 'dark'>('light')
 
   function initTheme() {
@@ -40,6 +41,10 @@ export const useUiStore = defineStore('ui', () => {
     chatPanelOpen.value = !chatPanelOpen.value
   }
 
+  function toggleConversationDrawer() {
+    conversationDrawerOpen.value = !conversationDrawerOpen.value
+  }
+
   function setTheme(newTheme: 'light' | 'dark') {
     theme.value = newTheme
     if (import.meta.client) {
@@ -51,10 +56,12 @@ export const useUiStore = defineStore('ui', () => {
   return {
     sidebarOpen,
     chatPanelOpen,
+    conversationDrawerOpen,
     theme,
     initTheme,
     toggleSidebar,
     toggleChatPanel,
+    toggleConversationDrawer,
     toggleTheme,
     setTheme,
   }
