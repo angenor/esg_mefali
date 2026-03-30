@@ -1,10 +1,13 @@
 import { ref } from 'vue'
 import type { Conversation, Message, PaginatedResponse } from '~/types'
+import type { ProfileUpdateEvent, CompletionResponse } from '~/types/company'
 import { useAuthStore } from '~/stores/auth'
+import { useCompanyStore } from '~/stores/company'
 
 export function useChat() {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
+  const companyStore = useCompanyStore()
   const apiBase = config.public.apiBase
 
   const conversations = ref<Conversation[]>([])
@@ -118,6 +121,12 @@ export function useChat() {
               type: string
               content?: string
               message_id?: string
+              field?: string
+              value?: string | number | boolean
+              label?: string
+              identity_completion?: number
+              esg_completion?: number
+              overall_completion?: number
             }
 
             if (event.type === 'token' && event.content) {
@@ -137,6 +146,24 @@ export function useChat() {
                   ? { ...msg, id: event.message_id! }
                   : msg,
               )
+            } else if (event.type === 'profile_update' && event.field) {
+              // Mise à jour du profil extraite du chat
+              const update: ProfileUpdateEvent = {
+                field: event.field,
+                value: event.value!,
+                label: event.label || event.field,
+              }
+              companyStore.addProfileUpdate(update)
+              companyStore.updateProfileField(event.field, event.value)
+            } else if (event.type === 'profile_completion') {
+              // Mise à jour de la complétion
+              companyStore.setCompletion({
+                identity_completion: event.identity_completion!,
+                esg_completion: event.esg_completion!,
+                overall_completion: event.overall_completion!,
+                identity_fields: { filled: [], missing: [] },
+                esg_fields: { filled: [], missing: [] },
+              })
             } else if (event.type === 'error') {
               error.value = event.content || 'Erreur du service IA'
             }

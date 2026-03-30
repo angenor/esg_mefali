@@ -1,6 +1,7 @@
 """Router chat : CRUD conversations, envoi de messages avec streaming SSE."""
 
 import json
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -12,9 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import async_session_factory, get_db
+from app.models.company import CompanyProfile
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
+from app.modules.company.schemas import CompanyProfileUpdate
+from app.modules.company.service import (
+    compute_completion,
+    get_or_create_profile,
+    update_profile,
+)
 from app.schemas.chat import (
     ConversationCreate,
     ConversationResponse,
@@ -25,6 +33,7 @@ from app.schemas.chat import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -73,23 +82,169 @@ async def invoke_graph(content: str, conversation_id: str) -> str:
 
 
 async def stream_llm_tokens(
-    content: str, conversation_id: str,
+    content: str,
+    conversation_id: str,
+    user_profile: dict | None = None,
+    context_memory: list[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Streamer les tokens du LLM un par un.
 
     Utilise le LLM directement avec streaming pour un rendu progressif.
-    Yield chaque token au fur et a mesure de la generation.
+    Le prompt système est enrichi avec le profil et la mémoire contextuelle.
     """
     from app.graph.nodes import get_llm
-    from app.prompts.system import SYSTEM_PROMPT
+    from app.prompts.system import build_system_prompt
     from langchain_core.messages import SystemMessage
 
     llm = get_llm()
-    messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=content)]
+    system_prompt = build_system_prompt(user_profile, context_memory)
+    messages = [SystemMessage(content=system_prompt), HumanMessage(content=content)]
 
     async for chunk in llm.astream(messages):
         if chunk.content:
             yield chunk.content
+
+
+async def extract_and_update_profile(
+    user_message: str,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+) -> tuple[list[dict], dict | None]:
+    """Extraire les infos de profil et mettre à jour en base.
+
+    Retourne (changed_fields, completion_data) ou ([], None) si rien extrait.
+    """
+    from app.chains.extraction import extract_profile_from_message
+
+    profile = await get_or_create_profile(db, user_id)
+
+    # Sérialiser le profil actuel pour le contexte
+    current_profile = {
+        field: getattr(profile, field)
+        for field in [
+            "company_name", "sector", "sub_sector", "employee_count",
+            "annual_revenue_xof", "city", "country", "year_founded",
+            "has_waste_management", "has_energy_policy", "has_gender_policy",
+            "has_training_program", "has_financial_transparency",
+            "governance_structure", "environmental_practices",
+            "social_practices", "notes",
+        ]
+        if getattr(profile, field) is not None
+    }
+    # Convertir les enums
+    for k, v in current_profile.items():
+        if hasattr(v, "value"):
+            current_profile[k] = v.value
+
+    extraction = await extract_profile_from_message(user_message, current_profile)
+
+    # Récupérer les champs extraits (dictionnaire plat, non-null uniquement)
+    extraction_data = extraction.flat_dict()
+
+    if not extraction_data:
+        return [], None
+
+    updates = CompanyProfileUpdate(**extraction_data)
+    _, changed_fields = await update_profile(db, profile, updates)
+
+    if not changed_fields:
+        return [], None
+
+    completion = compute_completion(profile)
+    completion_data = {
+        "identity_completion": completion.identity_completion,
+        "esg_completion": completion.esg_completion,
+        "overall_completion": completion.overall_completion,
+    }
+
+    return changed_fields, completion_data
+
+
+async def _load_profile_for_state(
+    db: AsyncSession, user_id: uuid.UUID
+) -> dict | None:
+    """Charger le profil utilisateur pour le state du graphe."""
+    result = await db.execute(
+        select(CompanyProfile).where(CompanyProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+    if profile is None:
+        return None
+
+    profile_dict: dict = {}
+    for field in [
+        "company_name", "sector", "sub_sector", "employee_count",
+        "annual_revenue_xof", "city", "country", "year_founded",
+        "has_waste_management", "has_energy_policy", "has_gender_policy",
+        "has_training_program", "has_financial_transparency",
+        "governance_structure", "environmental_practices",
+        "social_practices", "notes",
+    ]:
+        value = getattr(profile, field)
+        if value is not None:
+            profile_dict[field] = value.value if hasattr(value, "value") else value
+
+    return profile_dict if profile_dict else None
+
+
+async def _load_context_memory(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[str]:
+    """Charger les 3 derniers résumés de conversation."""
+    result = await db.execute(
+        select(Conversation.summary)
+        .where(
+            Conversation.user_id == user_id,
+            Conversation.summary.isnot(None),
+        )
+        .order_by(Conversation.updated_at.desc())
+        .limit(3)
+    )
+    return [row[0] for row in result.all() if row[0]]
+
+
+async def _summarize_previous_conversation(
+    db: AsyncSession, user_id: uuid.UUID
+) -> None:
+    """Générer le résumé de la dernière conversation si elle n'en a pas."""
+    from app.chains.summarization import generate_summary
+
+    # Récupérer la dernière conversation sans résumé
+    result = await db.execute(
+        select(Conversation)
+        .where(
+            Conversation.user_id == user_id,
+            Conversation.summary.is_(None),
+        )
+        .order_by(Conversation.updated_at.desc())
+        .limit(1)
+    )
+    prev_conv = result.scalar_one_or_none()
+
+    if prev_conv is None:
+        return
+
+    # Charger les messages de cette conversation
+    msg_result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == prev_conv.id)
+        .order_by(Message.created_at.asc())
+    )
+    conv_messages = msg_result.scalars().all()
+
+    if not conv_messages:
+        return
+
+    # Formater les messages pour le LLM
+    messages_text = "\n".join(
+        f"{'Utilisateur' if m.role == 'user' else 'Assistant'}: {m.content}"
+        for m in conv_messages
+    )
+
+    summary = await generate_summary(messages_text)
+    if summary:
+        prev_conv.summary = summary
+        await db.flush()
 
 
 # ─── CRUD Conversations ──────────────────────────────────────────────
@@ -105,7 +260,13 @@ async def create_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Conversation:
-    """Créer une nouvelle conversation."""
+    """Créer une nouvelle conversation.
+
+    Génère le résumé du thread précédent (s'il n'en a pas déjà un).
+    """
+    # Générer le résumé du thread précédent si nécessaire
+    await _summarize_previous_conversation(db, current_user.id)
+
     conversation = Conversation(
         user_id=current_user.id,
         title=data.title,
@@ -127,7 +288,6 @@ async def list_conversations(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Lister les conversations de l'utilisateur connecté."""
-    # Compter le total
     count_result = await db.execute(
         select(func.count()).select_from(Conversation).where(
             Conversation.user_id == current_user.id
@@ -135,7 +295,6 @@ async def list_conversations(
     )
     total = count_result.scalar_one()
 
-    # Récupérer la page
     offset = (page - 1) * limit
     result = await db.execute(
         select(Conversation)
@@ -253,14 +412,25 @@ async def send_message(
     conv_id = conversation.id
     conv_title = conversation.title
     user_content = data.content
+    user_id = current_user.id
+
+    # Détecter si le message contient des infos de profil
+    from app.graph.nodes import _detect_profile_info
+    should_extract = _detect_profile_info(user_content)
+
+    # Charger le profil et la mémoire contextuelle pour le prompt
+    user_profile = await _load_profile_for_state(db, user_id)
+    context_memory = await _load_context_memory(db, user_id)
 
     async def generate_sse() -> AsyncGenerator[str, None]:
         """Générer les événements SSE avec streaming token par token."""
         async with async_session_factory() as sse_db:
             try:
-                # Streamer les tokens du LLM un par un
+                # Streamer les tokens du LLM avec profil + mémoire
                 full_response = ""
-                async for token in stream_llm_tokens(user_content, str(conv_id)):
+                async for token in stream_llm_tokens(
+                    user_content, str(conv_id), user_profile, context_memory
+                ):
                     full_response += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
@@ -276,9 +446,24 @@ async def send_message(
 
                 yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
 
+                # Extraction de profil en parallèle (après le streaming)
+                if should_extract:
+                    try:
+                        changed_fields, completion_data = await extract_and_update_profile(
+                            user_content, user_id, sse_db,
+                        )
+
+                        for field_update in changed_fields:
+                            yield f"data: {json.dumps({'type': 'profile_update', **field_update})}\n\n"
+
+                        if completion_data:
+                            yield f"data: {json.dumps({'type': 'profile_completion', **completion_data})}\n\n"
+                    except Exception:
+                        logger.exception("Erreur extraction profil")
+
                 await sse_db.commit()
 
-                # Générer un titre automatique en arriere-plan (apres fermeture du stream)
+                # Générer un titre automatique en arrière-plan
                 if conv_title == "Nouvelle conversation":
                     import asyncio
 
@@ -301,8 +486,7 @@ async def send_message(
                     asyncio.create_task(_generate_title_bg())
 
             except Exception as e:
-                import logging
-                logging.getLogger(__name__).exception("Erreur SSE generate")
+                logger.exception("Erreur SSE generate")
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(

@@ -131,6 +131,8 @@ alembic upgrade head
 - PostgreSQL 16 + pgvector (001-technical-foundation)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) (002-chat-rich-visuals)
 - PostgreSQL 16 + pgvector (async via asyncpg) (002-chat-rich-visuals)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy (async), Nuxt 4, Vue Composition API, Pinia, TailwindCSS (003-company-profiling-memory)
+- PostgreSQL 16 + pgvector (async via asyncpg), Alembic pour migrations (003-company-profiling-memory)
 
 ## Recent Changes
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)
