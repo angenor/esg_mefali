@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.database import get_db
+from app.core.database import async_session_factory, get_db
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
@@ -55,7 +55,6 @@ async def invoke_graph(content: str, conversation_id: str) -> str:
     """Invoquer le graphe LangGraph et retourner la réponse complète.
 
     Cette fonction est mockée dans les tests.
-    En production, elle utilise le graphe compilé avec streaming.
     """
     from app.main import compiled_graph
 
@@ -71,6 +70,26 @@ async def invoke_graph(content: str, conversation_id: str) -> str:
         config=config,
     )
     return result["messages"][-1].content
+
+
+async def stream_llm_tokens(
+    content: str, conversation_id: str,
+) -> AsyncGenerator[str, None]:
+    """Streamer les tokens du LLM un par un.
+
+    Utilise le LLM directement avec streaming pour un rendu progressif.
+    Yield chaque token au fur et a mesure de la generation.
+    """
+    from app.graph.nodes import get_llm
+    from app.prompts.system import SYSTEM_PROMPT
+    from langchain_core.messages import SystemMessage
+
+    llm = get_llm()
+    messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=content)]
+
+    async for chunk in llm.astream(messages):
+        if chunk.content:
+            yield chunk.content
 
 
 # ─── CRUD Conversations ──────────────────────────────────────────────
@@ -230,30 +249,61 @@ async def send_message(
     db.add(user_message)
     await db.flush()
 
+    # Capturer les IDs avant de quitter le scope de la session FastAPI
+    conv_id = conversation.id
+    conv_title = conversation.title
+    user_content = data.content
+
     async def generate_sse() -> AsyncGenerator[str, None]:
-        """Générer les événements SSE."""
-        try:
-            # Invoquer le graphe LangGraph
-            response_content = await invoke_graph(
-                data.content, str(conversation.id)
-            )
+        """Générer les événements SSE avec streaming token par token."""
+        async with async_session_factory() as sse_db:
+            try:
+                # Streamer les tokens du LLM un par un
+                full_response = ""
+                async for token in stream_llm_tokens(user_content, str(conv_id)):
+                    full_response += token
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
-            # Sauvegarder la réponse de l'assistant
-            assistant_message = Message(
-                conversation_id=conversation.id,
-                role="assistant",
-                content=response_content,
-            )
-            db.add(assistant_message)
-            await db.flush()
-            await db.refresh(assistant_message)
+                # Sauvegarder la réponse complète
+                assistant_message = Message(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=full_response,
+                )
+                sse_db.add(assistant_message)
+                await sse_db.flush()
+                await sse_db.refresh(assistant_message)
 
-            # Envoyer les tokens (pour la v1, on envoie la réponse complète)
-            yield f"data: {json.dumps({'type': 'token', 'content': response_content})}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
 
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                await sse_db.commit()
+
+                # Générer un titre automatique en arriere-plan (apres fermeture du stream)
+                if conv_title == "Nouvelle conversation":
+                    import asyncio
+
+                    async def _generate_title_bg() -> None:
+                        try:
+                            from app.graph.nodes import generate_title
+
+                            title = await generate_title(user_content, full_response)
+                            async with async_session_factory() as title_db:
+                                result = await title_db.execute(
+                                    select(Conversation).where(Conversation.id == conv_id)
+                                )
+                                conv = result.scalar_one_or_none()
+                                if conv:
+                                    conv.title = title
+                                    await title_db.commit()
+                        except Exception:
+                            pass
+
+                    asyncio.create_task(_generate_title_bg())
+
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception("Erreur SSE generate")
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(
         generate_sse(),

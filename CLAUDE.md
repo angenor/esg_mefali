@@ -129,6 +129,8 @@ alembic upgrade head
 ## Active Technologies
 - Python 3.12, TypeScript 5.x (strict mode) (001-technical-foundation)
 - PostgreSQL 16 + pgvector (001-technical-foundation)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) (002-chat-rich-visuals)
+- PostgreSQL 16 + pgvector (async via asyncpg) (002-chat-rich-visuals)
 
 ## Recent Changes
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)

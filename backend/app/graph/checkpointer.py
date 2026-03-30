@@ -18,6 +18,12 @@ def get_checkpointer_connection_string() -> str:
 async def create_checkpointer() -> AsyncPostgresSaver:
     """Créer et initialiser le checkpointer PostgreSQL."""
     conn_string = get_checkpointer_connection_string()
-    checkpointer = AsyncPostgresSaver.from_conn_string(conn_string)
-    await checkpointer.setup()
-    return checkpointer
+    # from_conn_string retourne un async context manager dans les versions recentes
+    saver_ctx = AsyncPostgresSaver.from_conn_string(conn_string)
+    # Si c'est un context manager, l'entrer manuellement
+    if hasattr(saver_ctx, '__aenter__'):
+        saver = await saver_ctx.__aenter__()
+    else:
+        saver = saver_ctx
+    await saver.setup()
+    return saver

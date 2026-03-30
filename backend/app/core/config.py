@@ -5,9 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Base de données
@@ -23,6 +24,20 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "anthropic/claude-sonnet-4-20250514"
+
+    # Aliases pour compatibilite avec le .env existant
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    llm_model: str = ""
+
+    def model_post_init(self, __context: object) -> None:
+        """Mapper les variables LLM_* vers openrouter_* si non definies."""
+        if not self.openrouter_api_key and self.llm_api_key:
+            self.openrouter_api_key = self.llm_api_key
+        if self.llm_base_url:
+            self.openrouter_base_url = self.llm_base_url
+        if self.llm_model:
+            self.openrouter_model = self.llm_model
 
     # Application
     app_version: str = "0.1.0"
