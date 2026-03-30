@@ -25,21 +25,21 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-surface-bg px-4">
+  <div class="min-h-screen flex items-center justify-center bg-surface-bg dark:bg-surface-dark-bg px-4">
     <div class="w-full max-w-md">
-      <div class="bg-white rounded-2xl shadow-lg p-8">
+      <div class="bg-white dark:bg-dark-card rounded-2xl shadow-lg p-8">
         <div class="text-center mb-8">
-          <h1 class="text-2xl font-bold text-surface-text">ESG Mefali</h1>
-          <p class="text-gray-500 mt-2">Connectez-vous à votre compte</p>
+          <h1 class="text-2xl font-bold text-surface-text dark:text-surface-dark-text">ESG Mefali</h1>
+          <p class="text-gray-500 dark:text-gray-400 mt-2">Connectez-vous a votre compte</p>
         </div>
 
-        <form @submit.prevent="handleLogin" class="space-y-5">
-          <div v-if="error" class="bg-red-50 text-brand-red text-sm rounded-lg p-3">
+        <form class="space-y-5" @submit.prevent="handleLogin">
+          <div v-if="error" class="bg-red-50 dark:bg-red-900/20 text-brand-red text-sm rounded-lg p-3">
             {{ error }}
           </div>
 
           <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Adresse email
             </label>
             <input
@@ -48,13 +48,13 @@ async function handleLogin() {
               type="email"
               required
               autocomplete="email"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
+              class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
               placeholder="votre@email.com"
             />
           </div>
 
           <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Mot de passe
             </label>
             <input
@@ -63,7 +63,7 @@ async function handleLogin() {
               type="password"
               required
               autocomplete="current-password"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
+              class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
               placeholder="••••••••"
             />
           </div>
@@ -77,7 +77,7 @@ async function handleLogin() {
           </button>
         </form>
 
-        <p class="text-center text-sm text-gray-500 mt-6">
+        <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
           Pas encore de compte ?
           <NuxtLink to="/register" class="text-brand-green font-medium hover:underline">
             S'inscrire

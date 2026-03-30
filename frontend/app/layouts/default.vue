@@ -5,7 +5,7 @@ const uiStore = useUiStore()
 </script>
 
 <template>
-  <div class="flex h-screen bg-surface-bg overflow-hidden">
+  <div class="flex h-screen bg-surface-bg dark:bg-surface-dark-bg overflow-hidden">
     <!-- Sidebar navigation -->
     <AppSidebar class="hidden lg:flex" />
 

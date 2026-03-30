@@ -20,7 +20,7 @@ async function handleCreate() {
     await selectConversation(conv)
     showConversationList.value = false
   } catch {
-    // Erreur gérée par le composable
+    // Erreur geree par le composable
   }
 }
 
@@ -46,26 +46,26 @@ watch(messages, () => {
 <template>
   <aside
     v-if="uiStore.chatPanelOpen"
-    class="w-80 lg:w-96 border-l border-gray-200 bg-white flex flex-col h-full"
+    class="w-80 lg:w-96 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card flex flex-col h-full"
   >
     <!-- Header du panneau -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-surface-dark-bg">
       <div class="flex items-center gap-2">
         <button
           v-if="!showConversationList && currentConversation"
-          class="text-gray-500 hover:text-gray-700"
+          class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           @click="handleBack"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
           </svg>
         </button>
-        <h3 class="text-sm font-semibold text-surface-text">
+        <h3 class="text-sm font-semibold text-surface-text dark:text-surface-dark-text">
           {{ showConversationList ? 'Conversations' : (currentConversation?.title || 'Chat IA') }}
         </h3>
       </div>
       <button
-        class="text-gray-400 hover:text-gray-600"
+        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
         @click="uiStore.toggleChatPanel"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -102,7 +102,7 @@ watch(messages, () => {
       </div>
 
       <!-- Erreur -->
-      <div v-if="error" class="px-4 py-2 text-xs text-brand-red bg-red-50">
+      <div v-if="error" class="px-4 py-2 text-xs text-brand-red bg-red-50 dark:bg-red-900/20">
         {{ error }}
       </div>
 

@@ -17,7 +17,7 @@ const isUser = computed(() => props.message.role === 'user')
     <!-- Avatar assistant -->
     <div
       v-if="!isUser"
-      class="flex-shrink-0 w-8 h-8 rounded-full bg-brand-green flex items-center justify-center text-white text-sm font-bold"
+      class="shrink-0 w-8 h-8 rounded-full bg-brand-green flex items-center justify-center text-white text-sm font-bold"
     >
       IA
     </div>
@@ -28,7 +28,7 @@ const isUser = computed(() => props.message.role === 'user')
       :class="
         isUser
           ? 'bg-brand-green text-white rounded-br-md'
-          : 'bg-gray-100 text-surface-text rounded-bl-md'
+          : 'bg-gray-100 dark:bg-dark-hover text-surface-text dark:text-surface-dark-text rounded-bl-md'
       "
     >
       {{ message.content }}
@@ -41,7 +41,7 @@ const isUser = computed(() => props.message.role === 'user')
     <!-- Avatar utilisateur -->
     <div
       v-if="isUser"
-      class="flex-shrink-0 w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white text-sm font-bold"
+      class="shrink-0 w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center text-white text-sm font-bold"
     >
       U
     </div>

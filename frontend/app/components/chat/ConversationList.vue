@@ -16,9 +16,9 @@ const emit = defineEmits<{
 <template>
   <div class="flex flex-col h-full">
     <!-- Bouton nouvelle conversation -->
-    <div class="p-3 border-b border-gray-200">
+    <div class="p-3 border-b border-gray-200 dark:border-dark-border">
       <button
-        class="w-full py-2 px-3 text-sm font-medium text-brand-green border border-brand-green rounded-lg hover:bg-emerald-50 transition-colors"
+        class="w-full py-2 px-3 text-sm font-medium text-brand-green border border-brand-green rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
         @click="emit('create')"
       >
         + Nouvelle conversation
@@ -36,12 +36,12 @@ const emit = defineEmits<{
       <button
         v-for="conv in conversations"
         :key="conv.id"
-        class="w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors group"
-        :class="conv.id === currentId ? 'bg-emerald-50 border-l-2 border-l-brand-green' : ''"
+        class="w-full text-left px-4 py-3 border-b border-gray-100 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors group"
+        :class="conv.id === currentId ? 'bg-emerald-50 dark:bg-emerald-900/20 border-l-2 border-l-brand-green' : ''"
         @click="emit('select', conv)"
       >
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-surface-text truncate">
+          <span class="text-sm font-medium text-surface-text dark:text-surface-dark-text truncate">
             {{ conv.title }}
           </span>
           <button

@@ -44,8 +44,28 @@ Le projet est organise en 8 modules :
 - Composition API avec `<script setup lang="ts">`
 - Composables dans `composables/`
 - Pages dans `pages/` avec routing automatique Nuxt
-- Composants dans `components/` avec nommage PascalCase
+- Composants dans `components/` avec nommage PascalCase (sans prefixe de dossier, `pathPrefix: false`)
 - Stores Pinia dans `stores/`
+- Structure Nuxt 4 : tous les fichiers source dans `app/` (pages, components, composables, layouts, stores, etc.)
+
+### Dark Mode (OBLIGATOIRE)
+Chaque nouveau composant, page ou layout DOIT etre compatible dark mode :
+- Utiliser les variantes `dark:` de Tailwind sur tous les elements visuels
+- Fonds : `bg-white dark:bg-dark-card`, `bg-surface-bg dark:bg-surface-dark-bg`
+- Textes : `text-surface-text dark:text-surface-dark-text`, `text-gray-600 dark:text-gray-400`
+- Bordures : `border-gray-200 dark:border-dark-border`
+- Inputs : `dark:bg-dark-input dark:text-surface-dark-text`
+- Hover : `hover:bg-gray-50 dark:hover:bg-dark-hover`
+- Le theme est gere par `stores/ui.ts` (classe `dark` sur `<html>`, persiste dans localStorage)
+- Les variables de couleurs dark sont definies dans `app/assets/css/main.css` via `@theme`
+- Ne jamais hardcoder des couleurs claires sans leur equivalente dark
+
+### Reutilisabilite des Composants (OBLIGATOIRE)
+- Avant de creer un nouveau composant, verifier si un composant existant peut etre reutilise ou etendu via des props
+- Extraire les patterns visuels repetes (cartes, formulaires, boutons, inputs) en composants generiques dans `components/ui/`
+- Les composants UI de base (boutons, inputs, badges, modals) doivent etre parametrables via props et slots, pas dupliques
+- Privilegier la composition (slots, props, emit) plutot que la duplication de code
+- Si un meme pattern apparait plus de 2 fois, l'extraire en composant reutilisable
 
 ### Backend (FastAPI)
 - Routers dans `routers/`

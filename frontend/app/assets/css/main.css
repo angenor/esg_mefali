@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* Design system ESG Mefali */
   --color-brand-green: #10B981;
@@ -9,4 +11,10 @@
   --color-brand-red: #EF4444;
   --color-surface-bg: #F9FAFB;
   --color-surface-text: #111827;
+  --color-surface-dark-bg: #111827;
+  --color-surface-dark-text: #F9FAFB;
+  --color-dark-card: #1F2937;
+  --color-dark-border: #374151;
+  --color-dark-hover: #374151;
+  --color-dark-input: #1F2937;
 }

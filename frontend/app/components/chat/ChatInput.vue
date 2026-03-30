@@ -32,20 +32,20 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="border-t border-gray-200 bg-white p-3">
+  <div class="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-3">
     <div class="flex gap-2 items-end">
       <textarea
         v-model="content"
         :disabled="disabled"
         :maxlength="MAX_LENGTH"
         rows="1"
-        class="flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-        placeholder="Écrivez votre message..."
+        class="flex-1 resize-none rounded-xl border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text px-3 py-2 text-sm focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+        placeholder="Ecrivez votre message..."
         @keydown="handleKeydown"
       />
       <button
         :disabled="!isValid || disabled"
-        class="flex-shrink-0 w-9 h-9 rounded-full bg-brand-green text-white flex items-center justify-center hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="shrink-0 w-9 h-9 rounded-full bg-brand-green text-white flex items-center justify-center hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         @click="handleSubmit"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

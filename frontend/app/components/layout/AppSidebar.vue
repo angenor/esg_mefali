@@ -12,11 +12,11 @@ const navItems = [
 
 <template>
   <aside
-    class="bg-white border-r border-gray-200 flex flex-col h-full transition-all duration-300"
+    class="bg-white dark:bg-dark-card border-r border-gray-200 dark:border-dark-border flex flex-col h-full transition-all duration-300"
     :class="uiStore.sidebarOpen ? 'w-56' : 'w-16'"
   >
     <!-- Logo -->
-    <div class="flex items-center justify-between px-4 py-4 border-b border-gray-200">
+    <div class="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-dark-border">
       <span v-if="uiStore.sidebarOpen" class="text-lg font-bold text-brand-green">
         ESG Mefali
       </span>
@@ -31,8 +31,8 @@ const navItems = [
         v-for="item in navItems"
         :key="item.to"
         :to="item.to"
-        class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-brand-green transition-colors"
-        active-class="bg-emerald-50 text-brand-green font-medium border-r-2 border-brand-green"
+        class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover hover:text-brand-green transition-colors"
+        active-class="bg-emerald-50 dark:bg-emerald-900/20 text-brand-green font-medium border-r-2 border-brand-green"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
@@ -42,9 +42,9 @@ const navItems = [
     </nav>
 
     <!-- Bouton replier -->
-    <div class="border-t border-gray-200 p-3">
+    <div class="border-t border-gray-200 dark:border-dark-border p-3">
       <button
-        class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-hover rounded-lg transition-colors"
         @click="uiStore.toggleSidebar"
       >
         <svg
@@ -60,16 +60,16 @@ const navItems = [
       </button>
     </div>
 
-    <!-- Déconnexion -->
-    <div class="border-t border-gray-200 p-3">
+    <!-- Deconnexion -->
+    <div class="border-t border-gray-200 dark:border-dark-border p-3">
       <button
-        class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-brand-red hover:bg-red-50 rounded-lg transition-colors"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
         @click="logout"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
         </svg>
-        <span v-if="uiStore.sidebarOpen" class="text-xs">Déconnexion</span>
+        <span v-if="uiStore.sidebarOpen" class="text-xs">Deconnexion</span>
       </button>
     </div>
   </aside>
