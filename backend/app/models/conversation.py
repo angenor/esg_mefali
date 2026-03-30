@@ -1,0 +1,36 @@
+"""Modèle SQLAlchemy Conversation."""
+
+import uuid
+
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, TimestampMixin, UUIDMixin
+
+
+class Conversation(UUIDMixin, TimestampMixin, Base):
+    """Représente un fil de conversation entre un utilisateur et l'assistant IA."""
+
+    __tablename__ = "conversations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(
+        String(255), default="Nouvelle conversation", nullable=False
+    )
+    current_module: Mapped[str] = mapped_column(
+        String(50), default="chat", nullable=False
+    )
+
+    # Relations
+    messages: Mapped[list["Message"]] = relationship(  # noqa: F821
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.created_at",
+    )

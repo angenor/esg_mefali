@@ -105,3 +105,10 @@ cd backend && uvicorn app.main:app --reload
 # Base de donnees
 alembic upgrade head
 ```
+
+## Active Technologies
+- Python 3.12, TypeScript 5.x (strict mode) (001-technical-foundation)
+- PostgreSQL 16 + pgvector (001-technical-foundation)
+
+## Recent Changes
+- 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)

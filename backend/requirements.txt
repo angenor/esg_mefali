@@ -1,0 +1,26 @@
+# Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+
+# Base de données
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+alembic>=1.14.0
+pgvector>=0.3.6
+
+# Authentification
+python-jose[cryptography]>=3.3.0
+bcrypt>=5.0.0
+
+# Validation & configuration
+pydantic[email]>=2.10.0
+pydantic-settings>=2.7.0
+
+# LLM & orchestration
+langchain-core>=0.3.0
+langchain-openai>=0.3.0
+langgraph>=0.2.0
+langgraph-checkpoint-postgres>=2.0.0
+
+# HTTP
+httpx>=0.28.0
