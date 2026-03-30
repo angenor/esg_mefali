@@ -99,8 +99,8 @@ pip install -r backend/requirements.txt
 cd frontend && npm run dev
 
 # Backend (toujours activer le venv d'abord)
-source backend/venv/bin/activate
-cd backend && uvicorn app.main:app --reload
+source venv/bin/activate
+uvicorn app.main:app --reload
 
 # Base de donnees
 alembic upgrade head

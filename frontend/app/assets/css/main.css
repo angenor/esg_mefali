@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  /* Design system ESG Mefali */
+  --color-brand-green: #10B981;
+  --color-brand-blue: #3B82F6;
+  --color-brand-purple: #8B5CF6;
+  --color-brand-orange: #F59E0B;
+  --color-brand-red: #EF4444;
+  --color-surface-bg: #F9FAFB;
+  --color-surface-text: #111827;
+}
