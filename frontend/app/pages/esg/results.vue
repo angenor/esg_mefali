@@ -86,6 +86,11 @@ const pillarLabels: Record<string, string> = {
           Resultats ESG
         </h1>
       </div>
+      <!-- Bouton generation rapport PDF -->
+      <ReportButton
+        v-if="esgStore.currentAssessment?.status === 'completed'"
+        :assessment-id="esgStore.currentAssessment.id"
+      />
     </div>
 
     <div class="flex-1 overflow-y-auto p-6">

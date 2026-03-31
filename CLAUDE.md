@@ -136,8 +136,10 @@ alembic upgrade head
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy (async), PyMuPDF, pytesseract, pdf2image, docx2txt, openpyxl, Nuxt 4, Vue Composition API, Pinia, TailwindCSS (004-document-upload-analysis)
 - PostgreSQL 16 + pgvector (embeddings), stockage fichiers local (/uploads/) (004-document-upload-analysis)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy async, PyMuPDF, Nuxt 4, Vue Composition API, Pinia, TailwindCSS, Chart.js, vue-chartjs (005-esg-scoring-assessment)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, WeasyPrint, matplotlib, Jinja2, LangChain (resume IA), SQLAlchemy async, Nuxt 4, Vue Composition API, Pinia, TailwindCSS (006-esg-pdf-reports)
 
 ## Recent Changes
+- 006-esg-pdf-reports: Module generation rapports ESG PDF (WeasyPrint HTML->PDF, graphiques matplotlib SVG, resume executif IA Claude, template 9 sections, conformite UEMOA/BCEAO/ODD, API REST /api/reports, page /reports liste+preview+download, notification chat SSE, dark mode, edge cases generation simultanee)
 - 005-esg-scoring-assessment: Module evaluation et scoring ESG complet (30 criteres E-S-G, ponderation sectorielle, scoring dynamique, esg_scoring_node LangGraph, API REST /api/esg, page resultats /esg, RAG documentaire par critere, benchmark sectoriel avec fallback, historique evaluations Chart.js, reprise evaluations interrompues, 71 tests, 80% couverture)
 - 004-document-upload-analysis: Module complet upload/analyse documents (PyMuPDF, pytesseract, OCR, embeddings pgvector, chat integration, dark mode, 81% couverture tests)
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)
