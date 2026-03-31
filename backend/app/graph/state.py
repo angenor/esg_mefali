@@ -19,3 +19,5 @@ class ConversationState(TypedDict):
     has_document: bool
     esg_assessment: dict | None
     _route_esg: bool
+    carbon_data: dict | None
+    _route_carbon: bool

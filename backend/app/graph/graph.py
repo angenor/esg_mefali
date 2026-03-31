@@ -3,17 +3,19 @@
 from langgraph.graph import END, StateGraph
 
 from app.graph.checkpointer import create_checkpointer
-from app.graph.nodes import chat_node, document_node, esg_scoring_node, router_node
+from app.graph.nodes import carbon_node, chat_node, document_node, esg_scoring_node, router_node
 from app.graph.state import ConversationState
 
 
 def _route_after_router(state: ConversationState) -> str:
     """Décider du prochain nœud après le routeur.
 
-    Priorité : ESG > document > chat.
+    Priorité : ESG > carbon > document > chat.
     """
     if state.get("_route_esg"):
         return "esg_scoring"
+    if state.get("_route_carbon"):
+        return "carbon"
     if state.get("has_document"):
         return "document"
     return "chat"
@@ -33,16 +35,18 @@ def build_graph() -> StateGraph:
     graph.add_node("document", document_node)
     graph.add_node("chat", chat_node)
     graph.add_node("esg_scoring", esg_scoring_node)
+    graph.add_node("carbon", carbon_node)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(
         "router",
         _route_after_router,
-        {"esg_scoring": "esg_scoring", "document": "document", "chat": "chat"},
+        {"esg_scoring": "esg_scoring", "carbon": "carbon", "document": "document", "chat": "chat"},
     )
     graph.add_edge("document", "chat")
     graph.add_edge("chat", END)
     graph.add_edge("esg_scoring", END)
+    graph.add_edge("carbon", END)
 
     return graph
 

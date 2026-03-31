@@ -62,6 +62,30 @@ _ESG_KEYWORDS = [
 ]
 _ESG_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ESG_KEYWORDS]
 
+# Heuristiques pour detecter une demande de bilan carbone
+_CARBON_KEYWORDS = [
+    r"\bempreinte\s+carbone\b", r"\bbilan\s+carbone\b",
+    r"\bcalcul.*carbone\b", r"\bcalculer.*carbone\b",
+    r"\btCO2e?\b", r"\bCO2\b",
+    r"\b[ée]missions?\s+de\s+gaz\b", r"\bgaz\s+[àa]\s+effet\b",
+    r"\bempreinte\s+[ée]cologique\b", r"\bimpact\s+carbone\b",
+    r"\br[ée]duction.*[ée]missions?\b",
+]
+_CARBON_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _CARBON_KEYWORDS]
+
+
+def _detect_carbon_request(text: str) -> bool:
+    """Detecter si un message est une demande de bilan carbone."""
+    return any(pattern.search(text) for pattern in _CARBON_PATTERNS)
+
+
+def _has_active_carbon_assessment(state: dict) -> bool:
+    """Verifier si un bilan carbone est en cours dans le state."""
+    carbon = state.get("carbon_data")
+    if carbon is None:
+        return False
+    return carbon.get("status") == "in_progress"
+
 
 def _detect_esg_request(text: str) -> bool:
     """Détecter si un message est une demande d'évaluation ESG."""
@@ -153,13 +177,18 @@ async def router_node(state: ConversationState) -> ConversationState:
     is_esg_request = _detect_esg_request(last_user_msg) if last_user_msg else False
     has_active_esg = _has_active_esg_assessment(state)
 
+    # Detecter si c'est une demande de bilan carbone ou un bilan en cours
+    carbon_data = state.get("carbon_data")
+    is_carbon_request = _detect_carbon_request(last_user_msg) if last_user_msg else False
+    has_active_carbon = _has_active_carbon_assessment(state)
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg:
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -170,6 +199,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "has_document": has_document,
         "esg_assessment": esg_assessment,
         "_route_esg": is_esg_request or has_active_esg,
+        "carbon_data": carbon_data,
+        "_route_carbon": is_carbon_request or has_active_carbon,
     }
 
 
@@ -388,6 +419,111 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "esg_assessment": esg_assessment,
+    }
+
+
+async def carbon_node(state: ConversationState) -> ConversationState:
+    """Noeud de bilan carbone : conduit le questionnaire conversationnel.
+
+    Gere l'etat du bilan (creation, progression par categorie, finalisation)
+    et utilise un prompt specialise carbone pour interagir avec l'utilisateur.
+    Genere des visualisations inline (chart, gauge, table, timeline).
+    """
+    from app.prompts.carbon import build_carbon_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    carbon_data = state.get("carbon_data")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise pour le prompt carbone
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Si pas de bilan en cours, chercher un bilan a reprendre ou en creer un nouveau
+    if carbon_data is None or carbon_data.get("status") == "completed":
+        from app.modules.carbon.service import build_initial_carbon_state
+
+        # Tenter de reprendre un bilan interrompu
+        resumable = None
+        user_id = state.get("user_id")
+        if user_id:
+            try:
+                import uuid as uuid_mod
+
+                from app.core.database import async_session_factory
+                from app.modules.carbon.service import get_resumable_assessment
+
+                async with async_session_factory() as db:
+                    resumable = await get_resumable_assessment(db, uuid_mod.UUID(str(user_id)))
+            except Exception:
+                logger.exception("Erreur lors de la recherche de bilan carbone a reprendre")
+
+        if resumable is not None:
+            applicable_cats = resumable.completed_categories or []
+            from app.modules.carbon.emission_factors import get_applicable_categories
+            all_applicable = get_applicable_categories(resumable.sector)
+            # Determiner la categorie en cours (premiere non completee)
+            current = all_applicable[0] if all_applicable else "energy"
+            for cat in all_applicable:
+                if cat not in applicable_cats:
+                    current = cat
+                    break
+
+            carbon_data = {
+                "assessment_id": str(resumable.id),
+                "status": "in_progress",
+                "current_category": current,
+                "completed_categories": list(applicable_cats),
+                "applicable_categories": all_applicable,
+                "entries": [],
+                "total_emissions_tco2e": resumable.total_emissions_tco2e or 0.0,
+                "sector": resumable.sector,
+            }
+        else:
+            sector = user_profile.get("sector", "services")
+            if hasattr(sector, "value"):
+                sector = sector.value
+            carbon_data = build_initial_carbon_state(
+                assessment_id="pending",
+                sector=sector,
+            )
+
+    # Construire les categories applicables en texte
+    applicable_text = ", ".join(carbon_data.get("applicable_categories", ["energy", "transport", "waste"]))
+
+    # Construire le prompt carbone
+    system_prompt = build_carbon_prompt(
+        company_context=company_context,
+        applicable_categories=applicable_text,
+    )
+
+    # Injecter l'etat du bilan dans le prompt
+    carbon_state_context = (
+        f"\n\nETAT DU BILAN CARBONE EN COURS :\n"
+        f"- Categorie actuelle : {carbon_data.get('current_category', 'energy')}\n"
+        f"- Categories completees : {carbon_data.get('completed_categories', [])}\n"
+        f"- Categories applicables : {carbon_data.get('applicable_categories', [])}\n"
+        f"- Emissions totales actuelles : {carbon_data.get('total_emissions_tco2e', 0)} tCO2e\n"
+        f"- Entrees collectees : {len(carbon_data.get('entries', []))}\n"
+        f"- Secteur : {carbon_data.get('sector', 'non defini')}\n"
+    )
+    full_prompt = system_prompt + carbon_state_context
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=full_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "carbon_data": carbon_data,
     }
 
 
