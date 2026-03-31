@@ -23,3 +23,5 @@ class ConversationState(TypedDict):
     _route_carbon: bool
     financing_data: dict | None
     _route_financing: bool
+    application_data: dict | None
+    _route_application: bool

@@ -1,0 +1,269 @@
+import { ref } from 'vue'
+import { useApplicationsStore } from '~/stores/applications'
+import type { ApplicationDetail, ApplicationSummary } from '~/stores/applications'
+
+export function useApplications() {
+  const config = useRuntimeConfig()
+  const authStore = useAuthStore()
+  const appStore = useApplicationsStore()
+  const apiBase = config.public.apiBase
+
+  const loading = ref(false)
+  const error = ref('')
+
+  function getHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      ...(authStore.accessToken ? { Authorization: `Bearer ${authStore.accessToken}` } : {}),
+    }
+  }
+
+  async function fetchApplications(status?: string): Promise<void> {
+    loading.value = true
+    appStore.setLoading(true)
+    appStore.setError(null)
+    try {
+      const url = status
+        ? `${apiBase}/applications/?status=${status}`
+        : `${apiBase}/applications/`
+      const response = await fetch(url, { headers: getHeaders() })
+      if (!response.ok) throw new Error('Erreur lors du chargement des dossiers')
+      const data = await response.json()
+      appStore.setApplications(data.items, data.total)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur inconnue'
+      error.value = msg
+      appStore.setError(msg)
+    } finally {
+      loading.value = false
+      appStore.setLoading(false)
+    }
+  }
+
+  async function fetchApplication(id: string): Promise<ApplicationDetail | null> {
+    loading.value = true
+    appStore.setLoading(true)
+    appStore.setError(null)
+    try {
+      const response = await fetch(`${apiBase}/applications/${id}`, { headers: getHeaders() })
+      if (!response.ok) throw new Error('Dossier non trouvé')
+      const data: ApplicationDetail = await response.json()
+      appStore.setCurrentApplication(data)
+      return data
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur inconnue'
+      error.value = msg
+      appStore.setError(msg)
+      return null
+    } finally {
+      loading.value = false
+      appStore.setLoading(false)
+    }
+  }
+
+  async function createApplication(
+    fundId: string,
+    matchId?: string,
+    intermediaryId?: string,
+  ): Promise<ApplicationDetail | null> {
+    loading.value = true
+    try {
+      const body: Record<string, string> = { fund_id: fundId }
+      if (matchId) body.match_id = matchId
+      if (intermediaryId) body.intermediary_id = intermediaryId
+
+      const response = await fetch(`${apiBase}/applications/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Erreur lors de la création du dossier')
+      }
+      const data: ApplicationDetail = await response.json()
+      appStore.setCurrentApplication(data)
+      return data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function generateSection(applicationId: string, sectionKey: string): Promise<boolean> {
+    loading.value = true
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/generate-section`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ section_key: sectionKey }),
+      })
+      if (!response.ok) throw new Error('Erreur lors de la génération')
+      const data = await response.json()
+      appStore.updateSection(sectionKey, {
+        content: data.content,
+        status: data.status,
+        updated_at: data.updated_at,
+      })
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateSection(
+    applicationId: string,
+    sectionKey: string,
+    content?: string,
+    status?: string,
+  ): Promise<boolean> {
+    try {
+      const body: Record<string, string> = {}
+      if (content !== undefined) body.content = content
+      if (status !== undefined) body.status = status
+
+      const response = await fetch(`${apiBase}/applications/${applicationId}/sections/${sectionKey}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour')
+      const data = await response.json()
+      appStore.updateSection(sectionKey, {
+        content: data.content,
+        status: data.status,
+        updated_at: data.updated_at,
+      })
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return false
+    }
+  }
+
+  async function updateStatus(applicationId: string, status: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/status`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Transition de statut invalide')
+      }
+      // Recharger le dossier pour mettre a jour l'etat
+      await fetchApplication(applicationId)
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return false
+    }
+  }
+
+  async function exportApplication(applicationId: string, format: 'pdf' | 'docx'): Promise<void> {
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/export`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ format }),
+      })
+      if (!response.ok) throw new Error("Erreur lors de l'export")
+
+      const blob = await response.blob()
+      const ext = format === 'pdf' ? 'pdf' : 'docx'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dossier.${ext}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+    }
+  }
+
+  async function fetchChecklist(applicationId: string): Promise<unknown[]> {
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/checklist`, {
+        headers: getHeaders(),
+      })
+      if (!response.ok) throw new Error('Erreur lors du chargement de la checklist')
+      const data = await response.json()
+      return data.data || []
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return []
+    }
+  }
+
+  async function simulateFinancing(applicationId: string): Promise<Record<string, unknown> | null> {
+    loading.value = true
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/simulate`, {
+        method: 'POST',
+        headers: getHeaders(),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Erreur lors de la simulation')
+      }
+      const data = await response.json()
+      if (appStore.currentApplication) {
+        appStore.setCurrentApplication({
+          ...appStore.currentApplication,
+          simulation: data.data,
+        })
+      }
+      return data.data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function generatePrepSheet(applicationId: string): Promise<void> {
+    try {
+      const response = await fetch(`${apiBase}/applications/${applicationId}/prep-sheet`, {
+        method: 'POST',
+        headers: getHeaders(),
+      })
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Erreur lors de la génération')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'fiche_preparation.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+    }
+  }
+
+  return {
+    loading,
+    error,
+    fetchApplications,
+    fetchApplication,
+    createApplication,
+    generateSection,
+    updateSection,
+    updateStatus,
+    exportApplication,
+    fetchChecklist,
+    simulateFinancing,
+    generatePrepSheet,
+  }
+}

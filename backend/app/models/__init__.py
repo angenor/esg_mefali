@@ -16,3 +16,4 @@ from app.models.financing import (  # noqa: F401
     FundMatch,
     Intermediary,
 )
+from app.models.application import FundApplication  # noqa: F401
