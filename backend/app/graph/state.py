@@ -10,3 +10,10 @@ class ConversationState(TypedDict):
     """État partagé entre les nœuds du graphe de conversation."""
 
     messages: Annotated[list, add_messages]
+    user_profile: dict | None
+    context_memory: list[str]
+    profile_updates: list[dict] | None
+    profiling_instructions: str | None
+    document_upload: dict | None
+    document_analysis_summary: str | None
+    has_document: bool

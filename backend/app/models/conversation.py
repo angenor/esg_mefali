@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +26,7 @@ class Conversation(UUIDMixin, TimestampMixin, Base):
     current_module: Mapped[str] = mapped_column(
         String(50), default="chat", nullable=False
     )
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relations
     messages: Mapped[list["Message"]] = relationship(  # noqa: F821

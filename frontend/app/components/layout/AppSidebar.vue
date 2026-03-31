@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import { useUiStore } from '~/stores/ui'
 import { useAuth } from '~/composables/useAuth'
+import { useCompanyStore } from '~/stores/company'
+import { useCompanyProfile } from '~/composables/useCompanyProfile'
 
 const uiStore = useUiStore()
 const { logout } = useAuth()
+const companyStore = useCompanyStore()
+const { fetchCompletion } = useCompanyProfile()
 
 const navItems = [
   { label: 'Tableau de bord', to: '/', icon: 'dashboard' },
   { label: 'Chat IA', to: '/chat', icon: 'chat' },
+  { label: 'Documents', to: '/documents', icon: 'documents' },
+  { label: 'Profil', to: '/profile', icon: 'profile' },
 ]
+
+const completionPct = computed(() => Math.round(companyStore.overallCompletion))
+
+function completionColor(pct: number): string {
+  if (pct >= 80) return 'bg-emerald-500 text-white'
+  if (pct >= 50) return 'bg-blue-500 text-white'
+  if (pct > 0) return 'bg-amber-500 text-white'
+  return 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+}
+
+// Charger la complétion au montage
+onMounted(() => {
+  fetchCompletion()
+})
 </script>
 
 <template>
@@ -36,14 +56,30 @@ const navItems = [
         active-class="bg-emerald-50 dark:bg-emerald-900/20 text-brand-green font-medium border-r-2 border-brand-green"
       >
         <!-- Icone dashboard -->
-        <svg v-if="item.icon === 'dashboard'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <svg v-if="item.icon === 'dashboard'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
         </svg>
         <!-- Icone chat -->
-        <svg v-else-if="item.icon === 'chat'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <svg v-else-if="item.icon === 'chat'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
         </svg>
-        <span v-if="uiStore.sidebarOpen">{{ item.label }}</span>
+        <!-- Icone documents -->
+        <svg v-else-if="item.icon === 'documents'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+        </svg>
+        <!-- Icone profil -->
+        <svg v-else-if="item.icon === 'profile'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H4a1 1 0 010-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" clip-rule="evenodd" />
+        </svg>
+        <span v-if="uiStore.sidebarOpen" class="flex-1">{{ item.label }}</span>
+        <!-- Badge complétion profil -->
+        <span
+          v-if="item.icon === 'profile' && uiStore.sidebarOpen && completionPct >= 0"
+          class="text-xs font-medium px-1.5 py-0.5 rounded-full"
+          :class="completionColor(completionPct)"
+        >
+          {{ completionPct }}%
+        </span>
       </NuxtLink>
     </nav>
 
@@ -72,7 +108,7 @@ const navItems = [
         class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
         @click="logout"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
         </svg>
         <span v-if="uiStore.sidebarOpen" class="text-xs">Deconnexion</span>

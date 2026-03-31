@@ -1,6 +1,6 @@
-"""Prompt système de base pour l'assistant ESG Mefali."""
+"""Prompt système dynamique pour l'assistant ESG Mefali."""
 
-SYSTEM_PROMPT = """Tu es l'assistant IA de la plateforme ESG Mefali, spécialisé dans la finance durable \
+BASE_PROMPT = """Tu es l'assistant IA de la plateforme ESG Mefali, spécialisé dans la finance durable \
 et l'accompagnement ESG des PME africaines francophones.
 
 Tu es professionnel, bienveillant et pédagogue. Tu t'exprimes en français.
@@ -71,5 +71,155 @@ Règles visuelles :
 - Accompagne toujours le bloc d'une explication textuelle
 - Privilégie radar pour les scores ESG, gauge pour les scores individuels
 - Utilise la palette : vert #10B981 (positif), bleu #3B82F6 (principal), violet #8B5CF6 (secondaire), orange #F59E0B (attention), rouge #EF4444 (alerte)
-- Le JSON doit être valide et compact (sur une seule ligne dans le bloc)
-"""
+- Le JSON doit être valide et compact (sur une seule ligne dans le bloc)"""
+
+# Référence statique pour compatibilité avec les imports existants
+SYSTEM_PROMPT = BASE_PROMPT
+
+
+DOCUMENT_VISUAL_INSTRUCTIONS = """Instructions pour les documents analysés :
+Quand un document a été analysé et que tu as accès à son résumé et ses données, utilise les blocs visuels adaptés :
+- **Bilan financier** : utilise un ```table avec les chiffres clés (CA, résultat net, effectif, etc.)
+- **Rapport d'activité** : utilise un ```mermaid (diagramme de flux ou timeline) pour les jalons
+- **Facture** : utilise un ```table avec les lignes de facturation
+- **Contrat** : résume les clauses clés dans un ```table
+- **Politique interne** : utilise un ```progress pour montrer les engagements ESG
+
+Toujours accompagner les blocs visuels d'explications textuelles contextualisées.
+Quand des informations ESG sont extraites, utilise un ```radar ou ```progress pour les visualiser par pilier."""
+
+
+def build_system_prompt(
+    user_profile: dict | None = None,
+    context_memory: list[str] | None = None,
+    profiling_instructions: str | None = None,
+    document_analysis_summary: str | None = None,
+) -> str:
+    """Construire le prompt système avec le profil, la mémoire, le profilage guidé et le contexte document."""
+    sections: list[str] = [BASE_PROMPT]
+
+    # Injecter le profil entreprise
+    if user_profile:
+        profile_lines = _format_profile_section(user_profile)
+        if profile_lines:
+            sections.append(profile_lines)
+
+    # Injecter les résumés de conversations précédentes
+    if context_memory:
+        memory_section = _format_memory_section(context_memory)
+        if memory_section:
+            sections.append(memory_section)
+
+    # Injecter le contexte document analysé
+    if document_analysis_summary:
+        sections.append(
+            f"CONTEXTE DOCUMENT :\n{document_analysis_summary}\n\n"
+            "Utilise ces informations pour répondre de manière contextualisée. "
+            "Propose une analyse pertinente avec des blocs visuels adaptés au type de document."
+        )
+        sections.append(DOCUMENT_VISUAL_INSTRUCTIONS)
+
+    # Injecter les instructions de profilage guidé
+    if profiling_instructions:
+        sections.append(profiling_instructions)
+
+    # Instructions blocs visuels pour le profil
+    if user_profile:
+        sections.append(_format_profile_visual_instructions(user_profile))
+
+    return "\n\n".join(sections)
+
+
+def _format_profile_section(profile: dict) -> str:
+    """Formater la section profil pour le prompt."""
+    field_labels = {
+        "company_name": "Nom",
+        "sector": "Secteur",
+        "sub_sector": "Sous-secteur",
+        "employee_count": "Employés",
+        "annual_revenue_xof": "CA (FCFA)",
+        "city": "Ville",
+        "country": "Pays",
+        "year_founded": "Année de création",
+        "has_waste_management": "Gestion déchets",
+        "has_energy_policy": "Politique énergétique",
+        "has_gender_policy": "Politique genre",
+        "has_training_program": "Programme formation",
+        "has_financial_transparency": "Transparence financière",
+        "governance_structure": "Gouvernance",
+        "environmental_practices": "Pratiques environnementales",
+        "social_practices": "Pratiques sociales",
+        "notes": "Notes",
+    }
+
+    filled_fields: list[str] = []
+    for field, label in field_labels.items():
+        value = profile.get(field)
+        if value is not None and value != "" and value is not False:
+            if isinstance(value, bool):
+                display = "Oui" if value else "Non"
+            else:
+                display = str(value)
+            filled_fields.append(f"- {label} : {display}")
+
+    if not filled_fields:
+        return ""
+
+    lines = "\n".join(filled_fields)
+    return (
+        "Profil de l'entreprise de l'utilisateur :\n"
+        f"{lines}\n\n"
+        "IMPORTANT : Tu connais déjà ces informations. "
+        "Ne repose JAMAIS une question dont la réponse est dans ce profil. "
+        "Adapte tes conseils au secteur, à la localisation et à la taille de cette entreprise."
+    )
+
+
+def _format_profile_visual_instructions(profile: dict) -> str:
+    """Instructions pour utiliser les blocs visuels en lien avec le profil."""
+    from app.modules.company.service import IDENTITY_FIELDS, ESG_FIELDS
+
+    identity_filled = sum(
+        1 for f in IDENTITY_FIELDS
+        if profile.get(f) is not None and profile.get(f) != ""
+    )
+    esg_filled = sum(
+        1 for f in ESG_FIELDS
+        if profile.get(f) is not None and profile.get(f) != ""
+    )
+    identity_pct = round((identity_filled / len(IDENTITY_FIELDS)) * 100, 1)
+    esg_pct = round((esg_filled / len(ESG_FIELDS)) * 100, 1)
+    overall_pct = round((identity_pct + esg_pct) / 2, 1)
+
+    instructions = (
+        "Quand tu mentionnes le profil de l'utilisateur ou sa complétion, "
+        "utilise un bloc ```progress pour montrer la progression par catégorie "
+        f"(Identité : {identity_pct}%, ESG : {esg_pct}%)."
+    )
+
+    if overall_pct >= 100:
+        instructions += (
+            "\nLe profil est COMPLET à 100% ! Célèbre avec un bloc ```gauge "
+            '{"value":100,"max":100,"label":"Profil complet","thresholds":'
+            '[{"limit":40,"color":"#EF4444"},{"limit":70,"color":"#F59E0B"},'
+            '{"limit":100,"color":"#10B981"}],"unit":"%"}'
+        )
+
+    return instructions
+
+
+def _format_memory_section(summaries: list[str]) -> str:
+    """Formater la section mémoire contextuelle."""
+    if not summaries:
+        return ""
+
+    formatted = "\n\n".join(
+        f"Conversation {i + 1} :\n{summary}"
+        for i, summary in enumerate(summaries)
+    )
+    return (
+        "Résumés des conversations précédentes (pour continuité contextuelle) :\n"
+        f"{formatted}\n\n"
+        "Utilise ces résumés pour maintenir la continuité. "
+        "Ne répète pas les informations déjà discutées."
+    )
