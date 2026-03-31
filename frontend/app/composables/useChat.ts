@@ -21,6 +21,10 @@ export function useChat() {
     filename: string
     status: 'uploaded' | 'extracting' | 'analyzing' | 'done' | 'error'
   } | null>(null)
+  const reportSuggestion = ref<{
+    assessmentId: string
+    message: string
+  } | null>(null)
 
   function getHeaders(): Record<string, string> {
     return {
@@ -153,6 +157,7 @@ export function useChat() {
               status?: string
               summary?: string
               document_type?: string
+              assessment_id?: string
             }
 
             if (event.type === 'token' && event.content) {
@@ -214,6 +219,11 @@ export function useChat() {
                 identity_fields: { filled: [], missing: [] },
                 esg_fields: { filled: [], missing: [] },
               })
+            } else if (event.type === 'report_suggestion' && event.assessment_id) {
+              reportSuggestion.value = {
+                assessmentId: event.assessment_id,
+                message: event.message || 'Votre evaluation ESG est terminee ! Generez un rapport PDF.',
+              }
             } else if (event.type === 'error') {
               error.value = event.content || 'Erreur du service IA'
             }
@@ -286,6 +296,7 @@ export function useChat() {
     searchQuery,
     filteredConversations,
     documentProgress,
+    reportSuggestion,
     fetchConversations,
     createConversation,
     selectConversation,

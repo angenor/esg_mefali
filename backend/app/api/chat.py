@@ -541,6 +541,33 @@ async def send_message(
 
                 yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
 
+                # Notification rapport : si une evaluation ESG vient d'etre completee
+                try:
+                    from app.models.esg import ESGAssessment, ESGStatusEnum
+                    latest_assessment_result = await sse_db.execute(
+                        select(ESGAssessment)
+                        .where(
+                            ESGAssessment.user_id == user_id,
+                            ESGAssessment.status == ESGStatusEnum.completed,
+                        )
+                        .order_by(ESGAssessment.updated_at.desc())
+                        .limit(1)
+                    )
+                    latest_completed = latest_assessment_result.scalar_one_or_none()
+                    if latest_completed:
+                        # Verifier qu'il n'y a pas deja un rapport pour cette evaluation
+                        from app.models.report import Report
+                        existing_report = await sse_db.execute(
+                            select(Report).where(
+                                Report.assessment_id == latest_completed.id,
+                                Report.user_id == user_id,
+                            ).limit(1)
+                        )
+                        if existing_report.scalar_one_or_none() is None:
+                            yield f"data: {json.dumps({'type': 'report_suggestion', 'assessment_id': str(latest_completed.id), 'message': 'Votre evaluation ESG est terminee ! Vous pouvez generer un rapport PDF detaille.'})}\n\n"
+                except Exception:
+                    logger.debug("Notification rapport : aucune evaluation completee ou erreur")
+
                 # Extraction de profil en parallèle (après le streaming)
                 if should_extract:
                     try:

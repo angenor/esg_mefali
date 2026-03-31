@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport ESG — {{ company_name }}</title>
+  <style>{{ css }}</style>
+</head>
+<body>
+
+<!-- Section 1 : Couverture -->
+<div class="cover">
+  <div class="cover-title">Rapport d'Evaluation ESG</div>
+  <div class="cover-subtitle">Conformite & Performance Durable</div>
+  <div class="cover-company">{{ company_name }}</div>
+  <div class="cover-sector">Secteur : {{ sector_label }}</div>
+  <div class="cover-score-box">
+    <div class="cover-score-value">{{ overall_score | round(1) }}<span style="font-size: 18pt;">/100</span></div>
+    <div class="cover-score-label">Score ESG Global</div>
+  </div>
+  <div class="cover-date">Genere le {{ generation_date }}</div>
+  <div class="cover-footer">ESG Mefali — Plateforme IA pour la finance durable des PME africaines</div>
+</div>
+
+<!-- Section 2 : Resume executif -->
+<section>
+  <h2>1. Resume Executif</h2>
+  <p>{{ executive_summary }}</p>
+
+  <div class="score-overview">
+    <div class="score-card">
+      <div class="score-card-value score-env">{{ environment_score | round(1) }}</div>
+      <div class="score-card-label">Environnement</div>
+    </div>
+    <div class="score-card">
+      <div class="score-card-value score-soc">{{ social_score | round(1) }}</div>
+      <div class="score-card-label">Social</div>
+    </div>
+    <div class="score-card">
+      <div class="score-card-value score-gov">{{ governance_score | round(1) }}</div>
+      <div class="score-card-label">Gouvernance</div>
+    </div>
+    <div class="score-card">
+      <div class="score-card-value score-overall">{{ overall_score | round(1) }}</div>
+      <div class="score-card-label">Global</div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 : Scores detailles -->
+<section>
+  <h2>2. Scores Detailles par Pilier</h2>
+
+  <div class="chart-container">
+    {{ radar_chart_svg }}
+  </div>
+
+  {% for pillar_key, pillar_label in [("environment", "Environnement"), ("social", "Social"), ("governance", "Gouvernance")] %}
+  {% if pillar_criteria[pillar_key] %}
+  <h3>{{ pillar_label }}</h3>
+  <div class="chart-container">
+    {{ pillar_bar_charts[pillar_key] }}
+  </div>
+  {% endif %}
+  {% endfor %}
+</section>
+
+<!-- Section 4 : Points forts -->
+<section>
+  <h2>3. Points Forts</h2>
+  {% if strengths %}
+  <ul class="strengths-list">
+    {% for s in strengths %}
+    <li>
+      <span class="item-score">{{ s.score }}/10</span>
+      <span class="item-title">{{ s.title }}</span>
+      {{ s.description }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Aucun point fort identifie pour le moment.</p>
+  {% endif %}
+</section>
+
+<!-- Section 5 : Axes d'amelioration -->
+<section>
+  <h2>4. Axes d'Amelioration</h2>
+  {% if gaps %}
+  <ul class="gaps-list">
+    {% for g in gaps %}
+    <li>
+      <span class="item-score">{{ g.score }}/10</span>
+      <span class="item-title">{{ g.title }}</span>
+      Pilier : {{ g.pillar | capitalize }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Aucun axe d'amelioration identifie.</p>
+  {% endif %}
+</section>
+
+<!-- Section 6 : Benchmarking sectoriel -->
+<section>
+  <h2>5. Benchmarking Sectoriel</h2>
+  {% if benchmark_chart_svg %}
+  <p>Comparaison de votre performance avec la moyenne du secteur <strong>{{ sector_label }}</strong>.</p>
+  <div class="chart-container">
+    {{ benchmark_chart_svg }}
+  </div>
+  {% if benchmark_position %}
+  <p><strong>Position</strong> : {{ benchmark_position_label }}</p>
+  {% endif %}
+  {% else %}
+  <p>Les donnees de benchmarking ne sont pas disponibles pour votre secteur.</p>
+  {% endif %}
+</section>
+
+<!-- Section 7 : Conformite reglementaire UEMOA/BCEAO -->
+<section>
+  <h2>6. Conformite Reglementaire UEMOA / BCEAO</h2>
+  <p>Ce tableau presente l'alignement de votre entreprise avec les principales taxonomies et reglementations en vigueur dans l'espace UEMOA et CEDEAO.</p>
+
+  <h3>6.1 Alignement reglementaire</h3>
+  <table class="compliance-table">
+    <thead>
+      <tr>
+        <th>Referentiel</th>
+        <th>Domaine</th>
+        <th>Pilier ESG</th>
+        <th>Alignement</th>
+        <th>Observations</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Taxonomie verte UEMOA</td>
+        <td>Finance durable / Transition ecologique</td>
+        <td>Environnement</td>
+        <td class="{% if environment_score >= 60 %}compliance-pass{% elif environment_score >= 40 %}compliance-partial{% else %}compliance-fail{% endif %}">{% if environment_score >= 60 %}Aligne{% elif environment_score >= 40 %}Partiellement aligne{% else %}Non aligne{% endif %}</td>
+        <td>Score E : {{ environment_score | round(1) }}/100. {% if environment_score >= 60 %}Eligible aux financements verts UEMOA.{% elif environment_score >= 40 %}Des efforts supplementaires sont necessaires pour atteindre l'eligibilite.{% else %}Un plan d'action environnemental est recommande.{% endif %}</td>
+      </tr>
+      <tr>
+        <td>Circulaire BCEAO n°002-2024</td>
+        <td>Reporting ESG des institutions financieres</td>
+        <td>Gouvernance</td>
+        <td class="{% if governance_score >= 60 %}compliance-pass{% elif governance_score >= 40 %}compliance-partial{% else %}compliance-fail{% endif %}">{% if governance_score >= 60 %}Conforme{% elif governance_score >= 40 %}Partiellement conforme{% else %}Non conforme{% endif %}</td>
+        <td>Score G : {{ governance_score | round(1) }}/100. {% if governance_score >= 60 %}Les pratiques de gouvernance repondent aux attentes de la BCEAO.{% elif governance_score >= 40 %}Renforcer la transparence et l'ethique pour atteindre la conformite.{% else %}Mise en conformite urgente recommandee.{% endif %}</td>
+      </tr>
+      <tr>
+        <td>Directive CEDEAO RSE</td>
+        <td>Responsabilite sociale des entreprises</td>
+        <td>Social</td>
+        <td class="{% if social_score >= 60 %}compliance-pass{% elif social_score >= 40 %}compliance-partial{% else %}compliance-fail{% endif %}">{% if social_score >= 60 %}Conforme{% elif social_score >= 40 %}Partiellement conforme{% else %}Non conforme{% endif %}</td>
+        <td>Score S : {{ social_score | round(1) }}/100. {% if social_score >= 60 %}Bonne integration des enjeux sociaux.{% elif social_score >= 40 %}Des progres sont attendus sur les conditions de travail et l'inclusion.{% else %}Plan d'amelioration sociale necessaire.{% endif %}</td>
+      </tr>
+      <tr>
+        <td>Gold Standard / Verra (REDD+)</td>
+        <td>Credits carbone et certification climat</td>
+        <td>Global</td>
+        <td class="{% if overall_score >= 70 %}compliance-pass{% elif overall_score >= 50 %}compliance-partial{% else %}compliance-fail{% endif %}">{% if overall_score >= 70 %}Eligible{% elif overall_score >= 50 %}Eligible sous conditions{% else %}Non eligible{% endif %}</td>
+        <td>Score global : {{ overall_score | round(1) }}/100. {% if overall_score >= 70 %}L'entreprise peut postuler a des certifications carbone internationales.{% elif overall_score >= 50 %}Quelques ameliorations sont necessaires pour l'eligibilite pleine.{% else %}Le score global doit atteindre 70/100 pour l'eligibilite.{% endif %}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 Objectifs de Developpement Durable (ODD)</h3>
+  <p>Contribution estimee de votre entreprise aux ODD cibles :</p>
+  <table class="compliance-table">
+    <thead>
+      <tr>
+        <th>ODD</th>
+        <th>Intitule</th>
+        <th>Pilier(s) lie(s)</th>
+        <th>Contribution</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>ODD 8</strong></td>
+        <td>Travail decent et croissance economique</td>
+        <td>Social / Gouvernance</td>
+        <td>{% if (social_score + governance_score) / 2 >= 60 %}Forte{% elif (social_score + governance_score) / 2 >= 40 %}Moderee{% else %}Faible{% endif %}</td>
+      </tr>
+      <tr>
+        <td><strong>ODD 9</strong></td>
+        <td>Industrie, innovation et infrastructure</td>
+        <td>Gouvernance</td>
+        <td>{% if governance_score >= 60 %}Forte{% elif governance_score >= 40 %}Moderee{% else %}Faible{% endif %}</td>
+      </tr>
+      <tr>
+        <td><strong>ODD 13</strong></td>
+        <td>Mesures relatives a la lutte contre le changement climatique</td>
+        <td>Environnement</td>
+        <td>{% if environment_score >= 60 %}Forte{% elif environment_score >= 40 %}Moderee{% else %}Faible{% endif %}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Section 8 : Plan d'action et recommandations -->
+<section>
+  <h2>7. Plan d'Action</h2>
+  {% if recommendations %}
+  {% for rec in recommendations %}
+  <div class="recommendation-card">
+    <span class="priority">P{{ rec.priority }}</span>
+    <span class="timeline">{{ rec.timeline }}</span>
+    <strong>{{ rec.title }}</strong>
+    <p>{{ rec.description }}</p>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p>Aucune recommandation pour le moment.</p>
+  {% endif %}
+</section>
+
+<!-- Section 9 : Methodologie -->
+<section>
+  <h2>8. Methodologie</h2>
+  <p>Ce rapport a ete genere par la plateforme <strong>ESG Mefali</strong>, un outil d'evaluation ESG base sur l'intelligence artificielle, concu pour les PME africaines francophones.</p>
+
+  <h3>Grille d'evaluation</h3>
+  <p>L'evaluation porte sur <strong>30 criteres</strong> repartis en 3 piliers :</p>
+  <ul style="margin-left: 5mm; margin-bottom: 3mm;">
+    <li><strong>Environnement</strong> (E1-E10) : gestion des dechets, energie, emissions, ressources naturelles, biodiversite, eau, politique environnementale, energies renouvelables, transport, economie circulaire</li>
+    <li><strong>Social</strong> (S1-S10) : conditions de travail, egalite H/F, formation, impact communautaire, sante-securite, remuneration, inclusion, dialogue social, fournisseurs locaux, satisfaction</li>
+    <li><strong>Gouvernance</strong> (G1-G10) : transparence, prises de decisions, ethique, conformite, anti-corruption, gestion des risques, engagement du dirigeant, communication, protection des donnees, succession</li>
+  </ul>
+
+  <h3>Calcul du score</h3>
+  <p>Chaque critere est note de 0 a 10 par l'IA conversationnelle, en se basant sur les reponses de l'utilisateur et les documents fournis. Les scores sont ponderes selon le secteur d'activite pour refleter les enjeux materiels specifiques.</p>
+
+  <div class="methodology-note">
+    <strong>Note :</strong> Ce rapport constitue une evaluation indicative. Il ne remplace pas un audit ESG formel realise par un cabinet certifie. Les scores et recommandations sont bases sur les informations declaratives fournies par l'entreprise.
+  </div>
+</section>
+
+</body>
+</html>

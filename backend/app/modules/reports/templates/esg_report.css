@@ -1,0 +1,317 @@
+/* Styles CSS print pour le rapport ESG PDF — WeasyPrint */
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 25mm 18mm;
+  @bottom-center {
+    content: "Rapport ESG — " counter(page) " / " counter(pages);
+    font-size: 8pt;
+    color: #64748b;
+    font-family: 'Helvetica', 'Arial', sans-serif;
+  }
+}
+
+@page :first {
+  margin: 0;
+  @bottom-center {
+    content: none;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+/* --- Couverture --- */
+.cover {
+  width: 210mm;
+  height: 297mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #064e3b 100%);
+  color: white;
+  page-break-after: always;
+}
+
+.cover-title {
+  font-size: 28pt;
+  font-weight: bold;
+  margin-bottom: 8mm;
+  letter-spacing: 0.5pt;
+}
+
+.cover-subtitle {
+  font-size: 14pt;
+  font-weight: 300;
+  margin-bottom: 15mm;
+  color: #94a3b8;
+}
+
+.cover-company {
+  font-size: 20pt;
+  font-weight: bold;
+  margin-bottom: 4mm;
+  color: #22c55e;
+}
+
+.cover-sector {
+  font-size: 12pt;
+  color: #94a3b8;
+  margin-bottom: 15mm;
+}
+
+.cover-score-box {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8mm 15mm;
+  margin-bottom: 15mm;
+}
+
+.cover-score-value {
+  font-size: 48pt;
+  font-weight: bold;
+  color: #22c55e;
+}
+
+.cover-score-label {
+  font-size: 11pt;
+  color: #94a3b8;
+}
+
+.cover-date {
+  font-size: 10pt;
+  color: #64748b;
+  margin-top: 10mm;
+}
+
+.cover-footer {
+  font-size: 8pt;
+  color: #475569;
+  margin-top: 5mm;
+}
+
+/* --- Sections --- */
+section {
+  break-before: page;
+}
+
+section:first-of-type {
+  break-before: auto;
+}
+
+h2 {
+  font-size: 16pt;
+  font-weight: bold;
+  color: #0f172a;
+  border-bottom: 2px solid #22c55e;
+  padding-bottom: 3mm;
+  margin-bottom: 5mm;
+}
+
+h3 {
+  font-size: 12pt;
+  font-weight: bold;
+  color: #1e293b;
+  margin-top: 5mm;
+  margin-bottom: 3mm;
+}
+
+p {
+  margin-bottom: 3mm;
+  text-align: justify;
+}
+
+/* --- Score global --- */
+.score-overview {
+  display: flex;
+  justify-content: space-around;
+  margin: 5mm 0;
+  gap: 4mm;
+}
+
+.score-card {
+  flex: 1;
+  text-align: center;
+  padding: 4mm;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.score-card-value {
+  font-size: 24pt;
+  font-weight: bold;
+}
+
+.score-card-label {
+  font-size: 9pt;
+  color: #64748b;
+  margin-top: 1mm;
+}
+
+.score-env { color: #22c55e; }
+.score-soc { color: #3b82f6; }
+.score-gov { color: #a855f7; }
+.score-overall { color: #f59e0b; }
+
+/* --- Graphiques --- */
+.chart-container {
+  text-align: center;
+  margin: 5mm 0;
+}
+
+.chart-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- Points forts / axes amelioration --- */
+.strengths-list,
+.gaps-list {
+  list-style: none;
+  padding: 0;
+}
+
+.strengths-list li,
+.gaps-list li {
+  padding: 3mm 4mm;
+  margin-bottom: 2mm;
+  border-radius: 6px;
+  font-size: 10pt;
+}
+
+.strengths-list li {
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+}
+
+.gaps-list li {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+}
+
+.item-title {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 1mm;
+}
+
+.item-score {
+  font-size: 9pt;
+  color: #64748b;
+  float: right;
+}
+
+/* --- Tableau conformite --- */
+.compliance-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4mm 0;
+  font-size: 9pt;
+}
+
+.compliance-table th,
+.compliance-table td {
+  border: 1px solid #e2e8f0;
+  padding: 2.5mm 3mm;
+  text-align: left;
+}
+
+.compliance-table th {
+  background: #f1f5f9;
+  font-weight: bold;
+  color: #0f172a;
+}
+
+.compliance-table tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+/* --- Recommandations / Plan d'action --- */
+.recommendation-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 3mm 4mm;
+  margin-bottom: 3mm;
+  break-inside: avoid;
+}
+
+.recommendation-card .priority {
+  display: inline-block;
+  background: #f59e0b;
+  color: white;
+  font-size: 8pt;
+  font-weight: bold;
+  padding: 1mm 2.5mm;
+  border-radius: 4px;
+  margin-right: 2mm;
+}
+
+.recommendation-card .timeline {
+  font-size: 8pt;
+  color: #64748b;
+  float: right;
+}
+
+/* --- Conformite badges --- */
+.compliance-pass {
+  color: #15803d;
+  font-weight: bold;
+}
+
+.compliance-partial {
+  color: #b45309;
+  font-weight: bold;
+}
+
+.compliance-fail {
+  color: #dc2626;
+  font-weight: bold;
+}
+
+/* --- Methodologie --- */
+.methodology-note {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4mm;
+  font-size: 9pt;
+  color: #475569;
+  margin-top: 4mm;
+}
+
+/* --- Controle de la pagination --- */
+h2, h3 {
+  break-after: avoid;
+}
+
+.chart-container,
+.recommendation-card,
+.compliance-table,
+.score-overview {
+  break-inside: avoid;
+}
+
+/* Eviter les sections trop courtes en bas de page */
+section > p:last-child,
+section > ul:last-child,
+section > table:last-child {
+  break-before: avoid;
+}
+
+/* Section conformite : eviter coupure entre les 2 tableaux */
+section h3 + p + table {
+  break-before: avoid;
+}

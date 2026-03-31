@@ -16,6 +16,7 @@ const {
   searchQuery,
   filteredConversations,
   documentProgress,
+  reportSuggestion,
   fetchConversations,
   createConversation,
   selectConversation,
@@ -187,6 +188,34 @@ async function handleRename(conversationId: string, title: string) {
             :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
           />
         </div>
+      </div>
+
+      <!-- Notification rapport disponible -->
+      <div
+        v-if="reportSuggestion"
+        class="mx-4 mb-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg flex items-center gap-3"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span class="flex-1 text-sm text-emerald-800 dark:text-emerald-300">
+          {{ reportSuggestion.message }}
+        </span>
+        <NuxtLink
+          :to="`/esg/results?id=${reportSuggestion.assessmentId}`"
+          class="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap"
+          @click="reportSuggestion = null"
+        >
+          Generer le rapport
+        </NuxtLink>
+        <button
+          class="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-300"
+          @click="reportSuggestion = null"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       <!-- Erreur -->
