@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Evaluation ESG', to: '/esg', icon: 'esg' },
   { label: 'Empreinte Carbone', to: '/carbon', icon: 'carbon' },
   { label: 'Financement', to: '/financing', icon: 'financing' },
+  { label: 'Credit Vert', to: '/credit-score', icon: 'credit' },
   { label: 'Dossiers', to: '/applications', icon: 'applications' },
   { label: 'Rapports', to: '/reports', icon: 'reports' },
   { label: 'Documents', to: '/documents', icon: 'documents' },
@@ -80,6 +81,10 @@ onMounted(() => {
         <svg v-else-if="item.icon === 'financing'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
           <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd" />
+        </svg>
+        <!-- Icone credit vert -->
+        <svg v-else-if="item.icon === 'credit'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
         </svg>
         <!-- Icone rapports -->
         <svg v-else-if="item.icon === 'reports'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">

@@ -17,3 +17,4 @@ from app.models.financing import (  # noqa: F401
     Intermediary,
 )
 from app.models.application import FundApplication  # noqa: F401
+from app.models.credit import CreditDataPoint, CreditScore  # noqa: F401
