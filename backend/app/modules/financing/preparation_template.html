@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fiche de Preparation — {{ fund_name }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm;
+  }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11pt;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }
+  .header {
+    text-align: center;
+    border-bottom: 3px solid #059669;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    color: #059669;
+    font-size: 18pt;
+    margin: 0 0 4px 0;
+  }
+  .header .subtitle {
+    color: #6b7280;
+    font-size: 10pt;
+  }
+  h2 {
+    color: #059669;
+    font-size: 13pt;
+    border-bottom: 1px solid #d1d5db;
+    padding-bottom: 4px;
+    margin-top: 20px;
+  }
+  .score-box {
+    display: inline-block;
+    background: {% if compatibility_score >= 70 %}#d1fae5{% elif compatibility_score >= 50 %}#dbeafe{% elif compatibility_score >= 30 %}#fef3c7{% else %}#fee2e2{% endif %};
+    color: {% if compatibility_score >= 70 %}#065f46{% elif compatibility_score >= 50 %}#1e40af{% elif compatibility_score >= 30 %}#92400e{% else %}#991b1b{% endif %};
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 20pt;
+    font-weight: bold;
+    text-align: center;
+    min-width: 60px;
+  }
+  .criteria-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+  }
+  .criteria-table th, .criteria-table td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 10px;
+    text-align: left;
+    font-size: 10pt;
+  }
+  .criteria-table th {
+    background: #f9fafb;
+    font-weight: 600;
+  }
+  .bar {
+    height: 12px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+  .bar-bg {
+    background: #e5e7eb;
+    width: 100%;
+    border-radius: 6px;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .info-item {
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 6px;
+  }
+  .info-label {
+    font-size: 9pt;
+    color: #6b7280;
+    text-transform: uppercase;
+  }
+  .info-value {
+    font-weight: 600;
+    font-size: 11pt;
+  }
+  .missing-box {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0;
+  }
+  .intermediary-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 14px;
+    margin: 12px 0;
+  }
+  .documents-list {
+    list-style: none;
+    padding: 0;
+  }
+  .documents-list li {
+    padding: 4px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .documents-list li::before {
+    content: "☐ ";
+    color: #9ca3af;
+  }
+  .footer {
+    text-align: center;
+    font-size: 9pt;
+    color: #9ca3af;
+    margin-top: 30px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 10px;
+  }
+  .next-steps ol {
+    padding-left: 20px;
+  }
+  .next-steps li {
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Fiche de Preparation</h1>
+  <div class="subtitle">{{ fund_name }} — {{ fund_organization }}</div>
+</div>
+
+<!-- Section 1 : Resume entreprise -->
+<h2>Votre entreprise</h2>
+<div class="info-grid">
+  <div class="info-item">
+    <div class="info-label">Entreprise</div>
+    <div class="info-value">{{ company_name }}</div>
+  </div>
+  <div class="info-item">
+    <div class="info-label">Secteur</div>
+    <div class="info-value">{{ company_sector }}</div>
+  </div>
+  <div class="info-item">
+    <div class="info-label">Localisation</div>
+    <div class="info-value">{{ company_city }}</div>
+  </div>
+  <div class="info-item">
+    <div class="info-label">Score ESG</div>
+    <div class="info-value">{% if esg_score is not none %}{{ esg_score }}/100{% else %}Non disponible{% endif %}</div>
+  </div>
+  <div class="info-item">
+    <div class="info-label">Empreinte carbone</div>
+    <div class="info-value">{% if carbon_total is not none %}{{ "%.1f"|format(carbon_total) }} tCO2e/an{% else %}Non disponible{% endif %}</div>
+  </div>
+  <div class="info-item">
+    <div class="info-label">Duree estimee</div>
+    <div class="info-value">~{{ timeline_months }} mois</div>
+  </div>
+</div>
+
+<!-- Section 2 : Score de compatibilite -->
+<h2>Compatibilite avec le fonds</h2>
+<div style="text-align: center; margin: 16px 0;">
+  <div class="score-box">{{ compatibility_score }}/100</div>
+</div>
+
+<table class="criteria-table">
+  <thead>
+    <tr>
+      <th>Critere</th>
+      <th>Score</th>
+      <th>Niveau</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for key, score in matching_criteria.items() %}
+    <tr>
+      <td>{{ criteria_labels.get(key, key) }}</td>
+      <td>{{ score }}/100</td>
+      <td>
+        {% if score >= 70 %}Bon{% elif score >= 50 %}Moyen{% elif score >= 30 %}Faible{% else %}Insuffisant{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if missing_criteria %}
+<div class="missing-box">
+  <strong>Points a ameliorer :</strong>
+  <ul style="margin: 4px 0; padding-left: 18px;">
+    {% for key, items in missing_criteria.items() %}
+    {% for item in items %}
+    <li>{{ item }}</li>
+    {% endfor %}
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<!-- Section 3 : Intermediaire choisi -->
+{% if intermediary_name %}
+<h2>Votre contact</h2>
+<div class="intermediary-box">
+  <strong>{{ intermediary_name }}</strong><br>
+  {% if intermediary_contact %}Email : {{ intermediary_contact }}<br>{% endif %}
+  {% if intermediary_address %}Adresse : {{ intermediary_address }}{% endif %}
+</div>
+{% endif %}
+
+<!-- Section 4 : Documents requis -->
+{% if required_documents %}
+<h2>Documents a preparer</h2>
+<ul class="documents-list">
+  {% for doc in required_documents %}
+  <li>{{ doc | replace("_", " ") | capitalize }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<!-- Section 5 : Etapes suivantes -->
+<h2>Prochaines etapes</h2>
+<div class="next-steps">
+  <ol>
+    {% if intermediary_name %}
+    <li>Prendre rendez-vous avec <strong>{{ intermediary_name }}</strong></li>
+    <li>Preparer les documents listes ci-dessus</li>
+    <li>Apporter cette fiche et vos documents au rendez-vous</li>
+    <li>Suivre les instructions de l'intermediaire pour le montage du dossier</li>
+    {% else %}
+    <li>Rassembler les documents listes ci-dessus</li>
+    <li>Soumettre votre candidature directement aupres de <strong>{{ fund_organization }}</strong></li>
+    <li>Suivre l'avancement de votre dossier sur la plateforme</li>
+    {% endif %}
+  </ol>
+</div>
+
+<div class="footer">
+  Genere par ESG Mefali — Plateforme de finance durable pour les PME africaines<br>
+  Ce document est un outil d'aide a la preparation. Il ne constitue pas une garantie d'eligibilite.
+</div>
+
+</body>
+</html>

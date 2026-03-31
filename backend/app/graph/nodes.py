@@ -73,6 +73,30 @@ _CARBON_KEYWORDS = [
 ]
 _CARBON_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _CARBON_KEYWORDS]
 
+# Heuristiques pour detecter une demande de financement vert
+_FINANCING_KEYWORDS = [
+    r"\bfinancement\s+vert\b", r"\bfonds?\s+verts?\b",
+    r"\bfonds?\s+climat\b", r"\bfonds?\s+d'adaptation\b",
+    r"\bSUNREF\b", r"\bGCF\b", r"\bFEM\b", r"\bBOAD\b", r"\bBAD\b",
+    r"\bBIDC\b", r"\bFNDE\b", r"\bSEFA\b",
+    r"\bGold\s+Standard\b", r"\bVerra\b", r"\bIFC\b", r"\bBCEAO\b",
+    r"\bcr[ée]dit\s+carbone\b", r"\bcr[ée]dits?\s+verts?\b",
+    r"\bsubvention.*vert\b", r"\bsubventions?\s+climat\b",
+    r"\bbanque\s+partenaire\b", r"\bbanque\s+verte\b",
+    r"\binterm[ée]diaire.*financ\b", r"\bfinancement.*interm[ée]diaire\b",
+    r"\bdossier\s+de\s+candidature\b",
+    r"\bacc[ée]der.*financement\b", r"\bfinancement.*acc[ée]der\b",
+    r"\bobtenir.*financement\b", r"\bfinancement.*obtenir\b",
+    r"\b[ée]ligibilit[ée].*fonds\b", r"\bfonds.*[ée]ligib\b",
+    r"\bligne\s+de\s+cr[ée]dit\s+vert\b",
+]
+_FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS]
+
+
+def _detect_financing_request(text: str) -> bool:
+    """Detecter si un message est une demande de financement vert."""
+    return any(pattern.search(text) for pattern in _FINANCING_PATTERNS)
+
 
 def _detect_carbon_request(text: str) -> bool:
     """Detecter si un message est une demande de bilan carbone."""
@@ -182,13 +206,17 @@ async def router_node(state: ConversationState) -> ConversationState:
     is_carbon_request = _detect_carbon_request(last_user_msg) if last_user_msg else False
     has_active_carbon = _has_active_carbon_assessment(state)
 
+    # Detecter si c'est une demande de financement
+    financing_data = state.get("financing_data")
+    is_financing_request = _detect_financing_request(last_user_msg) if last_user_msg else False
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon:
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -201,6 +229,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "_route_esg": is_esg_request or has_active_esg,
         "carbon_data": carbon_data,
         "_route_carbon": is_carbon_request or has_active_carbon,
+        "financing_data": financing_data,
+        "_route_financing": is_financing_request,
     }
 
 
@@ -524,6 +554,78 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "carbon_data": carbon_data,
+    }
+
+
+async def _fetch_rag_context_for_financing(query: str) -> str:
+    """Recuperer le contexte RAG pour une question de financement."""
+    from app.core.database import async_session_factory
+    from app.modules.financing.service import search_financing_chunks
+
+    try:
+        async with async_session_factory() as db:
+            chunks = await search_financing_chunks(db, query, limit=5)
+            if not chunks:
+                return ""
+            parts = []
+            for chunk in chunks:
+                source_label = chunk.source_type.value if hasattr(chunk.source_type, "value") else str(chunk.source_type)
+                parts.append(f"[{source_label}] {chunk.content}")
+            return "\n\n".join(parts)
+    except Exception:
+        logger.exception("Erreur RAG financement")
+        return ""
+
+
+async def financing_node(state: ConversationState) -> ConversationState:
+    """Noeud de conseil en financement vert.
+
+    Repond aux questions sur les financements verts avec des blocs visuels
+    (Mermaid, tableaux, timelines, jauges). Utilise le RAG sur financing_chunks.
+    """
+    from app.prompts.financing import build_financing_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    financing_data = state.get("financing_data")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Recuperer le dernier message utilisateur pour le RAG
+    last_user_msg = ""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            last_user_msg = msg.content
+            break
+
+    # Recherche RAG sur les chunks financement
+    rag_context = ""
+    if last_user_msg:
+        rag_context = await _fetch_rag_context_for_financing(last_user_msg)
+
+    # Construire le prompt financement
+    system_prompt = build_financing_prompt(
+        company_context=company_context,
+        rag_context=rag_context or "Aucune information supplementaire disponible.",
+    )
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=system_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "financing_data": financing_data,
     }
 
 

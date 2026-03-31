@@ -9,3 +9,10 @@ from app.models.document import Document, DocumentAnalysis, DocumentChunk  # noq
 from app.models.esg import ESGAssessment  # noqa: F401
 from app.models.report import Report  # noqa: F401
 from app.models.carbon import CarbonAssessment, CarbonEmissionEntry  # noqa: F401
+from app.models.financing import (  # noqa: F401
+    FinancingChunk,
+    Fund,
+    FundIntermediary,
+    FundMatch,
+    Intermediary,
+)

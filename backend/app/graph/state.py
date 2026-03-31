@@ -21,3 +21,5 @@ class ConversationState(TypedDict):
     _route_esg: bool
     carbon_data: dict | None
     _route_carbon: bool
+    financing_data: dict | None
+    _route_financing: bool

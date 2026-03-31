@@ -251,11 +251,28 @@ Le coaching sur l'IA responsable nous intéresse particulièrement pour assurer 
 - Regard caméra direct, fond neutre
 - Répète 3-4 fois à voix haute pour caler le timing
 
-Bonjour ! je suis Angenor N'GOUANDI — ingénieur, enseignant et formateur technique en informatique, basé en Côte d'Ivoire. Je suis le porteur du projet ESG Mefali.
 
-- ESG Mefali, c'est quoi ? Un agent conversationnel propulsé par l'intelligence artificielle, entièrement en français, pensé pour la finance verte. 
-- Son rôle : accompagner les PME africaines pas à pas — de la compréhension des critères ESG au montage de leurs dossiers pour décrocher des financements verts. 
-- Et grâce à notre extension Chrome en dévéloppement, l'IA ira encore plus loin : elle détecte les sites de fonds comme la BOAD, le GCF ou la BAD, pré-remplit les formulaires et guide l'entrepreneur directement dans son navigateur.
-Notre cible ? Les PME d'Afrique francophone, en priorité la zone UEMOA — Côte d'Ivoire, Sénégal, Mali. Des entrepreneurs motivés, prêts à s'engager dans le durable, mais qui se retrouvent seuls face à un mur.
-Et ce mur est bien réel. Moins de 10 % des financements climat en Afrique arrivent aux PME — alors qu'elles portent 80 % de l'emploi. Les référentiels ESG ? Complexes, en anglais. Un consultant ? Entre 5 000 et 20 000 dollars. Sans historique bancaire, pas de crédit. Des millions d'entrepreneurs sont exclus de la transition verte.
-ESG Mefali est là pour briser cette barrière. Merci. »
+
+
+
+
+
+
+
+
+
+
+
+>  Bonjour ! je suis Angenor N'GOUANDI — ingénieur, enseignant et formateur technique en informatique, basé en Côte d'Ivoire. Je suis le porteur du projet ESG Mefali.
+
+> ESG Mefali, c'est quoi ? Un agent conversationnel propulsé par l'intelligence artificielle, entièrement en français, pensé pour la finance verte. 
+
+> Son rôle : accompagner les PME africaines pas à pas — de la compréhension des critères ESG au montage de leurs dossiers pour décrocher des financements verts. 
+
+> Et grâce à notre extension Chrome en dévéloppement, l'IA ira encore plus loin : elle détecte les sites de fonds comme la BOAD, le GCF ou la BAD, pré-remplit les formulaires et guide l'entrepreneur directement dans son navigateur.
+
+> Notre cible ? Les PME d'Afrique francophone, Des entrepreneurs motivés, prêts à s'engager dans le durable, mais qui se retrouvent seuls face à un mur.
+
+> Et ce mur est bien réel. Moins de 10 % des financements climat en Afrique arrivent aux PME — alors qu'elles portent 80 % de l'emploi. Les référentiels ESG ? Complexes, en anglais. Les consultant Autour de 5 000 dollars.  Des millions d'entrepreneurs sont exclus de la transition verte.
+
+> ESG Mefali est là pour briser cette barrière. Merci.  »
