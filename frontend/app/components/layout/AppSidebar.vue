@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Evaluation ESG', to: '/esg', icon: 'esg' },
   { label: 'Empreinte Carbone', to: '/carbon', icon: 'carbon' },
   { label: 'Financement', to: '/financing', icon: 'financing' },
+  { label: 'Dossiers', to: '/applications', icon: 'applications' },
   { label: 'Rapports', to: '/reports', icon: 'reports' },
   { label: 'Documents', to: '/documents', icon: 'documents' },
   { label: 'Profil', to: '/profile', icon: 'profile' },

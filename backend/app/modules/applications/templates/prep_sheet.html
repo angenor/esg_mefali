@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.5;
+            color: #1a1a1a;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #1e40af;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .header h1 {
+            font-size: 18pt;
+            color: #1e40af;
+            margin-bottom: 3px;
+        }
+        .header .subtitle {
+            font-size: 12pt;
+            color: #555;
+        }
+        .header .meta {
+            font-size: 8pt;
+            color: #888;
+            margin-top: 8px;
+        }
+        .section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            font-size: 13pt;
+            color: #1e40af;
+            border-left: 4px solid #1e40af;
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
+        .score-box {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14pt;
+        }
+        .score-good { background: #d1fae5; color: #065f46; }
+        .score-medium { background: #fef3c7; color: #92400e; }
+        .score-low { background: #fecaca; color: #991b1b; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 8px 0;
+        }
+        .info-item {
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .info-label { font-size: 9pt; color: #64748b; }
+        .info-value { font-weight: bold; color: #1e293b; }
+        .doc-list { margin: 5px 0; padding-left: 20px; }
+        .doc-list li { margin: 3px 0; }
+        .doc-provided { color: #065f46; }
+        .doc-missing { color: #991b1b; }
+        .questions-list {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+        .questions-list ol { margin: 5px 0; padding-left: 20px; }
+        .questions-list li { margin: 5px 0; }
+        .contact-box {
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .contact-box h3 {
+            color: #0369a1;
+            font-size: 12pt;
+            margin-bottom: 8px;
+        }
+        .contact-box p { margin: 3px 0; font-size: 10pt; }
+        .contact-box .name { font-weight: bold; font-size: 12pt; }
+        .footer {
+            text-align: center;
+            font-size: 7pt;
+            color: #aaa;
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Fiche de Préparation</h1>
+        <div class="subtitle">{{ fund_name }} — {{ fund_organization }}</div>
+        <div class="subtitle">Via {{ intermediary_name }}</div>
+        <div class="meta">Générée le {{ generated_date }}</div>
+    </div>
+
+    <!-- 1. Résumé entreprise -->
+    <div class="section">
+        <h2>Résumé de l'entreprise</h2>
+        <p>{{ company_summary | default("Profil d'entreprise non disponible. Complétez votre profil pour enrichir cette section.", true) }}</p>
+    </div>
+
+    <!-- 2. Score ESG -->
+    <div class="section">
+        <h2>Score ESG</h2>
+        {% if esg_score is not none %}
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Score global</div>
+                <div class="info-value">
+                    <span class="score-box {% if esg_score >= 70 %}score-good{% elif esg_score >= 40 %}score-medium{% else %}score-low{% endif %}">
+                        {{ esg_score }}/100
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p><em>Évaluation ESG non disponible. Lancez une évaluation ESG pour enrichir cette section.</em></p>
+        {% endif %}
+    </div>
+
+    <!-- 3. Bilan carbone -->
+    <div class="section">
+        <h2>Bilan Carbone</h2>
+        {% if carbon_total is not none %}
+        <div class="info-item">
+            <div class="info-label">Émissions totales</div>
+            <div class="info-value">{{ "%.1f"|format(carbon_total) }} tCO2e</div>
+        </div>
+        {% else %}
+        <p><em>Bilan carbone non disponible. Réalisez un bilan carbone pour enrichir cette section.</em></p>
+        {% endif %}
+    </div>
+
+    <!-- 4. Éligibilité au fonds -->
+    <div class="section">
+        <h2>Éligibilité au fonds {{ fund_name }}</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Fonds</div>
+                <div class="info-value">{{ fund_name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Organisation</div>
+                <div class="info-value">{{ fund_organization }}</div>
+            </div>
+        </div>
+        {% if fund_description %}
+        <p>{{ fund_description }}</p>
+        {% endif %}
+    </div>
+
+    <!-- 5. Documents disponibles -->
+    <div class="section">
+        <h2>Documents Disponibles</h2>
+        {% if available_documents %}
+        <ul class="doc-list">
+            {% for doc in available_documents %}
+            <li class="doc-provided">✓ {{ doc }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p><em>Aucun document encore fourni.</em></p>
+        {% endif %}
+    </div>
+
+    <!-- 6. Questions à poser -->
+    <div class="section">
+        <h2>Questions à Poser à l'Intermédiaire</h2>
+        <div class="questions-list">
+            {% if questions %}
+            <ol>
+                {% for q in questions %}
+                <li>{{ q }}</li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p><em>Aucune question générée.</em></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Coordonnées intermédiaire -->
+    <div class="contact-box">
+        <h3>Coordonnées de l'Intermédiaire</h3>
+        <p class="name">{{ intermediary_name }}</p>
+        {% if intermediary_email %}
+        <p>📧 <a href="mailto:{{ intermediary_email }}">{{ intermediary_email }}</a></p>
+        {% endif %}
+        {% if intermediary_phone %}
+        <p>📞 <a href="tel:{{ intermediary_phone }}">{{ intermediary_phone }}</a></p>
+        {% endif %}
+        {% if intermediary_address %}
+        <p>📍 {{ intermediary_address }}</p>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        Fiche de préparation générée par ESG Mefali — Plateforme de finance durable pour les PME africaines
+    </div>
+</body>
+</html>

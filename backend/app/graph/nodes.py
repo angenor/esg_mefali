@@ -51,6 +51,22 @@ _MODULE_KEYWORDS = [
 ]
 _MODULE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _MODULE_KEYWORDS]
 
+# Heuristiques pour detecter une demande liee aux dossiers de candidature
+_APPLICATION_KEYWORDS = [
+    r"\bdossier\s+de\s+candidature\b", r"\bdossier\s+candidature\b",
+    r"\bcandidat(?:ure)?\s+(?:au|aux)\s+fonds\b",
+    r"\bmon\s+dossier\b", r"\bmes\s+dossiers\b",
+    r"\betat\s+(?:du|de\s+mon)\s+dossier\b",
+    r"\bsections?\s+(?:du|de\s+mon)\s+dossier\b",
+    r"\bgenerer\s+(?:une|la|les)\s+section\b",
+    r"\bexport(?:er)?\s+(?:le|mon)\s+dossier\b",
+    r"\bpreparer\s+(?:le|mon)\s+dossier\b",
+    r"\bsoumission\s+(?:du|de\s+mon)\s+dossier\b",
+    r"\bfiche\s+de\s+preparation\b",
+    r"\bsimul(?:er|ation)\s+(?:de\s+)?financement\b",
+]
+_APPLICATION_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _APPLICATION_KEYWORDS]
+
 # Heuristiques pour détecter une demande d'évaluation ESG spécifiquement
 _ESG_KEYWORDS = [
     r"\b[ée]valuation\s+ESG\b", r"\b[ée]valuer\s+.*ESG\b",
@@ -96,6 +112,11 @@ _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS
 def _detect_financing_request(text: str) -> bool:
     """Detecter si un message est une demande de financement vert."""
     return any(pattern.search(text) for pattern in _FINANCING_PATTERNS)
+
+
+def _detect_application_request(text: str) -> bool:
+    """Detecter si un message est une demande liee aux dossiers de candidature."""
+    return any(pattern.search(text) for pattern in _APPLICATION_PATTERNS)
 
 
 def _detect_carbon_request(text: str) -> bool:
@@ -210,13 +231,17 @@ async def router_node(state: ConversationState) -> ConversationState:
     financing_data = state.get("financing_data")
     is_financing_request = _detect_financing_request(last_user_msg) if last_user_msg else False
 
+    # Detecter si c'est une demande liee aux dossiers de candidature
+    application_data = state.get("application_data")
+    is_application_request = _detect_application_request(last_user_msg) if last_user_msg else False
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request:
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -231,6 +256,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "_route_carbon": is_carbon_request or has_active_carbon,
         "financing_data": financing_data,
         "_route_financing": is_financing_request,
+        "application_data": application_data,
+        "_route_application": is_application_request,
     }
 
 
@@ -691,6 +718,63 @@ async def profiling_node(state: ConversationState) -> ConversationState:
         })
 
     return {"profile_updates": profile_updates}
+
+
+async def application_node(state: ConversationState) -> ConversationState:
+    """Noeud de gestion des dossiers de candidature.
+
+    Repond aux questions sur les dossiers de candidature avec des blocs visuels
+    (Mermaid, progress, timeline, table, gauge). Utilise le contexte du dossier en cours.
+    """
+    from app.prompts.application import build_application_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    application_data = state.get("application_data")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Construire le contexte dossier
+    application_context = "Aucun dossier en cours."
+    if application_data:
+        parts = [
+            f"Dossier : {application_data.get('fund_name', 'Inconnu')}",
+            f"Type de destinataire : {application_data.get('target_type', 'inconnu')}",
+            f"Statut : {application_data.get('status', 'inconnu')}",
+            f"Sections : {application_data.get('sections_generated', 0)}/{application_data.get('sections_total', 0)} generees",
+        ]
+        if application_data.get("intermediary_name"):
+            parts.append(f"Intermediaire : {application_data['intermediary_name']}")
+        if application_data.get("checklist_total"):
+            parts.append(
+                f"Checklist : {application_data.get('checklist_complete', 0)}/{application_data['checklist_total']} documents"
+            )
+        application_context = "\n".join(parts)
+
+    # Construire le prompt
+    system_prompt = build_application_prompt(
+        company_context=company_context,
+        application_context=application_context,
+    )
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=system_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "application_data": application_data,
+    }
 
 
 async def generate_title(user_content: str, assistant_content: str) -> str:

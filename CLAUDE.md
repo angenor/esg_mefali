@@ -126,6 +126,10 @@ uvicorn app.main:app --reload
 alembic upgrade head
 ```
 
+## Conventions
+
+- **Français avec accents** (é, è, ê, à, ç, ù) obligatoires dans le les contenus
+
 ## Active Technologies
 - Python 3.12, TypeScript 5.x (strict mode) (001-technical-foundation)
 - PostgreSQL 16 + pgvector (001-technical-foundation)
@@ -141,6 +145,7 @@ alembic upgrade head
 - PostgreSQL 16 + pgvector, Alembic pour migrations (007-carbon-footprint-calculator)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, SQLAlchemy async, LangGraph, LangChain, WeasyPrint, Jinja2 (backend) ; Nuxt 4, Vue Composition API, Pinia, TailwindCSS, Chart.js, vue-chartjs (frontend) (008-green-financing-matching)
 - PostgreSQL 16 + pgvector (embeddings), Alembic pour migrations (008-green-financing-matching)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, SQLAlchemy async, LangGraph, LangChain, WeasyPrint, Jinja2, python-docx (backend) ; Nuxt 4, Vue Composition API, Pinia, TailwindCSS, toast-ui/editor, Chart.js (frontend) (009-fund-application-generator)
 
 ## Recent Changes
 - 008-green-financing-matching: Module conseiller financement vert (BDD 12 fonds reels GCF/FEM/BOAD/BAD/SUNREF/FNDE/etc + 14 intermediaires avec coordonnees + ~50 liaisons fund-intermediary, matching projet-financement par scoring multi-criteres secteur/ESG/taille/localisation/documents, parcours d'acces direct vs intermediaire avec etapes LLM, catalogue fonds filtrable type/secteur/montant/acces/statut, annuaire intermediaires filtrable type/pays, workflow interet→choix intermediaire→fiche preparation PDF WeasyPrint, financing_node LangGraph avec RAG pgvector + blocs visuels mermaid/table/progress/timeline, API REST /api/financing 10+ endpoints, pages /financing liste 3 onglets + /financing/[id] detail fonds, embeddings text-embedding-3-small, dark mode complet, gestion etats vides/erreurs)

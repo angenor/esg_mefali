@@ -65,6 +65,7 @@ from app.modules.esg.router import router as esg_router  # noqa: E402
 from app.modules.reports.router import router as reports_router  # noqa: E402
 from app.modules.carbon.router import router as carbon_router  # noqa: E402
 from app.modules.financing.router import router as financing_router  # noqa: E402
+from app.modules.applications.router import router as applications_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
@@ -74,4 +75,5 @@ app.include_router(esg_router, prefix="/api/esg", tags=["esg"])
 app.include_router(reports_router, prefix="/api/reports", tags=["reports"])
 app.include_router(carbon_router, prefix="/api/carbon", tags=["carbon"])
 app.include_router(financing_router, prefix="/api/financing", tags=["financing"])
+app.include_router(applications_router, prefix="/api/applications", tags=["applications"])
 app.include_router(health_router, prefix="/api", tags=["health"])
