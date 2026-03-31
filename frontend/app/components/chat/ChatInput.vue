@@ -5,21 +5,38 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   send: [content: string]
+  sendWithFile: [content: string, file: File]
 }>()
 
 const content = ref('')
+const selectedFile = ref<File | null>(null)
+const fileInput = ref<HTMLInputElement>()
 const MAX_LENGTH = 5000
+
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+].join(',')
 
 const isValid = computed(() => {
   const trimmed = content.value.trim()
-  return trimmed.length >= 1 && trimmed.length <= MAX_LENGTH
+  return (trimmed.length >= 1 && trimmed.length <= MAX_LENGTH) || selectedFile.value !== null
 })
 
 const charCount = computed(() => content.value.length)
 
 function handleSubmit() {
   if (!isValid.value || props.disabled) return
-  emit('send', content.value.trim())
+
+  if (selectedFile.value) {
+    emit('sendWithFile', content.value.trim(), selectedFile.value)
+    selectedFile.value = null
+  } else {
+    emit('send', content.value.trim())
+  }
   content.value = ''
 }
 
@@ -29,11 +46,68 @@ function handleKeydown(event: KeyboardEvent) {
     handleSubmit()
   }
 }
+
+function openFilePicker() {
+  fileInput.value?.click()
+}
+
+function handleFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) {
+    if (file.size > 10 * 1024 * 1024) {
+      return
+    }
+    selectedFile.value = file
+  }
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+function removeFile() {
+  selectedFile.value = null
+}
 </script>
 
 <template>
   <div class="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-3">
+    <!-- Fichier selectionne -->
+    <div v-if="selectedFile" class="flex items-center gap-2 mb-2 px-1">
+      <div class="flex items-center gap-2 bg-gray-100 dark:bg-dark-hover rounded-lg px-3 py-1.5 text-xs text-surface-text dark:text-surface-dark-text">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-brand-green shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+        </svg>
+        <span class="truncate max-w-48">{{ selectedFile.name }}</span>
+        <button
+          class="text-gray-400 hover:text-red-500 shrink-0"
+          @click="removeFile"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <div class="flex gap-2 items-end">
+      <!-- Bouton trombone -->
+      <button
+        :disabled="disabled"
+        class="shrink-0 w-9 h-9 rounded-full text-gray-400 dark:text-gray-500 hover:text-brand-green hover:bg-gray-100 dark:hover:bg-dark-hover flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        title="Joindre un fichier"
+        @click="openFilePicker"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <input
+        ref="fileInput"
+        type="file"
+        class="hidden"
+        :accept="ACCEPTED_TYPES"
+        @change="handleFileSelect"
+      >
+
       <textarea
         v-model="content"
         :disabled="disabled"

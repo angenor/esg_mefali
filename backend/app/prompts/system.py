@@ -77,12 +77,25 @@ Règles visuelles :
 SYSTEM_PROMPT = BASE_PROMPT
 
 
+DOCUMENT_VISUAL_INSTRUCTIONS = """Instructions pour les documents analysés :
+Quand un document a été analysé et que tu as accès à son résumé et ses données, utilise les blocs visuels adaptés :
+- **Bilan financier** : utilise un ```table avec les chiffres clés (CA, résultat net, effectif, etc.)
+- **Rapport d'activité** : utilise un ```mermaid (diagramme de flux ou timeline) pour les jalons
+- **Facture** : utilise un ```table avec les lignes de facturation
+- **Contrat** : résume les clauses clés dans un ```table
+- **Politique interne** : utilise un ```progress pour montrer les engagements ESG
+
+Toujours accompagner les blocs visuels d'explications textuelles contextualisées.
+Quand des informations ESG sont extraites, utilise un ```radar ou ```progress pour les visualiser par pilier."""
+
+
 def build_system_prompt(
     user_profile: dict | None = None,
     context_memory: list[str] | None = None,
     profiling_instructions: str | None = None,
+    document_analysis_summary: str | None = None,
 ) -> str:
-    """Construire le prompt système avec le profil, la mémoire et le profilage guidé."""
+    """Construire le prompt système avec le profil, la mémoire, le profilage guidé et le contexte document."""
     sections: list[str] = [BASE_PROMPT]
 
     # Injecter le profil entreprise
@@ -96,6 +109,15 @@ def build_system_prompt(
         memory_section = _format_memory_section(context_memory)
         if memory_section:
             sections.append(memory_section)
+
+    # Injecter le contexte document analysé
+    if document_analysis_summary:
+        sections.append(
+            f"CONTEXTE DOCUMENT :\n{document_analysis_summary}\n\n"
+            "Utilise ces informations pour répondre de manière contextualisée. "
+            "Propose une analyse pertinente avec des blocs visuels adaptés au type de document."
+        )
+        sections.append(DOCUMENT_VISUAL_INSTRUCTIONS)
 
     # Injecter les instructions de profilage guidé
     if profiling_instructions:

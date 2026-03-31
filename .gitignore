@@ -40,5 +40,9 @@ coverage/
 # Logs
 *.log
 
+# Uploads (fichiers utilisateurs)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Docker
 *.pid

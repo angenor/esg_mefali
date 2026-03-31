@@ -15,6 +15,7 @@ const {
   error,
   searchQuery,
   filteredConversations,
+  documentProgress,
   fetchConversations,
   createConversation,
   selectConversation,
@@ -73,6 +74,15 @@ async function handleSend(content: string) {
     await selectConversation(conv)
   }
   await sendMessage(content)
+  await fetchConversations()
+}
+
+async function handleSendWithFile(content: string, file: File) {
+  if (!currentConversation.value) {
+    const conv = await createConversation()
+    await selectConversation(conv)
+  }
+  await sendMessage(content, file)
   await fetchConversations()
 }
 
@@ -174,6 +184,7 @@ async function handleRename(conversationId: string, title: string) {
             :key="msg.id"
             :message="msg"
             :is-streaming="isStreaming && idx === messages.length - 1 && msg.role === 'assistant'"
+            :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
           />
         </div>
       </div>
@@ -190,6 +201,7 @@ async function handleRename(conversationId: string, title: string) {
       <ChatInput
         :disabled="isStreaming"
         @send="handleSend"
+        @send-with-file="handleSendWithFile"
       />
     </div>
   </div>

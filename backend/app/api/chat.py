@@ -5,7 +5,7 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from sqlalchemy import func, select
@@ -81,23 +81,33 @@ async def invoke_graph(content: str, conversation_id: str) -> str:
     return result["messages"][-1].content
 
 
+async def _error_sse(message: str) -> AsyncGenerator[str, None]:
+    """Générer un événement SSE d'erreur."""
+    yield f"data: {json.dumps({'type': 'error', 'content': message})}\n\n"
+
+
 async def stream_llm_tokens(
     content: str,
     conversation_id: str,
     user_profile: dict | None = None,
     context_memory: list[str] | None = None,
+    document_analysis_summary: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Streamer les tokens du LLM un par un.
 
     Utilise le LLM directement avec streaming pour un rendu progressif.
-    Le prompt système est enrichi avec le profil et la mémoire contextuelle.
+    Le prompt système est enrichi avec le profil, la mémoire contextuelle
+    et le contexte document si disponible.
     """
     from app.graph.nodes import get_llm
     from app.prompts.system import build_system_prompt
     from langchain_core.messages import SystemMessage
 
     llm = get_llm()
-    system_prompt = build_system_prompt(user_profile, context_memory)
+    system_prompt = build_system_prompt(
+        user_profile, context_memory,
+        document_analysis_summary=document_analysis_summary,
+    )
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=content)]
 
     async for chunk in llm.astream(messages):
@@ -392,18 +402,59 @@ async def get_messages(
 )
 async def send_message(
     conversation_id: uuid.UUID,
-    data: MessageCreate,
+    content: str = Form(None),
+    file: UploadFile | None = File(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Envoyer un message et recevoir la réponse en streaming SSE."""
+    """Envoyer un message et recevoir la réponse en streaming SSE.
+
+    Accepte un message texte (content) et/ou un fichier (file) en multipart.
+    Si un fichier est joint, il est uploadé et analysé avant la réponse IA.
+    """
     conversation = await get_user_conversation(conversation_id, current_user, db)
+
+    # Gérer le contenu : multipart (Form) ou JSON fallback
+    message_content = content or ""
+
+    # Si pas de contenu et pas de fichier, tenter de lire le body JSON
+    if not message_content and file is None:
+        return StreamingResponse(
+            _error_sse("Veuillez fournir un message ou un fichier"),
+            media_type="text/event-stream",
+        )
+
+    # Si un fichier est joint, l'uploader
+    uploaded_doc = None
+    if file is not None:
+        from app.modules.documents.service import upload_document
+
+        file_content = await file.read()
+        try:
+            uploaded_doc = await upload_document(
+                db=db,
+                user_id=current_user.id,
+                filename=file.filename or "document",
+                content=file_content,
+                content_type=file.content_type or "application/octet-stream",
+                file_size=len(file_content),
+                conversation_id=conversation.id,
+            )
+        except ValueError as e:
+            return StreamingResponse(
+                _error_sse(str(e)),
+                media_type="text/event-stream",
+            )
+
+    # Si pas de contenu texte mais un fichier, générer un message par défaut
+    if not message_content and uploaded_doc:
+        message_content = f"Analyse ce document : {uploaded_doc.original_filename}"
 
     # Sauvegarder le message utilisateur
     user_message = Message(
         conversation_id=conversation.id,
         role="user",
-        content=data.content,
+        content=message_content,
     )
     db.add(user_message)
     await db.flush()
@@ -411,8 +462,17 @@ async def send_message(
     # Capturer les IDs avant de quitter le scope de la session FastAPI
     conv_id = conversation.id
     conv_title = conversation.title
-    user_content = data.content
+    user_content = message_content
     user_id = current_user.id
+
+    # Préparer les infos document pour le state
+    doc_upload_info = None
+    if uploaded_doc:
+        doc_upload_info = {
+            "document_id": str(uploaded_doc.id),
+            "filename": uploaded_doc.original_filename,
+            "user_id": str(user_id),
+        }
 
     # Détecter si le message contient des infos de profil
     from app.graph.nodes import _detect_profile_info
@@ -426,10 +486,45 @@ async def send_message(
         """Générer les événements SSE avec streaming token par token."""
         async with async_session_factory() as sse_db:
             try:
-                # Streamer les tokens du LLM avec profil + mémoire
+                # Émettre les événements SSE de progression document
+                if doc_upload_info:
+                    yield f"data: {json.dumps({'type': 'document_upload', 'document_id': doc_upload_info['document_id'], 'filename': doc_upload_info['filename'], 'status': 'uploaded'})}\n\n"
+                    yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'extracting'})}\n\n"
+
+                    # Lancer l'analyse du document
+                    from app.modules.documents.service import analyze_document, get_document as get_doc
+                    doc = await get_doc(sse_db, uuid.UUID(doc_upload_info["document_id"]))
+                    doc_analysis_summary = None
+
+                    if doc:
+                        yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'analyzing'})}\n\n"
+
+                        try:
+                            analysis = await analyze_document(sse_db, doc)
+                            doc_analysis_summary = (
+                                f"Document : {doc_upload_info['filename']}\n"
+                                f"Type : {doc.document_type.value if doc.document_type else 'inconnu'}\n"
+                            )
+                            if analysis.summary:
+                                doc_analysis_summary += f"Résumé : {analysis.summary}\n"
+                            if analysis.key_findings:
+                                findings = analysis.key_findings
+                                if isinstance(findings, list):
+                                    doc_analysis_summary += "Points clés :\n" + "\n".join(f"- {f}" for f in findings[:5])
+
+                            yield f"data: {json.dumps({'type': 'document_analysis', 'document_id': doc_upload_info['document_id'], 'summary': analysis.summary or '', 'document_type': doc.document_type.value if doc.document_type else 'autre'})}\n\n"
+                        except Exception:
+                            logger.exception("Erreur analyse document dans chat")
+                            doc_analysis_summary = f"Document reçu : {doc_upload_info['filename']}. Erreur lors de l'analyse."
+                            yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'error'})}\n\n"
+                else:
+                    doc_analysis_summary = None
+
+                # Streamer les tokens du LLM avec profil + mémoire + contexte document
                 full_response = ""
                 async for token in stream_llm_tokens(
-                    user_content, str(conv_id), user_profile, context_memory
+                    user_content, str(conv_id), user_profile, context_memory,
+                    document_analysis_summary=doc_analysis_summary,
                 ):
                     full_response += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
@@ -496,4 +591,26 @@ async def send_message(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
+    )
+
+
+# ─── JSON fallback pour l'ancien format ────────────────────────────
+
+
+@router.post(
+    "/conversations/{conversation_id}/messages/json",
+)
+async def send_message_json(
+    conversation_id: uuid.UUID,
+    data: MessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Envoyer un message en JSON (sans fichier) — compatibilité."""
+    return await send_message(
+        conversation_id=conversation_id,
+        content=data.content,
+        file=None,
+        current_user=current_user,
+        db=db,
     )

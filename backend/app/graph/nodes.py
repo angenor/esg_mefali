@@ -107,6 +107,7 @@ async def router_node(state: ConversationState) -> ConversationState:
     """Nœud routeur : analyse le message et décide du routage.
 
     - Détecte si le message contient des infos extractibles
+    - Détecte la présence d'un document uploadé
     - Vérifie si le profil est < 70% pour le profilage guidé
     - Stocke les décisions de routage dans le state
     """
@@ -119,6 +120,9 @@ async def router_node(state: ConversationState) -> ConversationState:
         if isinstance(msg, HumanMessage):
             last_user_msg = msg.content
             break
+
+    # Détecter la présence d'un document uploadé
+    has_document = state.get("document_upload") is not None
 
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
@@ -134,7 +138,103 @@ async def router_node(state: ConversationState) -> ConversationState:
     return {
         "profile_updates": [] if should_extract else None,
         "profiling_instructions": profiling_instructions,
+        "has_document": has_document,
     }
+
+
+async def analyze_document_for_chat(
+    document_id: str,
+    user_id: str,
+) -> tuple:
+    """Analyser un document pour le contexte chat.
+
+    Charge le document depuis la BDD, lance l'analyse, et retourne
+    le document et l'analyse.
+    """
+    import uuid as uuid_mod
+
+    from app.chains.analysis import analyze_document_text
+    from app.core.database import async_session_factory
+    from app.modules.documents.service import (
+        analyze_document,
+        get_document,
+    )
+
+    async with async_session_factory() as db:
+        document = await get_document(db, uuid_mod.UUID(document_id))
+        if document is None:
+            raise ValueError(f"Document {document_id} introuvable")
+
+        # Lancer l'analyse si pas encore faite
+        if document.analysis is None:
+            analysis = await analyze_document(db, document)
+        else:
+            analysis = document.analysis
+
+        await db.commit()
+        return document, analysis
+
+
+async def document_node(state: ConversationState) -> ConversationState:
+    """Nœud document : analyse le document uploadé et injecte le résumé.
+
+    Appelé quand le routeur détecte un document uploadé.
+    Analyse le document, stocke les résultats, et ajoute le résumé
+    au state pour enrichir le contexte du chat_node.
+    """
+    doc_upload = state.get("document_upload")
+    if not doc_upload:
+        return {"document_analysis_summary": None}
+
+    document_id = doc_upload.get("document_id")
+    user_id = doc_upload.get("user_id")
+
+    try:
+        document, analysis = await analyze_document_for_chat(
+            document_id=document_id,
+            user_id=user_id,
+        )
+
+        # Construire le résumé pour injection dans le contexte
+        summary_parts = [
+            f"Document analysé : {doc_upload.get('filename', 'document')}",
+            f"Type : {analysis.document_type.value if hasattr(analysis, 'document_type') else getattr(document, 'document_type', 'inconnu')}",
+        ]
+
+        if hasattr(analysis, "summary") and analysis.summary:
+            summary_parts.append(f"Résumé : {analysis.summary}")
+
+        if hasattr(analysis, "key_findings") and analysis.key_findings:
+            findings = analysis.key_findings
+            if isinstance(findings, list):
+                findings_text = "\n".join(f"- {f}" for f in findings[:5])
+                summary_parts.append(f"Points clés :\n{findings_text}")
+
+        if hasattr(analysis, "esg_relevant_info") and analysis.esg_relevant_info:
+            esg = analysis.esg_relevant_info
+            if hasattr(esg, "model_dump"):
+                esg = esg.model_dump()
+            if isinstance(esg, dict):
+                esg_parts = []
+                for pillar, items in esg.items():
+                    if items:
+                        esg_parts.append(f"  {pillar}: {', '.join(items[:3])}")
+                if esg_parts:
+                    summary_parts.append("ESG :\n" + "\n".join(esg_parts))
+
+        analysis_summary = "\n\n".join(summary_parts)
+
+        return {"document_analysis_summary": analysis_summary}
+
+    except Exception:
+        logger.exception("Erreur lors de l'analyse du document dans le chat")
+        return {
+            "document_analysis_summary": (
+                f"Document reçu : {doc_upload.get('filename', 'document')}. "
+                "Une erreur est survenue lors de l'analyse. "
+                "Veuillez réessayer ou uploader le document depuis la page Documents."
+            ),
+        }
 
 
 async def chat_node(state: ConversationState) -> ConversationState:
@@ -144,10 +244,12 @@ async def chat_node(state: ConversationState) -> ConversationState:
     user_profile = state.get("user_profile")
     context_memory = state.get("context_memory", [])
     profiling_instructions = state.get("profiling_instructions")
+    document_summary = state.get("document_analysis_summary")
 
     # Construire le prompt système dynamique
     system_prompt = build_system_prompt(
         user_profile, context_memory, profiling_instructions,
+        document_analysis_summary=document_summary,
     )
 
     # Ajouter le prompt système en tête

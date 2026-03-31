@@ -133,6 +133,9 @@ alembic upgrade head
 - PostgreSQL 16 + pgvector (async via asyncpg) (002-chat-rich-visuals)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy (async), Nuxt 4, Vue Composition API, Pinia, TailwindCSS (003-company-profiling-memory)
 - PostgreSQL 16 + pgvector (async via asyncpg), Alembic pour migrations (003-company-profiling-memory)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy (async), PyMuPDF, pytesseract, pdf2image, docx2txt, openpyxl, Nuxt 4, Vue Composition API, Pinia, TailwindCSS (004-document-upload-analysis)
+- PostgreSQL 16 + pgvector (embeddings), stockage fichiers local (/uploads/) (004-document-upload-analysis)
 
 ## Recent Changes
+- 004-document-upload-analysis: Module complet upload/analyse documents (PyMuPDF, pytesseract, OCR, embeddings pgvector, chat integration, dark mode, 81% couverture tests)
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)

@@ -14,3 +14,6 @@ class ConversationState(TypedDict):
     context_memory: list[str]
     profile_updates: list[dict] | None
     profiling_instructions: str | None
+    document_upload: dict | None
+    document_analysis_summary: str | None
+    has_document: bool
