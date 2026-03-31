@@ -17,3 +17,5 @@ class ConversationState(TypedDict):
     document_upload: dict | None
     document_analysis_summary: str | None
     has_document: bool
+    esg_assessment: dict | None
+    _route_esg: bool

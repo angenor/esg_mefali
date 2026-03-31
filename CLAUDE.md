@@ -135,7 +135,9 @@ alembic upgrade head
 - PostgreSQL 16 + pgvector (async via asyncpg), Alembic pour migrations (003-company-profiling-memory)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy (async), PyMuPDF, pytesseract, pdf2image, docx2txt, openpyxl, Nuxt 4, Vue Composition API, Pinia, TailwindCSS (004-document-upload-analysis)
 - PostgreSQL 16 + pgvector (embeddings), stockage fichiers local (/uploads/) (004-document-upload-analysis)
+- Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph, LangChain, SQLAlchemy async, PyMuPDF, Nuxt 4, Vue Composition API, Pinia, TailwindCSS, Chart.js, vue-chartjs (005-esg-scoring-assessment)
 
 ## Recent Changes
+- 005-esg-scoring-assessment: Module evaluation et scoring ESG complet (30 criteres E-S-G, ponderation sectorielle, scoring dynamique, esg_scoring_node LangGraph, API REST /api/esg, page resultats /esg, RAG documentaire par critere, benchmark sectoriel avec fallback, historique evaluations Chart.js, reprise evaluations interrompues, 71 tests, 80% couverture)
 - 004-document-upload-analysis: Module complet upload/analyse documents (PyMuPDF, pytesseract, OCR, embeddings pgvector, chat integration, dark mode, 81% couverture tests)
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)

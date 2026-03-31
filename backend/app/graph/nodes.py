@@ -51,6 +51,30 @@ _MODULE_KEYWORDS = [
 ]
 _MODULE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _MODULE_KEYWORDS]
 
+# Heuristiques pour détecter une demande d'évaluation ESG spécifiquement
+_ESG_KEYWORDS = [
+    r"\b[ée]valuation\s+ESG\b", r"\b[ée]valuer\s+.*ESG\b",
+    r"\bscoring\s+ESG\b", r"\bscore\s+ESG\b",
+    r"\banalyse\s+ESG\b", r"\baudit\s+ESG\b",
+    r"\blancer\s+.*[ée]valuation\b.*\bESG\b",
+    r"\bmon\s+score\s+ESG\b", r"\bcriteres?\s+ESG\b",
+    r"\bdiagnostic\s+ESG\b", r"\bbilan\s+ESG\b",
+]
+_ESG_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ESG_KEYWORDS]
+
+
+def _detect_esg_request(text: str) -> bool:
+    """Détecter si un message est une demande d'évaluation ESG."""
+    return any(pattern.search(text) for pattern in _ESG_PATTERNS)
+
+
+def _has_active_esg_assessment(state: dict) -> bool:
+    """Vérifier si une évaluation ESG est en cours dans le state."""
+    esg = state.get("esg_assessment")
+    if esg is None:
+        return False
+    return esg.get("status") == "in_progress"
+
 
 def _detect_module_request(text: str) -> bool:
     """Détecter si un message est une demande de module spécifique."""
@@ -124,13 +148,18 @@ async def router_node(state: ConversationState) -> ConversationState:
     # Détecter la présence d'un document uploadé
     has_document = state.get("document_upload") is not None
 
+    # Détecter si c'est une demande ESG ou une évaluation en cours
+    esg_assessment = state.get("esg_assessment")
+    is_esg_request = _detect_esg_request(last_user_msg) if last_user_msg else False
+    has_active_esg = _has_active_esg_assessment(state)
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg):
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -139,6 +168,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "profile_updates": [] if should_extract else None,
         "profiling_instructions": profiling_instructions,
         "has_document": has_document,
+        "esg_assessment": esg_assessment,
+        "_route_esg": is_esg_request or has_active_esg,
     }
 
 
@@ -235,6 +266,129 @@ async def document_node(state: ConversationState) -> ConversationState:
                 "Veuillez réessayer ou uploader le document depuis la page Documents."
             ),
         }
+
+
+async def _fetch_rag_context_for_esg(
+    user_id: str,
+    current_pillar: str,
+) -> str:
+    """Recuperer le contexte RAG pour le pilier ESG en cours d'evaluation."""
+    import uuid as uuid_mod
+
+    from app.core.database import async_session_factory
+    from app.modules.esg.service import format_rag_context, search_rag_context_for_pillar
+
+    try:
+        async with async_session_factory() as db:
+            rag_context = await search_rag_context_for_pillar(
+                db=db,
+                pillar=current_pillar,
+                user_id=uuid_mod.UUID(user_id),
+                limit_per_criterion=2,
+            )
+            return format_rag_context(rag_context)
+    except Exception:
+        logger.exception("Erreur lors de la recherche RAG pour le pilier %s", current_pillar)
+        return ""
+
+
+async def esg_scoring_node(state: ConversationState) -> ConversationState:
+    """Nœud d'évaluation ESG : conduit l'évaluation conversationnelle.
+
+    Gère l'état de l'évaluation (création, progression, finalisation)
+    et utilise un prompt spécialisé ESG pour interagir avec l'utilisateur.
+    Enrichit le contexte avec les documents de l'utilisateur via RAG.
+    """
+    from app.prompts.esg_scoring import build_esg_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    esg_assessment = state.get("esg_assessment")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise pour le prompt ESG
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Contexte documentaire general (si disponible)
+    doc_context = state.get("document_analysis_summary") or "Aucun document analyse."
+
+    # Si pas d'évaluation en cours, chercher une evaluation a reprendre ou en creer une nouvelle
+    if esg_assessment is None or esg_assessment.get("status") == "completed":
+        from app.modules.esg.service import build_initial_esg_state
+
+        # Tenter de reprendre une evaluation interrompue
+        resumable = None
+        if user_id:
+            try:
+                import uuid as uuid_mod
+
+                from app.core.database import async_session_factory
+                from app.modules.esg.service import get_resumable_assessment
+
+                async with async_session_factory() as db:
+                    resumable = await get_resumable_assessment(db, uuid_mod.UUID(str(user_id)))
+            except Exception:
+                logger.exception("Erreur lors de la recherche d'evaluation a reprendre")
+
+        if resumable is not None:
+            esg_assessment = {
+                "assessment_id": str(resumable.id),
+                "status": resumable.status.value if hasattr(resumable.status, "value") else resumable.status,
+                "current_pillar": resumable.current_pillar or "environment",
+                "evaluated_criteria": resumable.evaluated_criteria or [],
+                "partial_scores": (resumable.assessment_data or {}).get("criteria_scores", {}),
+            }
+        else:
+            esg_assessment = build_initial_esg_state(
+                assessment_id="pending",
+                sector=user_profile.get("sector", "services"),
+            )
+
+    # Recherche RAG par pilier en cours pour enrichir l'evaluation
+    current_pillar = esg_assessment.get("current_pillar", "environment")
+    user_id = state.get("user_id")
+    rag_context = ""
+    if user_id:
+        rag_context = await _fetch_rag_context_for_esg(
+            user_id=str(user_id),
+            current_pillar=current_pillar,
+        )
+
+    # Fusionner les contextes documentaires
+    if rag_context:
+        doc_context = f"{doc_context}\n\n{rag_context}"
+
+    # Construire le prompt ESG
+    system_prompt = build_esg_prompt(
+        company_context=company_context,
+        document_context=doc_context,
+    )
+
+    # Injecter l'état d'évaluation dans le prompt
+    esg_state_context = (
+        f"\n\nÉTAT DE L'ÉVALUATION EN COURS :\n"
+        f"- Pilier actuel : {esg_assessment.get('current_pillar', 'environment')}\n"
+        f"- Critères évalués : {esg_assessment.get('evaluated_criteria', [])}\n"
+        f"- Scores partiels : {esg_assessment.get('partial_scores', {})}\n"
+    )
+    full_prompt = system_prompt + esg_state_context
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=full_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "esg_assessment": esg_assessment,
+    }
 
 
 async def chat_node(state: ConversationState) -> ConversationState:
