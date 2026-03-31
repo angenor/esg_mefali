@@ -3,7 +3,7 @@
 from langgraph.graph import END, StateGraph
 
 from app.graph.checkpointer import create_checkpointer
-from app.graph.nodes import application_node, carbon_node, chat_node, document_node, esg_scoring_node, financing_node, router_node
+from app.graph.nodes import application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, router_node
 from app.graph.state import ConversationState
 
 
@@ -20,6 +20,8 @@ def _route_after_router(state: ConversationState) -> str:
         return "financing"
     if state.get("_route_application"):
         return "application"
+    if state.get("_route_credit"):
+        return "credit"
     if state.get("has_document"):
         return "document"
     return "chat"
@@ -29,7 +31,11 @@ def build_graph() -> StateGraph:
     """Construire le graphe de conversation multi-nœuds.
 
     Structure :
-        START → router_node → [esg]         → esg_scoring_node → END
+        START → router_node → [esg]          → esg_scoring_node → END
+                             → [carbon]       → carbon_node → END
+                             → [financing]    → financing_node → END
+                             → [application]  → application_node → END
+                             → [credit]       → credit_node → END
                              → [has_document] → document_node → chat_node → END
                              → [no_document]  → chat_node → END
     """
@@ -42,12 +48,13 @@ def build_graph() -> StateGraph:
     graph.add_node("carbon", carbon_node)
     graph.add_node("financing", financing_node)
     graph.add_node("application", application_node)
+    graph.add_node("credit", credit_node)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(
         "router",
         _route_after_router,
-        {"esg_scoring": "esg_scoring", "carbon": "carbon", "financing": "financing", "application": "application", "document": "document", "chat": "chat"},
+        {"esg_scoring": "esg_scoring", "carbon": "carbon", "financing": "financing", "application": "application", "credit": "credit", "document": "document", "chat": "chat"},
     )
     graph.add_edge("document", "chat")
     graph.add_edge("chat", END)
@@ -55,6 +62,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("carbon", END)
     graph.add_edge("financing", END)
     graph.add_edge("application", END)
+    graph.add_edge("credit", END)
 
     return graph
 

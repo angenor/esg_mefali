@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1F2937; line-height: 1.6; }
+  .header { text-align: center; border-bottom: 3px solid #10B981; padding-bottom: 20px; margin-bottom: 30px; }
+  .header h1 { color: #10B981; font-size: 24px; margin: 0; }
+  .header h2 { color: #6B7280; font-size: 14px; font-weight: normal; margin: 5px 0 0; }
+  .company-info { background: #F0FDF4; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; }
+  .company-info h3 { margin: 0 0 8px; color: #065F46; font-size: 16px; }
+  .company-info p { margin: 3px 0; font-size: 13px; color: #374151; }
+  .score-section { text-align: center; margin: 30px 0; }
+  .main-score { font-size: 64px; font-weight: bold; color: #10B981; }
+  .main-score-label { font-size: 14px; color: #6B7280; }
+  .sub-scores { display: flex; justify-content: center; gap: 60px; margin: 20px 0; }
+  .sub-score { text-align: center; }
+  .sub-score .value { font-size: 32px; font-weight: bold; }
+  .sub-score .label { font-size: 12px; color: #6B7280; }
+  .solv { color: #3B82F6; }
+  .green { color: #10B981; }
+  .confidence { background: #F9FAFB; border-radius: 8px; padding: 12px 20px; text-align: center; margin: 20px 0; }
+  .confidence .level { font-size: 18px; font-weight: bold; }
+  .factors { margin: 25px 0; }
+  .factors h3 { color: #1F2937; font-size: 16px; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; }
+  .factor-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .factor-bar { width: 120px; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden; }
+  .factor-fill { height: 100%; background: #10B981; border-radius: 4px; }
+  .validity { margin-top: 30px; padding-top: 20px; border-top: 2px solid #E5E7EB; }
+  .validity p { font-size: 12px; color: #6B7280; margin: 3px 0; }
+  .disclaimer { margin-top: 20px; padding: 12px; background: #FEF3C7; border-radius: 6px; font-size: 11px; color: #92400E; }
+  .footer { text-align: center; margin-top: 30px; font-size: 10px; color: #9CA3AF; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Attestation de Score de Credit Vert</h1>
+    <h2>Plateforme ESG Mefali</h2>
+  </div>
+
+  <div class="company-info">
+    <h3>{{ company_name }}</h3>
+    {% if sector %}<p>Secteur : {{ sector }}</p>{% endif %}
+    {% if location %}<p>Localisation : {{ location }}</p>{% endif %}
+  </div>
+
+  <div class="score-section">
+    <div class="main-score">{{ "%.1f"|format(combined_score) }}</div>
+    <div class="main-score-label">Score Credit Vert Combine /100</div>
+
+    <div class="sub-scores">
+      <div class="sub-score">
+        <div class="value solv">{{ "%.1f"|format(solvability_score) }}</div>
+        <div class="label">Solvabilite /100</div>
+      </div>
+      <div class="sub-score">
+        <div class="value green">{{ "%.1f"|format(green_impact_score) }}</div>
+        <div class="label">Impact Vert /100</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="confidence">
+    <p>Niveau de confiance : <span class="level">{{ confidence_label }}</span> ({{ "%.0f"|format(confidence_level * 100) }}%)</p>
+  </div>
+
+  {% if score_breakdown %}
+  <div class="factors">
+    <h3>Facteurs de solvabilite</h3>
+    {% if score_breakdown.solvability and score_breakdown.solvability.factors %}
+    {% for key, factor in score_breakdown.solvability.factors.items() %}
+    <div class="factor-row">
+      <span>{{ factor.details }}</span>
+      <span>{{ factor.score }}/100</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <h3>Facteurs d'impact vert</h3>
+    {% if score_breakdown.green_impact and score_breakdown.green_impact.factors %}
+    {% for key, factor in score_breakdown.green_impact.factors.items() %}
+    <div class="factor-row">
+      <span>{{ factor.details }}</span>
+      <span>{{ factor.score }}/100</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="validity">
+    <p><strong>Version :</strong> {{ version }}</p>
+    <p><strong>Date de generation :</strong> {{ generated_at }}</p>
+    <p><strong>Valide jusqu'au :</strong> {{ valid_until }}</p>
+  </div>
+
+  <div class="disclaimer">
+    <strong>Mention legale :</strong> Ce document est informatif et ne constitue pas un score de credit officiel.
+    Il est genere a partir des donnees declaratives de l'entreprise sur la plateforme ESG Mefali
+    et ne peut se substituer a une evaluation bancaire ou financiere formelle.
+  </div>
+
+  <div class="footer">
+    <p>ESG Mefali — Plateforme de finance durable pour les PME africaines</p>
+  </div>
+</body>
+</html>

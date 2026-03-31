@@ -78,6 +78,21 @@ _ESG_KEYWORDS = [
 ]
 _ESG_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ESG_KEYWORDS]
 
+# Heuristiques pour detecter une demande de scoring credit vert
+_CREDIT_KEYWORDS = [
+    r"\bscore\s+(?:de\s+)?cr[ée]dit\s+vert\b",
+    r"\bscoring\s+(?:de\s+)?cr[ée]dit\b",
+    r"\bmon\s+score\s+(?:de\s+)?cr[ée]dit\b",
+    r"\bnote\s+(?:de\s+)?cr[ée]dit\s+vert\b",
+    r"\bscore\s+(?:de\s+)?solvabilit[ée]\b",
+    r"\battestation\s+(?:de\s+)?cr[ée]dit\b",
+    r"\bgen[eè]re[r]?\s+(?:mon\s+)?score\s+(?:de\s+)?cr[ée]dit\b",
+    r"\bscoring\s+vert\b",
+    r"\bcr[ée]dit\s+vert\s+(?:score|note|attestation)\b",
+    r"\bscore\s+cr[ée]dit\b",
+]
+_CREDIT_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _CREDIT_KEYWORDS]
+
 # Heuristiques pour detecter une demande de bilan carbone
 _CARBON_KEYWORDS = [
     r"\bempreinte\s+carbone\b", r"\bbilan\s+carbone\b",
@@ -107,6 +122,11 @@ _FINANCING_KEYWORDS = [
     r"\bligne\s+de\s+cr[ée]dit\s+vert\b",
 ]
 _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS]
+
+
+def _detect_credit_request(text: str) -> bool:
+    """Detecter si un message est une demande de scoring credit vert."""
+    return any(pattern.search(text) for pattern in _CREDIT_PATTERNS)
 
 
 def _detect_financing_request(text: str) -> bool:
@@ -235,13 +255,17 @@ async def router_node(state: ConversationState) -> ConversationState:
     application_data = state.get("application_data")
     is_application_request = _detect_application_request(last_user_msg) if last_user_msg else False
 
+    # Detecter si c'est une demande de scoring credit vert
+    credit_data = state.get("credit_data")
+    is_credit_request = _detect_credit_request(last_user_msg) if last_user_msg else False
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request:
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request and not is_credit_request:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -258,6 +282,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "_route_financing": is_financing_request,
         "application_data": application_data,
         "_route_application": is_application_request,
+        "credit_data": credit_data,
+        "_route_credit": is_credit_request,
     }
 
 
@@ -653,6 +679,152 @@ async def financing_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "financing_data": financing_data,
+    }
+
+
+async def _fetch_credit_scoring_context(user_id: str | None) -> tuple[str, list[dict]]:
+    """Recuperer le contexte de scoring credit pour le credit_node.
+
+    Returns:
+        (scoring_context_text, history_items)
+    """
+    if not user_id:
+        return "Aucun score genere.", []
+
+    import uuid as uuid_mod
+
+    from app.core.database import async_session_factory
+    from app.modules.credit.service import get_latest_score, get_score_history
+
+    try:
+        async with async_session_factory() as db:
+            score = await get_latest_score(db, uuid_mod.UUID(str(user_id)))
+            if score is None:
+                return "Aucun score genere. Invitez l'utilisateur a generer un score via la page /credit-score.", []
+
+            # Construire le contexte textuel
+            confidence_label = score.confidence_label
+            if hasattr(confidence_label, "value"):
+                confidence_label = confidence_label.value
+
+            # Detecter l'expiration
+            from datetime import datetime, timezone
+            now = datetime.now(tz=timezone.utc)
+            is_expired = score.valid_until < now if score.valid_until else False
+
+            parts = [
+                f"Score combine: {score.combined_score}/100",
+                f"Solvabilite: {score.solvability_score}/100",
+                f"Impact vert: {score.green_impact_score}/100",
+                f"Confiance: {confidence_label} ({score.confidence_level})",
+                f"Version: {score.version}",
+                f"Genere le: {score.generated_at.strftime('%d/%m/%Y') if score.generated_at else 'N/A'}",
+                f"Valide jusqu'au: {score.valid_until.strftime('%d/%m/%Y') if score.valid_until else 'N/A'}",
+            ]
+
+            if is_expired:
+                parts.append("\n⚠️ SCORE EXPIRE — Ce score n'est plus a jour. Invitez l'utilisateur a regenerer son score depuis la page /credit-score.")
+
+            # Ajouter le breakdown si disponible
+            if score.score_breakdown:
+                breakdown = score.score_breakdown
+                if "solvability" in breakdown and "factors" in breakdown["solvability"]:
+                    parts.append("\nFacteurs solvabilite:")
+                    for key, factor in breakdown["solvability"]["factors"].items():
+                        parts.append(f"  - {key}: {factor.get('score', 0)}/100 (poids {factor.get('weight', 0)})")
+                if "green_impact" in breakdown and "factors" in breakdown["green_impact"]:
+                    parts.append("\nFacteurs impact vert:")
+                    for key, factor in breakdown["green_impact"]["factors"].items():
+                        parts.append(f"  - {key}: {factor.get('score', 0)}/100 (poids {factor.get('weight', 0)})")
+
+            # Recommandations
+            if score.recommendations:
+                parts.append("\nRecommandations:")
+                for rec in score.recommendations[:5]:
+                    parts.append(f"  - [{rec.get('impact', 'medium')}] {rec.get('action', '')}")
+
+            # Historique
+            history_items: list[dict] = []
+            scores, total = await get_score_history(db, uuid_mod.UUID(str(user_id)), limit=10)
+            for s in scores:
+                history_items.append({
+                    "version": s.version,
+                    "combined_score": s.combined_score,
+                    "solvability_score": s.solvability_score,
+                    "green_impact_score": s.green_impact_score,
+                    "generated_at": s.generated_at.strftime("%d/%m/%Y") if s.generated_at else "",
+                })
+
+            if total > 1:
+                parts.append(f"\nHistorique: {total} version(s) de score")
+
+            # Data sources
+            if score.data_sources and "sources" in score.data_sources:
+                parts.append("\nCouverture des sources:")
+                for src in score.data_sources["sources"]:
+                    status = "disponible" if src.get("available") else "manquante"
+                    completeness = int(src.get("completeness", 0) * 100)
+                    parts.append(f"  - {src.get('name', '?')}: {status} ({completeness}%)")
+
+            return "\n".join(parts), history_items
+
+    except Exception:
+        logger.exception("Erreur lors de la recuperation du contexte credit")
+        return "Erreur lors de la recuperation du score.", []
+
+
+async def credit_node(state: ConversationState) -> ConversationState:
+    """Noeud de scoring credit vert conversationnel.
+
+    Presente le score de credit vert avec des blocs visuels (gauge, chart radar,
+    progress, mermaid, chart line) et des recommandations actionnables.
+    """
+    from app.prompts.credit import build_credit_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    credit_data = state.get("credit_data")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Recuperer le contexte de scoring
+    user_id = state.get("user_id")
+    scoring_context, history_items = await _fetch_credit_scoring_context(user_id)
+
+    # Construire le prompt credit
+    system_prompt = build_credit_prompt(
+        company_context=company_context,
+        scoring_context=scoring_context,
+    )
+
+    # Ajouter le contexte historique si disponible
+    if history_items and len(history_items) > 1:
+        history_text = "\n\nDONNEES HISTORIQUE (pour le graphique ligne):\n"
+        for item in history_items:
+            history_text += (
+                f"- v{item['version']} ({item['generated_at']}): "
+                f"combine={item['combined_score']}, solv={item['solvability_score']}, "
+                f"vert={item['green_impact_score']}\n"
+            )
+        system_prompt += history_text
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=system_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "credit_data": credit_data,
     }
 
 

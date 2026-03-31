@@ -265,13 +265,13 @@ Le coaching sur l'IA responsable nous intéresse particulièrement pour assurer 
 
 >  Bonjour ! je suis Angenor N'GOUANDI — ingénieur, enseignant et formateur technique en informatique, basé en Côte d'Ivoire. Je suis le porteur du projet ESG Mefali.
 
-> ESG Mefali, c'est quoi ? Un agent conversationnel propulsé par l'intelligence artificielle, entièrement en français, pensé pour la finance verte. 
+> ESG Mefali, c'est Un agent conversationnel propulsé par l'intelligence artificielle, entièrement en français, pensé pour la finance verte. 
 
 > Son rôle : accompagner les PME africaines pas à pas — de la compréhension des critères ESG au montage de leurs dossiers pour décrocher des financements verts. 
 
-> Nortre solution va encore plus loins, une extension Chrome en dévéloppement détecte et accompagne l'entrepreneur sur les sites de fonds(BOAD, le GCF ou la BAD), et le guide en temps reel dans sont procesus de candidature.
+> Nortre solution va encore plus loins, une extension Chrome en dévéloppement accompagne l'entrepreneur directement sur les sites de fonds(BOAD, le GCF ou la BAD), et le guide en temps reel dans sont procesus de candidature.
 
-> Notre cible ? Les PME d'Afrique francophone, Des entrepreneurs motivés, prêts à s'engager dans le durable, mais qui se retrouvent seuls face à un mur.
+> Notre cible ? Les PME d'Afrique francophone, les entrepreneurs motivés, prêts à s'engager dans le durable, mais qui se retrouvent seuls face à un mur.
 
 > Et ce mur est bien réel. Moins de 10 % des financements climat en Afrique arrivent aux PME — alors qu'elles represente 80 % de l'emploi. Les référentiels ESG ? Complexes, en anglais. Les consultant Autour de 5 000 dollars.  Des millions d'entrepreneurs sont ainsi exclus de la transition verte.
 

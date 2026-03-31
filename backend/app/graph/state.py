@@ -25,3 +25,5 @@ class ConversationState(TypedDict):
     _route_financing: bool
     application_data: dict | None
     _route_application: bool
+    credit_data: dict | None
+    _route_credit: bool
