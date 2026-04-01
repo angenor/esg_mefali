@@ -27,3 +27,5 @@ class ConversationState(TypedDict):
     _route_application: bool
     credit_data: dict | None
     _route_credit: bool
+    action_plan_data: dict | None
+    _route_action_plan: bool

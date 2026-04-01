@@ -3,14 +3,14 @@
 from langgraph.graph import END, StateGraph
 
 from app.graph.checkpointer import create_checkpointer
-from app.graph.nodes import application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, router_node
+from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, router_node
 from app.graph.state import ConversationState
 
 
 def _route_after_router(state: ConversationState) -> str:
     """Décider du prochain nœud après le routeur.
 
-    Priorité : ESG > carbon > financing > application > document > chat.
+    Priorité : ESG > carbon > financing > application > credit > action_plan > document > chat.
     """
     if state.get("_route_esg"):
         return "esg_scoring"
@@ -22,6 +22,8 @@ def _route_after_router(state: ConversationState) -> str:
         return "application"
     if state.get("_route_credit"):
         return "credit"
+    if state.get("_route_action_plan"):
+        return "action_plan"
     if state.get("has_document"):
         return "document"
     return "chat"
@@ -36,6 +38,7 @@ def build_graph() -> StateGraph:
                              → [financing]    → financing_node → END
                              → [application]  → application_node → END
                              → [credit]       → credit_node → END
+                             → [action_plan]  → action_plan_node → END
                              → [has_document] → document_node → chat_node → END
                              → [no_document]  → chat_node → END
     """
@@ -49,12 +52,22 @@ def build_graph() -> StateGraph:
     graph.add_node("financing", financing_node)
     graph.add_node("application", application_node)
     graph.add_node("credit", credit_node)
+    graph.add_node("action_plan", action_plan_node)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(
         "router",
         _route_after_router,
-        {"esg_scoring": "esg_scoring", "carbon": "carbon", "financing": "financing", "application": "application", "credit": "credit", "document": "document", "chat": "chat"},
+        {
+            "esg_scoring": "esg_scoring",
+            "carbon": "carbon",
+            "financing": "financing",
+            "application": "application",
+            "credit": "credit",
+            "action_plan": "action_plan",
+            "document": "document",
+            "chat": "chat",
+        },
     )
     graph.add_edge("document", "chat")
     graph.add_edge("chat", END)
@@ -63,6 +76,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("financing", END)
     graph.add_edge("application", END)
     graph.add_edge("credit", END)
+    graph.add_edge("action_plan", END)
 
     return graph
 
