@@ -93,6 +93,20 @@ _CREDIT_KEYWORDS = [
 ]
 _CREDIT_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _CREDIT_KEYWORDS]
 
+# Heuristiques pour detecter une demande de plan d'action
+_ACTION_PLAN_KEYWORDS = [
+    r"\bplan\s+d'action\b", r"\bfeuille\s+de\s+route\b",
+    r"\bactions?\s+(?:ESG|vertes?|prioritaires?)\b",
+    r"\bprochaines?\s+[ée]tapes?\b",
+    r"\broadmap\b", r"\baction\s+plan\b",
+    r"\bgen[eè]re[r]?\s+(?:un|mon|le)\s+plan\b",
+    r"\bcreer?\s+(?:un|mon|le)\s+plan\b",
+    r"\bmon\s+plan\s+(?:d'action|ESG)\b",
+    r"\bprogression\s+(?:du|de\s+mon)\s+plan\b",
+    r"\btaches?\s+(?:ESG|en\s+cours|prioritaires?)\b",
+]
+_ACTION_PLAN_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ACTION_PLAN_KEYWORDS]
+
 # Heuristiques pour detecter une demande de bilan carbone
 _CARBON_KEYWORDS = [
     r"\bempreinte\s+carbone\b", r"\bbilan\s+carbone\b",
@@ -122,6 +136,11 @@ _FINANCING_KEYWORDS = [
     r"\bligne\s+de\s+cr[ée]dit\s+vert\b",
 ]
 _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS]
+
+
+def _detect_action_plan_request(text: str) -> bool:
+    """Detecter si un message est une demande liee au plan d'action ESG."""
+    return any(pattern.search(text) for pattern in _ACTION_PLAN_PATTERNS)
 
 
 def _detect_credit_request(text: str) -> bool:
@@ -259,13 +278,17 @@ async def router_node(state: ConversationState) -> ConversationState:
     credit_data = state.get("credit_data")
     is_credit_request = _detect_credit_request(last_user_msg) if last_user_msg else False
 
+    # Detecter si c'est une demande liee au plan d'action
+    action_plan_data = state.get("action_plan_data")
+    is_action_plan_request = _detect_action_plan_request(last_user_msg) if last_user_msg else False
+
     # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
     # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
-    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request and not is_credit_request:
+    if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request and not is_credit_request and not is_action_plan_request:
         instructions = _build_profiling_instructions(user_profile)
         if instructions:
             profiling_instructions = instructions
@@ -284,6 +307,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "_route_application": is_application_request,
         "credit_data": credit_data,
         "_route_credit": is_credit_request,
+        "action_plan_data": action_plan_data,
+        "_route_action_plan": is_action_plan_request,
     }
 
 
@@ -946,6 +971,96 @@ async def application_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "application_data": application_data,
+    }
+
+
+async def action_plan_node(state: ConversationState) -> ConversationState:
+    """Noeud plan d'action : présente ou génère un plan d'action ESG.
+
+    Formate le plan existant avec des blocs visuels (timeline, table, mermaid, gauge, chart)
+    ou invite l'utilisateur à générer un plan depuis la page dédiée.
+    """
+    from app.prompts.action_plan import build_action_plan_prompt
+
+    llm = get_llm()
+    user_profile = state.get("user_profile") or {}
+    action_plan_data = state.get("action_plan_data")
+    messages = state["messages"]
+
+    # Construire le contexte entreprise
+    company_lines: list[str] = []
+    if user_profile:
+        for key, value in user_profile.items():
+            if value is not None and value != "":
+                company_lines.append(f"- {key}: {value}")
+    company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
+
+    # Tenter de charger le plan actif depuis la BDD
+    user_id = state.get("user_id")
+    plan_context = "Aucun plan d'action actif."
+    if user_id:
+        try:
+            import uuid as uuid_mod
+
+            from app.core.database import async_session_factory
+            from app.modules.action_plan.service import get_active_plan
+
+            async with async_session_factory() as db:
+                plan = await get_active_plan(db, uuid_mod.UUID(str(user_id)))
+                if plan is not None:
+                    completed = plan.completed_actions
+                    total = plan.total_actions
+                    pct = int((completed / total) * 100) if total > 0 else 0
+                    plan_context = (
+                        f"Plan actif : {plan.title}\n"
+                        f"Horizon : {plan.timeframe} mois\n"
+                        f"Progression : {completed}/{total} actions ({pct}%)\n"
+                        f"Actions prioritaires : "
+                        + ", ".join(
+                            item.title for item in (plan.items or [])[:3]
+                            if item.status.value != "completed"
+                        )
+                    )
+                    action_plan_data = {
+                        "plan_id": str(plan.id),
+                        "title": plan.title,
+                        "timeframe": plan.timeframe,
+                        "total_actions": total,
+                        "completed_actions": completed,
+                        "progress_pct": pct,
+                    }
+        except Exception:
+            logger.exception("Erreur lors du chargement du plan d'action")
+
+    # Construire le prompt plan d'action
+    system_prompt = build_action_plan_prompt(
+        company_context=company_context,
+        esg_context="Consultez votre évaluation ESG sur la plateforme.",
+        carbon_context="Consultez votre bilan carbone sur la plateforme.",
+        financing_context="Consultez vos financements matchés sur la plateforme.",
+        intermediaries_context="Consultez l'annuaire des intermédiaires sur la plateforme.",
+        timeframe=12,
+    )
+
+    # Injecter le contexte du plan actif
+    plan_state_context = (
+        f"\n\nCONTEXTE PLAN D'ACTION :\n{plan_context}\n\n"
+        "Si l'utilisateur n'a pas de plan, invite-le à en générer un depuis la page /action-plan. "
+        "Si un plan existe, présente sa progression avec des blocs visuels."
+    )
+
+    full_prompt = system_prompt + plan_state_context
+
+    # Envoyer au LLM
+    chat_messages = [SystemMessage(content=full_prompt), *[
+        m for m in messages if not isinstance(m, SystemMessage)
+    ]]
+
+    response = await llm.ainvoke(chat_messages)
+
+    return {
+        "messages": [response],
+        "action_plan_data": action_plan_data,
     }
 
 

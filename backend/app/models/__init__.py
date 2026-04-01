@@ -18,3 +18,9 @@ from app.models.financing import (  # noqa: F401
 )
 from app.models.application import FundApplication  # noqa: F401
 from app.models.credit import CreditDataPoint, CreditScore  # noqa: F401
+from app.models.action_plan import (  # noqa: F401
+    ActionItem,
+    ActionPlan,
+    Badge,
+    Reminder,
+)

@@ -4,15 +4,17 @@ import { useToast } from '~/composables/useToast'
 const { toasts, dismiss } = useToast()
 
 const typeStyles: Record<string, string> = {
-  success: 'bg-emerald-50 border-brand-green text-emerald-800',
-  error: 'bg-red-50 border-brand-red text-red-800',
-  info: 'bg-blue-50 border-brand-blue text-blue-800',
+  success: 'bg-emerald-50 dark:bg-emerald-900/20 border-brand-green text-emerald-800 dark:text-emerald-300',
+  error: 'bg-red-50 dark:bg-red-900/20 border-brand-red text-red-800 dark:text-red-300',
+  info: 'bg-blue-50 dark:bg-blue-900/20 border-brand-blue text-blue-800 dark:text-blue-300',
+  intermediary: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-400 text-indigo-800 dark:text-indigo-300',
 }
 
 const typeIcons: Record<string, string> = {
   success: '✓',
   error: '✕',
   info: 'ℹ',
+  intermediary: '🏦',
 }
 </script>
 
