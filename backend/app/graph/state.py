@@ -10,6 +10,7 @@ class ConversationState(TypedDict):
     """État partagé entre les nœuds du graphe de conversation."""
 
     messages: Annotated[list, add_messages]
+    user_id: str | None
     user_profile: dict | None
     context_memory: list[str]
     profile_updates: list[dict] | None
@@ -29,3 +30,4 @@ class ConversationState(TypedDict):
     _route_credit: bool
     action_plan_data: dict | None
     _route_action_plan: bool
+    tool_call_count: int

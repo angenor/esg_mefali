@@ -1,10 +1,19 @@
 """Compilation du graphe LangGraph pour la conversation."""
 
+import logging
+from typing import Any
+
+from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import ToolNode
 
 from app.graph.checkpointer import create_checkpointer
 from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, router_node
 from app.graph.state import ConversationState
+
+logger = logging.getLogger(__name__)
+
+MAX_TOOL_CALLS_PER_TURN = 5
 
 
 def _route_after_router(state: ConversationState) -> str:
@@ -29,30 +38,104 @@ def _route_after_router(state: ConversationState) -> str:
     return "chat"
 
 
+def _should_continue_tool_loop(state: ConversationState) -> str:
+    """Décider si le nœud doit continuer la boucle tool ou terminer.
+
+    Vérifie le dernier message AI :
+    - S'il contient des tool_calls ET que le compteur < MAX → continuer vers le ToolNode
+    - Sinon → terminer (END)
+    """
+    messages = state.get("messages", [])
+    tool_call_count = state.get("tool_call_count", 0)
+
+    if not messages:
+        return "end"
+
+    last_message = messages[-1]
+    if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        if tool_call_count < MAX_TOOL_CALLS_PER_TURN:
+            return "continue"
+
+    return "end"
+
+
+def create_tool_loop(
+    graph: StateGraph,
+    node_name: str,
+    node_fn: Any,
+    tools: list,
+) -> None:
+    """Ajouter un nœud avec sa boucle ToolNode conditionnelle au graphe.
+
+    Pattern : node_fn → should_continue → ToolNode → node_fn (max 5 itérations)
+              node_fn → should_continue → END (pas de tool call ou plafond atteint)
+
+    Args:
+        graph: Le StateGraph en construction
+        node_name: Nom du nœud (ex: "esg_scoring")
+        node_fn: La fonction async du nœud spécialiste
+        tools: Liste des tools LangChain pour ce nœud
+    """
+    tool_node_name = f"{node_name}_tools"
+
+    graph.add_node(node_name, node_fn)
+
+    if tools:
+        tool_node = ToolNode(tools)
+        graph.add_node(tool_node_name, tool_node)
+
+        graph.add_conditional_edges(
+            node_name,
+            _should_continue_tool_loop,
+            {
+                "continue": tool_node_name,
+                "end": END,
+            },
+        )
+        graph.add_edge(tool_node_name, node_name)
+    else:
+        graph.add_edge(node_name, END)
+
+
 def build_graph() -> StateGraph:
-    """Construire le graphe de conversation multi-nœuds.
+    """Construire le graphe de conversation multi-nœuds avec tool calling.
 
     Structure :
-        START → router_node → [esg]          → esg_scoring_node → END
-                             → [carbon]       → carbon_node → END
-                             → [financing]    → financing_node → END
-                             → [application]  → application_node → END
-                             → [credit]       → credit_node → END
-                             → [action_plan]  → action_plan_node → END
-                             → [has_document] → document_node → chat_node → END
-                             → [no_document]  → chat_node → END
+        START → router_node → [esg]          → esg_scoring_node ⟲ esg_tools → END
+                             → [carbon]       → carbon_node ⟲ carbon_tools → END
+                             → [financing]    → financing_node ⟲ financing_tools → END
+                             → [application]  → application_node ⟲ application_tools → END
+                             → [credit]       → credit_node ⟲ credit_tools → END
+                             → [action_plan]  → action_plan_node ⟲ action_plan_tools → END
+                             → [has_document] → document_node → chat_node ⟲ chat_tools → END
+                             → [no_document]  → chat_node ⟲ chat_tools → END
     """
+    # Importer les tools de chaque module (imports paresseux pour eviter les cycles)
+    from app.graph.tools.action_plan_tools import ACTION_PLAN_TOOLS
+    from app.graph.tools.application_tools import APPLICATION_TOOLS
+    from app.graph.tools.carbon_tools import CARBON_TOOLS
+    from app.graph.tools.chat_tools import CHAT_TOOLS
+    from app.graph.tools.credit_tools import CREDIT_TOOLS
+    from app.graph.tools.document_tools import DOCUMENT_TOOLS
+    from app.graph.tools.esg_tools import ESG_TOOLS
+    from app.graph.tools.financing_tools import FINANCING_TOOLS
+    from app.graph.tools.profiling_tools import PROFILING_TOOLS
+
     graph = StateGraph(ConversationState)
 
+    # Le router n'a pas de tools
     graph.add_node("router", router_node)
     graph.add_node("document", document_node)
-    graph.add_node("chat", chat_node)
-    graph.add_node("esg_scoring", esg_scoring_node)
-    graph.add_node("carbon", carbon_node)
-    graph.add_node("financing", financing_node)
-    graph.add_node("application", application_node)
-    graph.add_node("credit", credit_node)
-    graph.add_node("action_plan", action_plan_node)
+
+    # Noeuds avec boucle tool calling
+    # chat_node : profiling + lecture temps reel + documents
+    create_tool_loop(graph, "chat", chat_node, tools=PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS)
+    create_tool_loop(graph, "esg_scoring", esg_scoring_node, tools=ESG_TOOLS)
+    create_tool_loop(graph, "carbon", carbon_node, tools=CARBON_TOOLS)
+    create_tool_loop(graph, "financing", financing_node, tools=FINANCING_TOOLS)
+    create_tool_loop(graph, "application", application_node, tools=APPLICATION_TOOLS)
+    create_tool_loop(graph, "credit", credit_node, tools=CREDIT_TOOLS)
+    create_tool_loop(graph, "action_plan", action_plan_node, tools=ACTION_PLAN_TOOLS)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(
@@ -70,13 +153,6 @@ def build_graph() -> StateGraph:
         },
     )
     graph.add_edge("document", "chat")
-    graph.add_edge("chat", END)
-    graph.add_edge("esg_scoring", END)
-    graph.add_edge("carbon", END)
-    graph.add_edge("financing", END)
-    graph.add_edge("application", END)
-    graph.add_edge("credit", END)
-    graph.add_edge("action_plan", END)
 
     return graph
 

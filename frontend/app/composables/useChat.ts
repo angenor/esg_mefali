@@ -25,6 +25,11 @@ export function useChat() {
     assessmentId: string
     message: string
   } | null>(null)
+  const activeToolCall = ref<{
+    name: string
+    args: Record<string, unknown>
+    callId: string
+  } | null>(null)
 
   function getHeaders(): Record<string, string> {
     return {
@@ -158,6 +163,13 @@ export function useChat() {
               summary?: string
               document_type?: string
               assessment_id?: string
+              tool_name?: string
+              tool_args?: Record<string, unknown>
+              tool_call_id?: string
+              success?: boolean
+              result_summary?: string
+              error_message?: string
+              message?: string
             }
 
             if (event.type === 'token' && event.content) {
@@ -219,6 +231,19 @@ export function useChat() {
                 identity_fields: { filled: [], missing: [] },
                 esg_fields: { filled: [], missing: [] },
               })
+            } else if (event.type === 'tool_call_start' && event.tool_name) {
+              // Début d'exécution d'un tool
+              activeToolCall.value = {
+                name: event.tool_name,
+                args: event.tool_args || {},
+                callId: event.tool_call_id || '',
+              }
+            } else if (event.type === 'tool_call_end') {
+              // Fin d'exécution d'un tool
+              activeToolCall.value = null
+            } else if (event.type === 'tool_call_error') {
+              // Erreur d'un tool
+              activeToolCall.value = null
             } else if (event.type === 'report_suggestion' && event.assessment_id) {
               reportSuggestion.value = {
                 assessmentId: event.assessment_id,
@@ -297,6 +322,7 @@ export function useChat() {
     filteredConversations,
     documentProgress,
     reportSuggestion,
+    activeToolCall,
     fetchConversations,
     createConversation,
     selectConversation,

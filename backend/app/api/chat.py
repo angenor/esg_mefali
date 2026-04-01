@@ -17,12 +17,6 @@ from app.models.company import CompanyProfile
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
-from app.modules.company.schemas import CompanyProfileUpdate
-from app.modules.company.service import (
-    compute_completion,
-    get_or_create_profile,
-    update_profile,
-)
 from app.schemas.chat import (
     ConversationCreate,
     ConversationResponse,
@@ -86,6 +80,140 @@ async def _error_sse(message: str) -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'type': 'error', 'content': message})}\n\n"
 
 
+async def stream_graph_events(
+    content: str,
+    conversation_id: str,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    user_profile: dict | None = None,
+    context_memory: list[str] | None = None,
+    document_analysis_summary: str | None = None,
+    document_upload: dict | None = None,
+) -> AsyncGenerator[dict, None]:
+    """Streamer les événements du graphe LangGraph via astream_events().
+
+    Utilise le graphe compilé avec tool calling pour un flux complet :
+    tokens, tool_call_start, tool_call_end, tool_call_error.
+
+    Yields:
+        dict avec type: token | tool_call_start | tool_call_end | tool_call_error
+    """
+    from app.main import compiled_graph
+
+    if compiled_graph is None:
+        yield {"type": "error", "content": "Service IA indisponible"}
+        return
+
+    # Construire l'état initial pour le graphe
+    initial_state = {
+        "messages": [HumanMessage(content=content)],
+        "user_id": str(user_id),
+        "user_profile": user_profile,
+        "context_memory": context_memory or [],
+        "profile_updates": None,
+        "profiling_instructions": None,
+        "document_upload": document_upload,
+        "document_analysis_summary": document_analysis_summary,
+        "has_document": document_upload is not None,
+        "esg_assessment": None,
+        "_route_esg": False,
+        "carbon_data": None,
+        "_route_carbon": False,
+        "financing_data": None,
+        "_route_financing": False,
+        "application_data": None,
+        "_route_application": False,
+        "credit_data": None,
+        "_route_credit": False,
+        "action_plan_data": None,
+        "_route_action_plan": False,
+        "tool_call_count": 0,
+    }
+
+    config = {
+        "configurable": {
+            "thread_id": conversation_id,
+            "user_id": user_id,
+            "db": db,
+            "conversation_id": uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id,
+        },
+    }
+
+    try:
+        async for event in compiled_graph.astream_events(
+            initial_state,
+            config=config,
+            version="v2",
+        ):
+            kind = event.get("event", "")
+
+            if kind == "on_chat_model_stream":
+                # Token de texte streamé
+                chunk = event.get("data", {}).get("chunk")
+                if chunk and hasattr(chunk, "content") and chunk.content:
+                    yield {"type": "token", "content": chunk.content}
+
+            elif kind == "on_tool_start":
+                # Début d'exécution d'un tool
+                tool_name = event.get("name", "unknown")
+                tool_input = event.get("data", {}).get("input", {})
+                run_id = event.get("run_id", "")
+                yield {
+                    "type": "tool_call_start",
+                    "tool_name": tool_name,
+                    "tool_args": tool_input if isinstance(tool_input, dict) else {},
+                    "tool_call_id": run_id,
+                }
+
+            elif kind == "on_tool_end":
+                # Fin d'exécution d'un tool
+                tool_name = event.get("name", "unknown")
+                output = event.get("data", {}).get("output", "")
+                run_id = event.get("run_id", "")
+                result_summary = str(output)[:200] if output else ""
+                yield {
+                    "type": "tool_call_end",
+                    "tool_name": tool_name,
+                    "tool_call_id": run_id,
+                    "success": True,
+                    "result_summary": result_summary,
+                }
+
+                # Émettre les événements SSE profile_update/completion
+                # si le tool a retourné des métadonnées de profil
+                output_str = str(output) if output else ""
+                sse_marker = "<!--SSE:"
+                if sse_marker in output_str:
+                    try:
+                        start = output_str.index(sse_marker) + len(sse_marker)
+                        end = output_str.index("-->", start)
+                        sse_data = json.loads(output_str[start:end])
+                        if sse_data.get("__sse_profile__"):
+                            for field_update in sse_data.get("changed_fields", []):
+                                yield {"type": "profile_update", **field_update}
+                            completion = sse_data.get("completion")
+                            if completion:
+                                yield {"type": "profile_completion", **completion}
+                    except (ValueError, json.JSONDecodeError):
+                        logger.debug("Impossible de parser les métadonnées SSE du tool")
+
+            elif kind == "on_tool_error":
+                # Erreur d'un tool
+                tool_name = event.get("name", "unknown")
+                error_data = event.get("data", {})
+                run_id = event.get("run_id", "")
+                yield {
+                    "type": "tool_call_error",
+                    "tool_name": tool_name,
+                    "tool_call_id": run_id,
+                    "error_message": str(error_data.get("error", "Erreur inconnue"))[:200],
+                }
+
+    except Exception as e:
+        logger.exception("Erreur stream_graph_events")
+        yield {"type": "error", "content": str(e)}
+
+
 async def stream_llm_tokens(
     content: str,
     conversation_id: str,
@@ -93,7 +221,7 @@ async def stream_llm_tokens(
     context_memory: list[str] | None = None,
     document_analysis_summary: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Streamer les tokens du LLM un par un.
+    """Streamer les tokens du LLM un par un (fallback sans tool calling).
 
     Utilise le LLM directement avec streaming pour un rendu progressif.
     Le prompt système est enrichi avec le profil, la mémoire contextuelle
@@ -113,61 +241,6 @@ async def stream_llm_tokens(
     async for chunk in llm.astream(messages):
         if chunk.content:
             yield chunk.content
-
-
-async def extract_and_update_profile(
-    user_message: str,
-    user_id: uuid.UUID,
-    db: AsyncSession,
-) -> tuple[list[dict], dict | None]:
-    """Extraire les infos de profil et mettre à jour en base.
-
-    Retourne (changed_fields, completion_data) ou ([], None) si rien extrait.
-    """
-    from app.chains.extraction import extract_profile_from_message
-
-    profile = await get_or_create_profile(db, user_id)
-
-    # Sérialiser le profil actuel pour le contexte
-    current_profile = {
-        field: getattr(profile, field)
-        for field in [
-            "company_name", "sector", "sub_sector", "employee_count",
-            "annual_revenue_xof", "city", "country", "year_founded",
-            "has_waste_management", "has_energy_policy", "has_gender_policy",
-            "has_training_program", "has_financial_transparency",
-            "governance_structure", "environmental_practices",
-            "social_practices", "notes",
-        ]
-        if getattr(profile, field) is not None
-    }
-    # Convertir les enums
-    for k, v in current_profile.items():
-        if hasattr(v, "value"):
-            current_profile[k] = v.value
-
-    extraction = await extract_profile_from_message(user_message, current_profile)
-
-    # Récupérer les champs extraits (dictionnaire plat, non-null uniquement)
-    extraction_data = extraction.flat_dict()
-
-    if not extraction_data:
-        return [], None
-
-    updates = CompanyProfileUpdate(**extraction_data)
-    _, changed_fields = await update_profile(db, profile, updates)
-
-    if not changed_fields:
-        return [], None
-
-    completion = compute_completion(profile)
-    completion_data = {
-        "identity_completion": completion.identity_completion,
-        "esg_completion": completion.esg_completion,
-        "overall_completion": completion.overall_completion,
-    }
-
-    return changed_fields, completion_data
 
 
 async def _load_profile_for_state(
@@ -474,27 +547,22 @@ async def send_message(
             "user_id": str(user_id),
         }
 
-    # Détecter si le message contient des infos de profil
-    from app.graph.nodes import _detect_profile_info
-    should_extract = _detect_profile_info(user_content)
-
     # Charger le profil et la mémoire contextuelle pour le prompt
     user_profile = await _load_profile_for_state(db, user_id)
     context_memory = await _load_context_memory(db, user_id)
 
     async def generate_sse() -> AsyncGenerator[str, None]:
-        """Générer les événements SSE avec streaming token par token."""
+        """Générer les événements SSE via le graphe LangGraph avec tool calling."""
         async with async_session_factory() as sse_db:
             try:
                 # Émettre les événements SSE de progression document
+                doc_analysis_summary = None
                 if doc_upload_info:
                     yield f"data: {json.dumps({'type': 'document_upload', 'document_id': doc_upload_info['document_id'], 'filename': doc_upload_info['filename'], 'status': 'uploaded'})}\n\n"
                     yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'extracting'})}\n\n"
 
-                    # Lancer l'analyse du document
                     from app.modules.documents.service import analyze_document, get_document as get_doc
                     doc = await get_doc(sse_db, uuid.UUID(doc_upload_info["document_id"]))
-                    doc_analysis_summary = None
 
                     if doc:
                         yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'analyzing'})}\n\n"
@@ -517,17 +585,30 @@ async def send_message(
                             logger.exception("Erreur analyse document dans chat")
                             doc_analysis_summary = f"Document reçu : {doc_upload_info['filename']}. Erreur lors de l'analyse."
                             yield f"data: {json.dumps({'type': 'document_status', 'document_id': doc_upload_info['document_id'], 'status': 'error'})}\n\n"
-                else:
-                    doc_analysis_summary = None
 
-                # Streamer les tokens du LLM avec profil + mémoire + contexte document
+                # Streamer via le graphe LangGraph avec tool calling
                 full_response = ""
-                async for token in stream_llm_tokens(
-                    user_content, str(conv_id), user_profile, context_memory,
+                async for event in stream_graph_events(
+                    content=user_content,
+                    conversation_id=str(conv_id),
+                    user_id=user_id,
+                    db=sse_db,
+                    user_profile=user_profile,
+                    context_memory=context_memory,
                     document_analysis_summary=doc_analysis_summary,
+                    document_upload=doc_upload_info,
                 ):
-                    full_response += token
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    event_type = event.get("type")
+
+                    if event_type == "token":
+                        full_response += event["content"]
+                        yield f"data: {json.dumps(event)}\n\n"
+
+                    elif event_type in ("tool_call_start", "tool_call_end", "tool_call_error"):
+                        yield f"data: {json.dumps(event)}\n\n"
+
+                    elif event_type == "error":
+                        yield f"data: {json.dumps(event)}\n\n"
 
                 # Sauvegarder la réponse complète
                 assistant_message = Message(
@@ -555,7 +636,6 @@ async def send_message(
                     )
                     latest_completed = latest_assessment_result.scalar_one_or_none()
                     if latest_completed:
-                        # Verifier qu'il n'y a pas deja un rapport pour cette evaluation
                         from app.models.report import Report
                         existing_report = await sse_db.execute(
                             select(Report).where(
@@ -567,21 +647,6 @@ async def send_message(
                             yield f"data: {json.dumps({'type': 'report_suggestion', 'assessment_id': str(latest_completed.id), 'message': 'Votre evaluation ESG est terminee ! Vous pouvez generer un rapport PDF detaille.'})}\n\n"
                 except Exception:
                     logger.debug("Notification rapport : aucune evaluation completee ou erreur")
-
-                # Extraction de profil en parallèle (après le streaming)
-                if should_extract:
-                    try:
-                        changed_fields, completion_data = await extract_and_update_profile(
-                            user_content, user_id, sse_db,
-                        )
-
-                        for field_update in changed_fields:
-                            yield f"data: {json.dumps({'type': 'profile_update', **field_update})}\n\n"
-
-                        if completion_data:
-                            yield f"data: {json.dumps({'type': 'profile_completion', **completion_data})}\n\n"
-                    except Exception:
-                        logger.exception("Erreur extraction profil")
 
                 await sse_db.commit()
 

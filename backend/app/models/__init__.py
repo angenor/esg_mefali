@@ -24,3 +24,4 @@ from app.models.action_plan import (  # noqa: F401
     Badge,
     Reminder,
 )
+from app.models.tool_call_log import ToolCallLog  # noqa: F401

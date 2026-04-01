@@ -17,6 +17,7 @@ const {
   filteredConversations,
   documentProgress,
   reportSuggestion,
+  activeToolCall,
   fetchConversations,
   createConversation,
   selectConversation,
@@ -188,6 +189,14 @@ async function handleRename(conversationId: string, title: string) {
             :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
           />
         </div>
+      </div>
+
+      <!-- Indicateur tool call en cours -->
+      <div v-if="activeToolCall" class="mx-4 mb-2">
+        <ChatToolCallIndicator
+          :tool-name="activeToolCall.name"
+          :args="activeToolCall.args"
+        />
       </div>
 
       <!-- Notification rapport disponible -->

@@ -227,6 +227,7 @@ def get_llm() -> ChatOpenAI:
         base_url=settings.openrouter_base_url,
         api_key=settings.openrouter_api_key,
         streaming=True,
+        max_tokens=4096,
     )
 
 
@@ -432,18 +433,21 @@ async def _fetch_rag_context_for_esg(
 
 
 async def esg_scoring_node(state: ConversationState) -> ConversationState:
-    """Nœud d'évaluation ESG : conduit l'évaluation conversationnelle.
+    """Noeud d'evaluation ESG : conduit l'evaluation conversationnelle avec tool calling.
 
-    Gère l'état de l'évaluation (création, progression, finalisation)
-    et utilise un prompt spécialisé ESG pour interagir avec l'utilisateur.
+    Gere l'etat de l'evaluation (creation, progression, finalisation)
+    et utilise un prompt specialise ESG pour interagir avec l'utilisateur.
     Enrichit le contexte avec les documents de l'utilisateur via RAG.
+    Le LLM dispose de tools pour creer, sauvegarder et finaliser les evaluations.
     """
+    from app.graph.tools.esg_tools import ESG_TOOLS
     from app.prompts.esg_scoring import build_esg_prompt
 
     llm = get_llm()
     user_profile = state.get("user_profile") or {}
     esg_assessment = state.get("esg_assessment")
     messages = state["messages"]
+    tool_call_count = state.get("tool_call_count", 0)
 
     # Construire le contexte entreprise pour le prompt ESG
     company_lines: list[str] = []
@@ -456,12 +460,13 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
     # Contexte documentaire general (si disponible)
     doc_context = state.get("document_analysis_summary") or "Aucun document analyse."
 
-    # Si pas d'évaluation en cours, chercher une evaluation a reprendre ou en creer une nouvelle
+    # Si pas d'evaluation en cours, chercher une evaluation a reprendre ou en creer une nouvelle
     if esg_assessment is None or esg_assessment.get("status") == "completed":
         from app.modules.esg.service import build_initial_esg_state
 
         # Tenter de reprendre une evaluation interrompue
         resumable = None
+        user_id = state.get("user_id")
         if user_id:
             try:
                 import uuid as uuid_mod
@@ -508,25 +513,48 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
         document_context=doc_context,
     )
 
-    # Injecter l'état d'évaluation dans le prompt
+    # Instructions tool calling pour le LLM
+    tool_instructions = (
+        "\n\n## INSTRUCTIONS TOOL CALLING\n"
+        "Tu disposes de tools pour gerer l'evaluation ESG :\n"
+        "- **get_esg_assessment** : recuperer une evaluation existante ou en cours\n"
+        "- **create_esg_assessment** : creer une nouvelle evaluation\n"
+        "- **save_esg_criterion_score** : sauvegarder le score d'un critere (0-10 + justification)\n"
+        "- **finalize_esg_assessment** : finaliser l'evaluation (UNIQUEMENT apres confirmation utilisateur)\n\n"
+        "Workflow obligatoire :\n"
+        "1. Appelle get_esg_assessment pour verifier s'il existe une evaluation en cours\n"
+        "2. Si aucune evaluation, appelle create_esg_assessment pour en creer une\n"
+        "3. Pour chaque critere evalue, appelle save_esg_criterion_score avec le score et la justification\n"
+        "4. AVANT de finaliser, demande TOUJOURS confirmation a l'utilisateur\n"
+        "5. Apres confirmation, appelle finalize_esg_assessment\n"
+    )
+
+    # Injecter l'etat d'evaluation dans le prompt
     esg_state_context = (
-        f"\n\nÉTAT DE L'ÉVALUATION EN COURS :\n"
+        f"\n\nETAT DE L'EVALUATION EN COURS :\n"
         f"- Pilier actuel : {esg_assessment.get('current_pillar', 'environment')}\n"
-        f"- Critères évalués : {esg_assessment.get('evaluated_criteria', [])}\n"
+        f"- Criteres evalues : {esg_assessment.get('evaluated_criteria', [])}\n"
         f"- Scores partiels : {esg_assessment.get('partial_scores', {})}\n"
     )
-    full_prompt = system_prompt + esg_state_context
+    full_prompt = system_prompt + tool_instructions + esg_state_context
 
-    # Envoyer au LLM
+    # Envoyer au LLM avec les tools ESG
     chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
-    response = await llm.ainvoke(chat_messages)
+    llm_with_tools = llm.bind_tools(ESG_TOOLS)
+    response = await llm_with_tools.ainvoke(chat_messages)
+
+    # Incrementer le compteur de tool calls si le LLM a demande des tools
+    new_tool_call_count = tool_call_count
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        new_tool_call_count = tool_call_count + 1
 
     return {
         "messages": [response],
         "esg_assessment": esg_assessment,
+        "tool_call_count": new_tool_call_count,
     }
 
 
@@ -622,12 +650,28 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     )
     full_prompt = system_prompt + carbon_state_context
 
-    # Envoyer au LLM
+    # Instructions tool calling carbone
+    tool_instructions = (
+        "\n\n## TOOLS DISPONIBLES\n"
+        "Tu disposes de tools pour gerer le bilan carbone :\n"
+        "- `create_carbon_assessment` : Creer un nouveau bilan pour une annee donnee\n"
+        "- `save_emission_entry` : Enregistrer une entree d'emission (calcul tCO2e automatique)\n"
+        "- `finalize_carbon_assessment` : Finaliser le bilan (DEMANDER CONFIRMATION a l'utilisateur avant)\n"
+        "- `get_carbon_summary` : Obtenir le resume complet du bilan\n\n"
+        "Utilise ces tools pour persister les donnees. Quand l'utilisateur donne une consommation, "
+        "appelle `save_emission_entry` avec la bonne categorie et sous-categorie.\n"
+    )
+    full_prompt = full_prompt + tool_instructions
+
+    # Envoyer au LLM avec tools
+    from app.graph.tools.carbon_tools import CARBON_TOOLS
+
     chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
-    response = await llm.ainvoke(chat_messages)
+    llm_with_tools = llm.bind_tools(CARBON_TOOLS) if CARBON_TOOLS else llm
+    response = await llm_with_tools.ainvoke(chat_messages)
 
     return {
         "messages": [response],
@@ -656,14 +700,21 @@ async def _fetch_rag_context_for_financing(query: str) -> str:
 
 
 async def financing_node(state: ConversationState) -> ConversationState:
-    """Noeud de conseil en financement vert.
+    """Noeud de conseil en financement vert avec tool calling.
 
-    Repond aux questions sur les financements verts avec des blocs visuels
-    (Mermaid, tableaux, timelines, jauges). Utilise le RAG sur financing_chunks.
+    Utilise les tools search_compatible_funds, save_fund_interest, get_fund_details
+    et create_fund_application pour interagir avec la base financement.
+    Conserve le RAG pour le contexte enrichi.
     """
+    from app.graph.tools.financing_tools import FINANCING_TOOLS
     from app.prompts.financing import build_financing_prompt
 
     llm = get_llm()
+
+    # Lier les tools financement au LLM
+    if FINANCING_TOOLS:
+        llm = llm.bind_tools(FINANCING_TOOLS)
+
     user_profile = state.get("user_profile") or {}
     financing_data = state.get("financing_data")
     messages = state["messages"]
@@ -694,8 +745,20 @@ async def financing_node(state: ConversationState) -> ConversationState:
         rag_context=rag_context or "Aucune information supplementaire disponible.",
     )
 
+    # Instructions tool calling
+    tool_instructions = (
+        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
+        "- Pour rechercher des fonds : utilise TOUJOURS le tool search_compatible_funds.\n"
+        "- Pour marquer un interet : utilise TOUJOURS le tool save_fund_interest.\n"
+        "- Pour les details d'un fonds : utilise TOUJOURS le tool get_fund_details.\n"
+        "- Pour creer une candidature : utilise TOUJOURS le tool create_fund_application.\n"
+        "- Ne reponds JAMAIS de memoire sur les fonds — consulte la base."
+    )
+
+    full_prompt = system_prompt + tool_instructions
+
     # Envoyer au LLM
-    chat_messages = [SystemMessage(content=system_prompt), *[
+    chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
@@ -799,14 +862,20 @@ async def _fetch_credit_scoring_context(user_id: str | None) -> tuple[str, list[
 
 
 async def credit_node(state: ConversationState) -> ConversationState:
-    """Noeud de scoring credit vert conversationnel.
+    """Noeud scoring credit vert avec tool calling.
 
-    Presente le score de credit vert avec des blocs visuels (gauge, chart radar,
-    progress, mermaid, chart line) et des recommandations actionnables.
+    Utilise les tools generate_credit_score, get_credit_score et
+    generate_credit_certificate pour calculer et consulter le score.
     """
+    from app.graph.tools.credit_tools import CREDIT_TOOLS
     from app.prompts.credit import build_credit_prompt
 
     llm = get_llm()
+
+    # Lier les tools credit au LLM
+    if CREDIT_TOOLS:
+        llm = llm.bind_tools(CREDIT_TOOLS)
+
     user_profile = state.get("user_profile") or {}
     credit_data = state.get("credit_data")
     messages = state["messages"]
@@ -819,7 +888,7 @@ async def credit_node(state: ConversationState) -> ConversationState:
                 company_lines.append(f"- {key}: {value}")
     company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
 
-    # Recuperer le contexte de scoring
+    # Recuperer le contexte de scoring pour l'historique
     user_id = state.get("user_id")
     scoring_context, history_items = await _fetch_credit_scoring_context(user_id)
 
@@ -840,8 +909,19 @@ async def credit_node(state: ConversationState) -> ConversationState:
             )
         system_prompt += history_text
 
+    # Instructions tool calling
+    tool_instructions = (
+        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
+        "- Pour calculer le score : utilise TOUJOURS le tool generate_credit_score.\n"
+        "- Pour consulter le score actuel : utilise TOUJOURS le tool get_credit_score.\n"
+        "- Pour generer une attestation : utilise TOUJOURS le tool generate_credit_certificate.\n"
+        "- N'estime JAMAIS un score manuellement — appelle toujours le tool."
+    )
+
+    full_prompt = system_prompt + tool_instructions
+
     # Envoyer au LLM
-    chat_messages = [SystemMessage(content=system_prompt), *[
+    chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
@@ -854,23 +934,48 @@ async def credit_node(state: ConversationState) -> ConversationState:
 
 
 async def chat_node(state: ConversationState) -> ConversationState:
-    """Nœud principal : envoie les messages au LLM et retourne la réponse."""
+    """Noeud principal avec tool calling : profilage + lecture temps reel.
+
+    Lie les tools de profilage ET les tools de lecture (dashboard, ESG, carbone)
+    pour permettre au LLM de mettre a jour le profil et consulter les donnees
+    en temps reel depuis la base.
+    """
+    from app.graph.tools.chat_tools import CHAT_TOOLS
+    from app.graph.tools.document_tools import DOCUMENT_TOOLS
+    from app.graph.tools.profiling_tools import PROFILING_TOOLS
+
     llm = get_llm()
+
+    # Combiner les tools de profilage, lecture et documents
+    all_tools = PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS
+    if all_tools:
+        llm = llm.bind_tools(all_tools)
 
     user_profile = state.get("user_profile")
     context_memory = state.get("context_memory", [])
     profiling_instructions = state.get("profiling_instructions")
     document_summary = state.get("document_analysis_summary")
 
-    # Construire le prompt système dynamique
+    # Construire le prompt systeme dynamique
     system_prompt = build_system_prompt(
         user_profile, context_memory, profiling_instructions,
         document_analysis_summary=document_summary,
     )
 
-    # Ajouter le prompt système en tête
+    # Instructions consultation base temps reel
+    tool_instructions = (
+        "\n\nINSTRUCTIONS CONSULTATION BASE :\n"
+        "- Pour les questions sur le profil, score ESG, bilan carbone, credit ou dashboard : "
+        "utilise les tools de lecture pour consulter la base en temps reel.\n"
+        "- Ne reponds JAMAIS de memoire — appelle le tool adapte pour obtenir les donnees actuelles.\n"
+        "- Pour mettre a jour le profil : utilise update_company_profile avec les champs fournis."
+    )
+
+    full_prompt = system_prompt + tool_instructions
+
+    # Ajouter le prompt systeme en tete
     messages = state["messages"]
-    chat_messages = [SystemMessage(content=system_prompt), *[
+    chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
@@ -918,14 +1023,20 @@ async def profiling_node(state: ConversationState) -> ConversationState:
 
 
 async def application_node(state: ConversationState) -> ConversationState:
-    """Noeud de gestion des dossiers de candidature.
+    """Noeud dossiers de candidature avec tool calling.
 
-    Repond aux questions sur les dossiers de candidature avec des blocs visuels
-    (Mermaid, progress, timeline, table, gauge). Utilise le contexte du dossier en cours.
+    Utilise les tools generate_application_section, update_application_section,
+    get_application_checklist, simulate_financing et export_application.
     """
+    from app.graph.tools.application_tools import APPLICATION_TOOLS
     from app.prompts.application import build_application_prompt
 
     llm = get_llm()
+
+    # Lier les tools application au LLM
+    if APPLICATION_TOOLS:
+        llm = llm.bind_tools(APPLICATION_TOOLS)
+
     user_profile = state.get("user_profile") or {}
     application_data = state.get("application_data")
     messages = state["messages"]
@@ -943,16 +1054,8 @@ async def application_node(state: ConversationState) -> ConversationState:
     if application_data:
         parts = [
             f"Dossier : {application_data.get('fund_name', 'Inconnu')}",
-            f"Type de destinataire : {application_data.get('target_type', 'inconnu')}",
             f"Statut : {application_data.get('status', 'inconnu')}",
-            f"Sections : {application_data.get('sections_generated', 0)}/{application_data.get('sections_total', 0)} generees",
         ]
-        if application_data.get("intermediary_name"):
-            parts.append(f"Intermediaire : {application_data['intermediary_name']}")
-        if application_data.get("checklist_total"):
-            parts.append(
-                f"Checklist : {application_data.get('checklist_complete', 0)}/{application_data['checklist_total']} documents"
-            )
         application_context = "\n".join(parts)
 
     # Construire le prompt
@@ -961,8 +1064,21 @@ async def application_node(state: ConversationState) -> ConversationState:
         application_context=application_context,
     )
 
+    # Instructions tool calling
+    tool_instructions = (
+        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
+        "- Pour generer une section : utilise TOUJOURS le tool generate_application_section.\n"
+        "- Pour modifier une section : utilise TOUJOURS le tool update_application_section.\n"
+        "- Pour la checklist : utilise TOUJOURS le tool get_application_checklist.\n"
+        "- Pour simuler : utilise TOUJOURS le tool simulate_financing.\n"
+        "- Pour exporter : utilise TOUJOURS le tool export_application.\n"
+        "- Sauvegarde SYSTEMATIQUEMENT chaque section generee ou modifiee."
+    )
+
+    full_prompt = system_prompt + tool_instructions
+
     # Envoyer au LLM
-    chat_messages = [SystemMessage(content=system_prompt), *[
+    chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
@@ -975,14 +1091,20 @@ async def application_node(state: ConversationState) -> ConversationState:
 
 
 async def action_plan_node(state: ConversationState) -> ConversationState:
-    """Noeud plan d'action : présente ou génère un plan d'action ESG.
+    """Noeud plan d'action avec tool calling.
 
-    Formate le plan existant avec des blocs visuels (timeline, table, mermaid, gauge, chart)
-    ou invite l'utilisateur à générer un plan depuis la page dédiée.
+    Utilise les tools generate_action_plan, update_action_item et get_action_plan
+    pour generer, modifier et consulter les plans d'action en base.
     """
+    from app.graph.tools.action_plan_tools import ACTION_PLAN_TOOLS
     from app.prompts.action_plan import build_action_plan_prompt
 
     llm = get_llm()
+
+    # Lier les tools action plan au LLM
+    if ACTION_PLAN_TOOLS:
+        llm = llm.bind_tools(ACTION_PLAN_TOOLS)
+
     user_profile = state.get("user_profile") or {}
     action_plan_data = state.get("action_plan_data")
     messages = state["messages"]
@@ -995,43 +1117,6 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
                 company_lines.append(f"- {key}: {value}")
     company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
 
-    # Tenter de charger le plan actif depuis la BDD
-    user_id = state.get("user_id")
-    plan_context = "Aucun plan d'action actif."
-    if user_id:
-        try:
-            import uuid as uuid_mod
-
-            from app.core.database import async_session_factory
-            from app.modules.action_plan.service import get_active_plan
-
-            async with async_session_factory() as db:
-                plan = await get_active_plan(db, uuid_mod.UUID(str(user_id)))
-                if plan is not None:
-                    completed = plan.completed_actions
-                    total = plan.total_actions
-                    pct = int((completed / total) * 100) if total > 0 else 0
-                    plan_context = (
-                        f"Plan actif : {plan.title}\n"
-                        f"Horizon : {plan.timeframe} mois\n"
-                        f"Progression : {completed}/{total} actions ({pct}%)\n"
-                        f"Actions prioritaires : "
-                        + ", ".join(
-                            item.title for item in (plan.items or [])[:3]
-                            if item.status.value != "completed"
-                        )
-                    )
-                    action_plan_data = {
-                        "plan_id": str(plan.id),
-                        "title": plan.title,
-                        "timeframe": plan.timeframe,
-                        "total_actions": total,
-                        "completed_actions": completed,
-                        "progress_pct": pct,
-                    }
-        except Exception:
-            logger.exception("Erreur lors du chargement du plan d'action")
-
     # Construire le prompt plan d'action
     system_prompt = build_action_plan_prompt(
         company_context=company_context,
@@ -1042,14 +1127,17 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
         timeframe=12,
     )
 
-    # Injecter le contexte du plan actif
-    plan_state_context = (
-        f"\n\nCONTEXTE PLAN D'ACTION :\n{plan_context}\n\n"
-        "Si l'utilisateur n'a pas de plan, invite-le à en générer un depuis la page /action-plan. "
-        "Si un plan existe, présente sa progression avec des blocs visuels."
+    # Instructions tool calling
+    tool_instructions = (
+        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
+        "- Pour generer un plan : utilise TOUJOURS le tool generate_action_plan.\n"
+        "- Pour consulter le plan actif : utilise TOUJOURS le tool get_action_plan.\n"
+        "- Pour mettre a jour une action : utilise TOUJOURS le tool update_action_item.\n"
+        "- Ne reponds JAMAIS de memoire sur l'etat du plan — consulte la base.\n"
+        "- Presente la progression avec des blocs visuels (timeline, gauge, table)."
     )
 
-    full_prompt = system_prompt + plan_state_context
+    full_prompt = system_prompt + tool_instructions
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
