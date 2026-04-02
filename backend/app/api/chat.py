@@ -148,6 +148,10 @@ async def stream_graph_events(
             kind = event.get("event", "")
 
             if kind == "on_chat_model_stream":
+                # Ignorer les tokens du routeur (classification interne)
+                node_name = event.get("metadata", {}).get("langgraph_node", "")
+                if node_name == "router":
+                    continue
                 # Token de texte streamé
                 chunk = event.get("data", {}).get("chunk")
                 if chunk and hasattr(chunk, "content") and chunk.content:

@@ -78,44 +78,43 @@ async function copyContent() {
           {{ message.content }}
         </template>
 
-        <!-- Indicateur de progression document -->
-        <div
-          v-if="!isUser && documentProgress && isStreaming"
-          class="flex items-center gap-2 mb-2 text-xs"
-        >
-          <!-- Spinner -->
-          <div
-            v-if="docStatusIcon === 'loading'"
-            class="w-3.5 h-3.5 border-2 border-brand-green border-t-transparent rounded-full animate-spin shrink-0"
-          />
-          <!-- Check -->
-          <svg
-            v-else-if="docStatusIcon === 'check'"
-            xmlns="http://www.w3.org/2000/svg"
-            class="w-3.5 h-3.5 text-brand-green shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-          </svg>
-          <!-- Erreur -->
-          <svg
-            v-else-if="docStatusIcon === 'error'"
-            xmlns="http://www.w3.org/2000/svg"
-            class="w-3.5 h-3.5 text-red-500 shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-          </svg>
-          <span class="text-gray-500 dark:text-gray-400">
-            {{ docStatusLabels[documentProgress.status] }}
-            <span class="font-medium text-surface-text dark:text-surface-dark-text">{{ documentProgress.filename }}</span>
-          </span>
-        </div>
-
         <!-- Messages assistant : rendu enrichi -->
         <template v-else>
+          <!-- Indicateur de progression document -->
+          <div
+            v-if="documentProgress && isStreaming"
+            class="flex items-center gap-2 mb-2 text-xs"
+          >
+            <!-- Spinner -->
+            <div
+              v-if="docStatusIcon === 'loading'"
+              class="w-3.5 h-3.5 border-2 border-brand-green border-t-transparent rounded-full animate-spin shrink-0"
+            />
+            <!-- Check -->
+            <svg
+              v-else-if="docStatusIcon === 'check'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5 text-brand-green shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+            <!-- Erreur -->
+            <svg
+              v-else-if="docStatusIcon === 'error'"
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-3.5 h-3.5 text-red-500 shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+            <span class="text-gray-500 dark:text-gray-400">
+              {{ docStatusLabels[documentProgress.status] }}
+              <span class="font-medium text-surface-text dark:text-surface-dark-text">{{ documentProgress.filename }}</span>
+            </span>
+          </div>
           <MessageParser
             :content="message.content"
             :is-streaming="isStreaming"

@@ -77,7 +77,7 @@ export function useChat() {
   }
 
   async function sendMessage(content: string, file?: File): Promise<void> {
-    if (!currentConversation.value) return
+    if (!currentConversation.value || isStreaming.value) return
 
     error.value = ''
     isStreaming.value = true
