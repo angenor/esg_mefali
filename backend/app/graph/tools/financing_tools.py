@@ -68,10 +68,14 @@ async def search_compatible_funds(config: RunnableConfig) -> str:
         for m in matches[:5]:
             fund = m.fund
             fund_type = fund.fund_type.value if hasattr(fund.fund_type, "value") else fund.fund_type
+            min_amt = f"{fund.min_amount_xof:,}" if fund.min_amount_xof else "N/A"
+            max_amt = f"{fund.max_amount_xof:,}" if fund.max_amount_xof else "N/A"
+            access = fund.access_type.value if hasattr(fund.access_type, "value") else fund.access_type
             lines.append(
                 f"- {fund.name} ({fund_type}) — "
                 f"score compatibilite : {m.compatibility_score}% — "
-                f"montant : {fund.min_amount:,}-{fund.max_amount:,}"
+                f"montant : {min_amt}-{max_amt} FCFA — "
+                f"acces : {access} — id={fund.id}"
             )
 
         if len(matches) > 5:
@@ -144,18 +148,39 @@ async def get_fund_details(fund_id: str, config: RunnableConfig) -> str:
             return f"Fonds introuvable (id={fund_id})."
 
         fund_type = fund.fund_type.value if hasattr(fund.fund_type, "value") else fund.fund_type
-        sectors = ", ".join(fund.sectors) if fund.sectors else "Tous secteurs"
-        countries = ", ".join(fund.eligible_countries) if fund.eligible_countries else "Tous pays"
+        sectors = ", ".join(fund.sectors_eligible) if fund.sectors_eligible else "Tous secteurs"
+        eligibility = fund.eligibility_criteria or {}
+        countries_list = eligibility.get("countries", [])
+        countries = ", ".join(countries_list) if countries_list else "Tous pays"
+        access = fund.access_type.value if hasattr(fund.access_type, "value") else fund.access_type
+        status = fund.status.value if hasattr(fund.status, "value") else fund.status
+
+        # Formater les montants
+        min_amt = f"{fund.min_amount_xof:,}" if fund.min_amount_xof else "N/A"
+        max_amt = f"{fund.max_amount_xof:,}" if fund.max_amount_xof else "N/A"
+
+        # Recuperer les intermediaires lies
+        intermediaries_text = ""
+        if fund.fund_intermediaries:
+            interm_names = []
+            for fi in fund.fund_intermediaries:
+                if fi.intermediary:
+                    interm_names.append(f"{fi.intermediary.name} (id={fi.intermediary.id})")
+            if interm_names:
+                intermediaries_text = f"- Intermediaires : {', '.join(interm_names)}\n"
 
         return (
             f"Details du fonds :\n"
             f"- Nom : {fund.name}\n"
+            f"- Organisation : {fund.organization}\n"
             f"- Type : {fund_type}\n"
             f"- Description : {fund.description or 'N/A'}\n"
-            f"- Montant : {fund.min_amount:,} - {fund.max_amount:,} {fund.currency}\n"
+            f"- Montant : {min_amt} - {max_amt} FCFA\n"
             f"- Secteurs : {sectors}\n"
             f"- Pays eligibles : {countries}\n"
-            f"- Statut : {fund.status}"
+            f"- Acces : {access}\n"
+            f"{intermediaries_text}"
+            f"- Statut : {status}"
         )
 
     except Exception as e:

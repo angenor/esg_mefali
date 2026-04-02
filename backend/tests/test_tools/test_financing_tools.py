@@ -29,10 +29,12 @@ def _make_fund_match(**overrides):
         setattr(match, key, value)
     # Mock fund relation
     fund = MagicMock()
+    fund.id = uuid.uuid4()
     fund.name = "Fonds Vert GCF"
     fund.fund_type = MagicMock(value="grant")
-    fund.min_amount = 50000
-    fund.max_amount = 500000
+    fund.min_amount_xof = 50000
+    fund.max_amount_xof = 500000
+    fund.access_type = MagicMock(value="direct")
     match.fund = fund
     return match
 
@@ -43,14 +45,16 @@ def _make_fund(**overrides):
     defaults = {
         "id": uuid.uuid4(),
         "name": "Fonds Vert GCF",
+        "organization": "Green Climate Fund",
         "fund_type": MagicMock(value="grant"),
         "description": "Fonds pour la lutte contre le changement climatique",
-        "min_amount": 50000,
-        "max_amount": 500000,
-        "currency": "USD",
-        "sectors": ["agriculture", "energy"],
-        "eligible_countries": ["CI", "SN", "ML"],
-        "status": "active",
+        "min_amount_xof": 50000,
+        "max_amount_xof": 500000,
+        "sectors_eligible": ["agriculture", "energy"],
+        "eligibility_criteria": {"countries": ["CI", "SN", "ML"]},
+        "access_type": MagicMock(value="direct"),
+        "status": MagicMock(value="active"),
+        "fund_intermediaries": [],
     }
     defaults.update(overrides)
     for key, value in defaults.items():

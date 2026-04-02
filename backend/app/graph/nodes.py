@@ -1048,13 +1048,17 @@ async def credit_node(state: ConversationState) -> ConversationState:
             )
         system_prompt += history_text
 
-    # Instructions tool calling
+    # Instructions tool calling — REGLE ABSOLUE
     tool_instructions = (
-        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
-        "- Pour calculer le score : utilise TOUJOURS le tool generate_credit_score.\n"
-        "- Pour consulter le score actuel : utilise TOUJOURS le tool get_credit_score.\n"
-        "- Pour generer une attestation : utilise TOUJOURS le tool generate_credit_certificate.\n"
-        "- N'estime JAMAIS un score manuellement — appelle toujours le tool."
+        "\n\n## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
+        "Tu DOIS appeler le tool generate_credit_score quand l'utilisateur demande "
+        "a calculer, generer ou connaitre son score de credit vert. Ne donne JAMAIS "
+        "une estimation textuelle (ex: '65-70/100') — seul le score calcule par le tool est valide.\n"
+        "Tu DOIS appeler le tool get_credit_score pour consulter un score existant.\n"
+        "Tu DOIS appeler le tool generate_credit_certificate pour generer une attestation PDF.\n\n"
+        "INTERDIT : estimer un score dans le texte sans appel tool. "
+        "INTERDIT : donner une fourchette approximative. "
+        "Appelle le tool AVANT de repondre, puis presente le resultat avec des blocs visuels."
     )
 
     full_prompt = system_prompt + tool_instructions
@@ -1109,7 +1113,11 @@ async def chat_node(state: ConversationState) -> ConversationState:
         "- Pour les questions sur le profil, score ESG, bilan carbone, credit ou dashboard : "
         "utilise les tools de lecture pour consulter la base en temps reel.\n"
         "- Ne reponds JAMAIS de memoire — appelle le tool adapte pour obtenir les donnees actuelles.\n"
-        "- Pour mettre a jour le profil : utilise update_company_profile avec les champs fournis."
+        "- Pour mettre a jour le profil : utilise update_company_profile avec les champs fournis.\n"
+        "- Quand l'utilisateur demande un graphique, radar ou visuel de ses scores ESG/carbone/credit : "
+        "appelle d'abord get_esg_assessment_chat (ou get_carbon_summary_chat) pour recuperer les scores "
+        "existants, puis genere le bloc visuel avec les VRAIS scores. Ne relance JAMAIS une nouvelle "
+        "evaluation juste pour afficher un graphique."
     )
 
     full_prompt = system_prompt + tool_instructions
@@ -1270,14 +1278,19 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
         timeframe=12,
     )
 
-    # Instructions tool calling
+    # Instructions tool calling — REGLE ABSOLUE
     tool_instructions = (
-        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
-        "- Pour generer un plan : utilise TOUJOURS le tool generate_action_plan.\n"
-        "- Pour consulter le plan actif : utilise TOUJOURS le tool get_action_plan.\n"
-        "- Pour mettre a jour une action : utilise TOUJOURS le tool update_action_item.\n"
-        "- Ne reponds JAMAIS de memoire sur l'etat du plan — consulte la base.\n"
-        "- Presente la progression avec des blocs visuels (timeline, gauge, table)."
+        "\n\n## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
+        "Tu DOIS appeler le tool generate_action_plan quand l'utilisateur demande "
+        "de generer, creer ou sauvegarder un plan d'action. Ne genere JAMAIS un plan "
+        "en texte ou JSON dans le chat — seul le tool persiste les donnees.\n"
+        "Tu DOIS appeler le tool get_action_plan quand l'utilisateur demande a voir, "
+        "consulter ou verifier son plan existant.\n"
+        "Tu DOIS appeler le tool update_action_item quand l'utilisateur indique avoir "
+        "progresse ou change le statut d'une action.\n\n"
+        "INTERDIT : repondre avec un plan textuel sans appel tool. "
+        "INTERDIT : dire que tu n'as pas acces a la sauvegarde.\n"
+        "Presente les resultats avec des blocs visuels (timeline, gauge, table)."
     )
 
     full_prompt = system_prompt + tool_instructions
