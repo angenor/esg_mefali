@@ -29,12 +29,12 @@ function renderMarkdown(text: string): string {
         v-html="renderMarkdown(segment.content)"
       />
 
-      <!-- Bloc incomplet (streaming) -->
+      <!-- Bloc incomplet pendant le streaming -->
       <BlockPlaceholder
-        v-else-if="!segment.isComplete"
+        v-else-if="!segment.isComplete && isStreaming"
       />
 
-      <!-- Blocs visuels complets -->
+      <!-- Blocs visuels complets ou incomplets post-streaming (fallback) -->
       <ChartBlock
         v-else-if="segment.type === 'chart'"
         :raw-content="segment.content"

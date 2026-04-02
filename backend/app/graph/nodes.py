@@ -600,16 +600,21 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
 
     # Instructions tool calling pour le LLM
     tool_instructions = (
-        "\n\n## INSTRUCTIONS TOOL CALLING\n"
-        "Tu disposes de tools pour gerer l'evaluation ESG :\n"
-        "- **get_esg_assessment** : recuperer une evaluation existante ou en cours\n"
-        "- **create_esg_assessment** : creer une nouvelle evaluation\n"
-        "- **save_esg_criterion_score** : sauvegarder le score d'un critere (0-10 + justification)\n"
-        "- **finalize_esg_assessment** : finaliser l'evaluation (UNIQUEMENT apres confirmation utilisateur)\n\n"
+        "\n\n## OUTILS DISPONIBLES\n"
+        "- `get_esg_assessment` : recuperer une evaluation existante ou en cours\n"
+        "- `create_esg_assessment` : creer une nouvelle evaluation\n"
+        "- `save_esg_criterion_score` : sauvegarder le score d'un critere (0-10 + justification)\n"
+        "- `batch_save_esg_criteria` : sauvegarder plusieurs criteres en un seul appel\n"
+        "- `finalize_esg_assessment` : finaliser l'evaluation (UNIQUEMENT apres confirmation utilisateur)\n\n"
+        "## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
+        "Quand l'utilisateur repond a des questions ESG, tu DOIS appeler "
+        "`batch_save_esg_criteria` (ou `save_esg_criterion_score`) AVANT de poser la question suivante.\n"
+        "- Ne JAMAIS evaluer un critere sans sauvegarder le score via un tool.\n"
+        "- Si le tool echoue, informe l'utilisateur et reessaie.\n\n"
         "Workflow obligatoire :\n"
         "1. Appelle get_esg_assessment pour verifier s'il existe une evaluation en cours\n"
         "2. Si aucune evaluation, appelle create_esg_assessment pour en creer une\n"
-        "3. Pour chaque critere evalue, appelle save_esg_criterion_score avec le score et la justification\n"
+        "3. Pour chaque critere evalue, appelle batch_save_esg_criteria avec les scores et justifications\n"
         "4. AVANT de finaliser, demande TOUJOURS confirmation a l'utilisateur\n"
         "5. Apres confirmation, appelle finalize_esg_assessment\n"
     )
@@ -757,14 +762,17 @@ async def carbon_node(state: ConversationState) -> ConversationState:
 
     # Instructions tool calling carbone
     tool_instructions = (
-        "\n\n## TOOLS DISPONIBLES\n"
-        "Tu disposes de tools pour gerer le bilan carbone :\n"
+        "\n\n## OUTILS DISPONIBLES\n"
         "- `create_carbon_assessment` : Creer un nouveau bilan pour une annee donnee\n"
         "- `save_emission_entry` : Enregistrer une entree d'emission (calcul tCO2e automatique)\n"
         "- `finalize_carbon_assessment` : Finaliser le bilan (DEMANDER CONFIRMATION a l'utilisateur avant)\n"
         "- `get_carbon_summary` : Obtenir le resume complet du bilan\n\n"
-        "Utilise ces tools pour persister les donnees. Quand l'utilisateur donne une consommation, "
-        "appelle `save_emission_entry` avec la bonne categorie et sous-categorie.\n"
+        "## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
+        "Quand l'utilisateur fournit une donnee de consommation, tu DOIS appeler "
+        "`save_emission_entry` pour CHAQUE source identifiee AVANT de repondre.\n"
+        "- Ne JAMAIS calculer des emissions sans les persister via le tool.\n"
+        "- Ne JAMAIS utiliser tes connaissances generales pour estimer — consulte la base via le tool.\n"
+        "- Si le tool echoue, informe l'utilisateur et reessaie.\n"
     )
     full_prompt = full_prompt + tool_instructions
 
@@ -867,12 +875,17 @@ async def financing_node(state: ConversationState) -> ConversationState:
 
     # Instructions tool calling
     tool_instructions = (
-        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
-        "- Pour rechercher des fonds : utilise TOUJOURS le tool search_compatible_funds.\n"
-        "- Pour marquer un interet : utilise TOUJOURS le tool save_fund_interest.\n"
-        "- Pour les details d'un fonds : utilise TOUJOURS le tool get_fund_details.\n"
-        "- Pour creer une candidature : utilise TOUJOURS le tool create_fund_application.\n"
-        "- Ne reponds JAMAIS de memoire sur les fonds — consulte la base."
+        "\n\n## OUTILS DISPONIBLES\n"
+        "- `search_compatible_funds` : rechercher des fonds compatibles avec le profil\n"
+        "- `save_fund_interest` : marquer un interet pour un fonds\n"
+        "- `get_fund_details` : obtenir les details d'un fonds specifique\n"
+        "- `create_fund_application` : creer une candidature pour un fonds\n\n"
+        "## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
+        "Ne cite JAMAIS un nom de fonds sans avoir d'abord appele `search_compatible_funds`.\n"
+        "- Toute reponse sur les financements disponibles DOIT etre precedee d'un appel tool.\n"
+        "- Ne reponds JAMAIS de memoire sur les fonds — consulte la base.\n"
+        "- Tes connaissances generales sur les fonds sont INTERDITES.\n"
+        "- Si le tool echoue, informe l'utilisateur et reessaie.\n"
     )
 
     full_prompt = system_prompt + tool_instructions

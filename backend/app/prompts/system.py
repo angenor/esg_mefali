@@ -212,7 +212,10 @@ def _format_profile_section(profile: dict) -> str:
         f"{lines}\n\n"
         "IMPORTANT : Tu connais déjà ces informations. "
         "Ne repose JAMAIS une question dont la réponse est dans ce profil. "
-        "Adapte tes conseils au secteur, à la localisation et à la taille de cette entreprise."
+        "Adapte tes conseils au secteur, à la localisation et à la taille de cette entreprise.\n"
+        "Si l'utilisateur mentionne une entité (site, filiale, localisation) qui n'existe PAS dans ce profil, "
+        "corrige-le clairement : 'Votre profil ne contient pas de site à [X]. Vos données sont basées à [ville].' "
+        "Ne propose PAS d'ajouter l'entité sauf demande explicite de l'utilisateur."
     )
 
 
