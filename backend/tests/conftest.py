@@ -75,3 +75,59 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 def make_unique_email() -> str:
     """Générer un email unique pour les tests."""
     return f"test-{uuid.uuid4().hex[:8]}@example.com"
+
+
+# --- Fixture auth partagé (T001) ---
+
+@pytest.fixture
+async def override_auth():
+    """Override get_current_user avec un mock user pour les tests d'endpoints protégés."""
+    from unittest.mock import MagicMock
+
+    from app.api.deps import get_current_user
+
+    mock_user = MagicMock()
+    mock_user.id = uuid.uuid4()
+    mock_user.email = "test-override@example.com"
+    mock_user.is_active = True
+
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    yield mock_user
+    del app.dependency_overrides[get_current_user]
+
+
+# --- Helper make_conversation_state (T002) ---
+
+def make_conversation_state(**overrides) -> dict:
+    """Retourne un dict complet avec les 27 clés de ConversationState.
+
+    Toutes les valeurs par défaut sont les 'zéro values'.
+    Accepte des overrides via kwargs.
+    """
+    defaults = {
+        "messages": [],
+        "user_id": "test-user-id",
+        "user_profile": None,
+        "context_memory": [],
+        "profile_updates": None,
+        "profiling_instructions": None,
+        "document_upload": None,
+        "document_analysis_summary": None,
+        "has_document": False,
+        "esg_assessment": None,
+        "_route_esg": False,
+        "carbon_data": None,
+        "_route_carbon": False,
+        "financing_data": None,
+        "_route_financing": False,
+        "application_data": None,
+        "_route_application": False,
+        "credit_data": None,
+        "_route_credit": False,
+        "action_plan_data": None,
+        "_route_action_plan": False,
+        "tool_call_count": 0,
+        "active_module": None,
+        "active_module_data": None,
+    }
+    return {**defaults, **overrides}

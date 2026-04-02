@@ -1,8 +1,9 @@
-# Audit des 34 tests en échec (pré-existants)
+# Audit des 34 tests en échec (pré-existants) — RÉSOLU
 
 **Date** : 2026-04-02
+**Résolu le** : 2026-04-02 (branche 017-fix-failing-tests)
 **Branche** : 016-fix-tool-persistence-bugs (tests hérités, pas causés par cette branche)
-**Suite totale** : 901 tests (867 pass, 34 fail)
+**Suite totale** : 907 tests — **907 pass, 0 fail** (zéro régression)
 
 ---
 

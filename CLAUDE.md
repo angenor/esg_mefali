@@ -154,6 +154,8 @@ alembic upgrade head
 - N/A (pas de changement BDD) (014-concise-chat-style)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph (>=0.2.0), LangChain (>=0.3.0), langchain-openai, SQLAlchemy async (015-fix-toolcall-esg-timeout)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph (>=0.2.0), LangChain (>=0.3.0), langchain-openai, SQLAlchemy async, Nuxt 4, Vue Composition API (016-fix-tool-persistence-bugs)
+- Python 3.12 + FastAPI, pytest, pytest-asyncio, LangChain, LangGraph (017-fix-failing-tests)
+- PostgreSQL + pgvector (SQLite in-memory pour tests) (017-fix-failing-tests)
 
 ## Recent Changes
 - 015-fix-toolcall-esg-timeout: Correction 3 anomalies bloquant les tests d'integration (tool calling application/credit + timeout ESG). Nouveau tool create_fund_application dans application_tools.py pour creer des dossiers via le chat. Nouveau tool batch_save_esg_criteria dans esg_tools.py pour sauvegarder N criteres ESG en une seule transaction (evite timeout 30 appels sequentiels). Prompts application.py, credit.py et esg_scoring.py renforces avec ROLE actif, section OUTILS DISPONIBLES et REGLE ABSOLUE forcant le tool calling au lieu de reponses textuelles. Timeout LLM explicite request_timeout=60 dans get_llm(). 14 nouveaux tests unitaires prompts/tools, zero regression sur les 856 tests existants.

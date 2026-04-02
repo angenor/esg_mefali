@@ -9,14 +9,6 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.fixture
-def mock_user():
-    user = MagicMock()
-    user.id = uuid.uuid4()
-    user.email = "test@example.com"
-    return user
-
-
 def _make_match_with_fund():
     """Creer un mock de match avec fonds complet."""
     fund = MagicMock()
@@ -44,15 +36,15 @@ def _make_match_with_fund():
 
 
 @pytest.mark.asyncio
-async def test_preparation_sheet_endpoint(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_preparation_sheet_endpoint(override_auth):
     """GET /matches/{id}/preparation-sheet retourne un PDF."""
     match, fund = _make_match_with_fund()
-    match.user_id = mock_user.id
+    match.user_id = override_auth.id
 
     pdf_bytes = b"%PDF-1.4 mock content"
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_match_by_id",
             new_callable=AsyncMock,
@@ -83,10 +75,10 @@ async def test_preparation_sheet_endpoint(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_preparation_sheet_not_found(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_preparation_sheet_not_found():
     """GET /matches/{id}/preparation-sheet sans match -> 404."""
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_match_by_id",
             new_callable=AsyncMock,
@@ -130,7 +122,7 @@ def test_generate_preparation_sheet_content():
     assert "SUNREF" in html
     assert "78" in html
     assert "SIB" in html
-    assert "business_plan" in html or "business plan" in html
+    assert "business_plan" in html or "business plan" in html.lower()
 
 
 def test_generate_preparation_sheet_without_scores():

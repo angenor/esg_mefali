@@ -3,9 +3,10 @@
 Verifie la logique metier : validation, generation complete avec mock LLM.
 """
 
+import sys
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -99,17 +100,31 @@ class TestGenerateReport:
     @pytest.mark.asyncio
     async def test_generate_report_success(self, db_session: AsyncSession) -> None:
         """T013-01 : Generation reussie d'un rapport PDF."""
-        from app.modules.reports.service import generate_report
-
         user = await create_test_user(db_session)
         assessment = await create_completed_assessment(db_session, user.id)
         await db_session.commit()
 
-        with patch(
-            "app.modules.reports.service.generate_executive_summary",
-            new_callable=AsyncMock,
-            return_value="Resume executif de test genere par IA.",
+        mock_weasyprint = MagicMock()
+
+        def _fake_write_pdf(path):
+            """Creer un faux fichier PDF sur disque pour que stat() fonctionne."""
+            from pathlib import Path
+
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_bytes(b"%PDF-1.4 fake content")
+
+        mock_weasyprint.HTML.return_value.write_pdf.side_effect = _fake_write_pdf
+
+        with (
+            patch(
+                "app.modules.reports.service.generate_executive_summary",
+                new_callable=AsyncMock,
+                return_value="Resume executif de test genere par IA.",
+            ),
+            patch.dict(sys.modules, {"weasyprint": mock_weasyprint}),
         ):
+            from app.modules.reports.service import generate_report
+
             report = await generate_report(db_session, assessment.id, user.id)
 
         assert report is not None

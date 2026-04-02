@@ -59,13 +59,14 @@ class TestApplicationNode:
     @pytest.mark.asyncio
     async def test_application_node_returns_messages(self) -> None:
         """Le node retourne des messages et application_data."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
         from app.graph.nodes import application_node
 
-        mock_response = MagicMock()
-        mock_response.content = "Votre dossier SUNREF est en bonne voie !"
+        mock_response = AIMessage(content="Votre dossier SUNREF est en bonne voie !")
 
         state = {
-            "messages": [MagicMock(content="Quel est l'etat de mon dossier ?")],
+            "messages": [HumanMessage(content="Quel est l'etat de mon dossier ?")],
             "user_profile": {"sector": "agriculture", "company_name": "AgriVert"},
             "application_data": {
                 "application_id": "test-id",
@@ -79,7 +80,8 @@ class TestApplicationNode:
 
         with patch("app.graph.nodes.get_llm") as mock_get_llm:
             mock_llm = AsyncMock()
-            mock_llm.ainvoke.return_value = mock_response
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_llm.bind_tools = MagicMock(return_value=mock_llm)
             mock_get_llm.return_value = mock_llm
 
             result = await application_node(state)
@@ -91,20 +93,22 @@ class TestApplicationNode:
     @pytest.mark.asyncio
     async def test_application_node_without_application_data(self) -> None:
         """Le node fonctionne meme sans donnees de dossier."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
         from app.graph.nodes import application_node
 
-        mock_response = MagicMock()
-        mock_response.content = "Vous n'avez pas encore de dossier en cours."
+        mock_response = AIMessage(content="Vous n'avez pas encore de dossier en cours.")
 
         state = {
-            "messages": [MagicMock(content="Mon dossier de candidature")],
+            "messages": [HumanMessage(content="Mon dossier de candidature")],
             "user_profile": None,
             "application_data": None,
         }
 
         with patch("app.graph.nodes.get_llm") as mock_get_llm:
             mock_llm = AsyncMock()
-            mock_llm.ainvoke.return_value = mock_response
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_llm.bind_tools = MagicMock(return_value=mock_llm)
             mock_get_llm.return_value = mock_llm
 
             result = await application_node(state)
@@ -114,13 +118,14 @@ class TestApplicationNode:
     @pytest.mark.asyncio
     async def test_application_node_builds_context_from_data(self) -> None:
         """Le node utilise application_data pour construire le contexte."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
         from app.graph.nodes import application_node
 
-        mock_response = MagicMock()
-        mock_response.content = "Reponse"
+        mock_response = AIMessage(content="Reponse")
 
         state = {
-            "messages": [MagicMock(content="Mon dossier")],
+            "messages": [HumanMessage(content="Mon dossier")],
             "user_profile": {"company_name": "TestCorp"},
             "application_data": {
                 "application_id": "abc-123",
@@ -145,6 +150,7 @@ class TestApplicationNode:
         with patch("app.graph.nodes.get_llm") as mock_get_llm:
             mock_llm = AsyncMock()
             mock_llm.ainvoke = capture_invoke
+            mock_llm.bind_tools = MagicMock(return_value=mock_llm)
             mock_get_llm.return_value = mock_llm
 
             await application_node(state)

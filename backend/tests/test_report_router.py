@@ -3,8 +3,9 @@
 Verifie POST generate, GET status, GET download, GET liste.
 """
 
+import sys
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -93,6 +94,23 @@ async def create_completed_assessment_via_api(
     )
     await db_session.commit()
     return assessment_id
+
+
+@pytest.fixture(autouse=True)
+def mock_weasyprint():
+    """Mock WeasyPrint pour eviter l'import des libs systeme C."""
+    mock_wp = MagicMock()
+
+    def _fake_write_pdf(path):
+        from pathlib import Path
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_bytes(b"%PDF-1.4 fake report content")
+
+    mock_wp.HTML.return_value.write_pdf.side_effect = _fake_write_pdf
+
+    with patch.dict(sys.modules, {"weasyprint": mock_wp}):
+        yield mock_wp
 
 
 class TestGenerateEndpoint:

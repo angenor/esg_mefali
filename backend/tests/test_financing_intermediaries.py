@@ -9,14 +9,6 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.fixture
-def mock_user():
-    user = MagicMock()
-    user.id = uuid.uuid4()
-    user.email = "test@example.com"
-    return user
-
-
 def _make_intermediary(
     name: str = "SIB",
     intermediary_type: str = "partner_bank",
@@ -29,8 +21,8 @@ def _make_intermediary(
     inter = MagicMock()
     inter.id = uuid.uuid4()
     inter.name = name
-    inter.intermediary_type = MagicMock(value=intermediary_type)
-    inter.organization_type = MagicMock(value=organization_type)
+    inter.intermediary_type = intermediary_type
+    inter.organization_type = organization_type
     inter.country = country
     inter.city = city
     inter.is_active = is_active
@@ -50,13 +42,13 @@ def _make_intermediary(
 
 
 @pytest.mark.asyncio
-async def test_list_intermediaries(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_list_intermediaries():
     """GET /intermediaries retourne la liste paginee."""
     inter1 = _make_intermediary(name="SIB")
     inter2 = _make_intermediary(name="SGBCI", organization_type="bank")
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediaries",
             new_callable=AsyncMock,
@@ -78,12 +70,12 @@ async def test_list_intermediaries(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_list_intermediaries_with_type_filter(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_list_intermediaries_with_type_filter():
     """GET /intermediaries?organization_type=bank filtre par type."""
     inter = _make_intermediary(name="SIB")
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediaries",
             new_callable=AsyncMock,
@@ -107,13 +99,13 @@ async def test_list_intermediaries_with_type_filter(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_list_intermediaries_with_fund_filter(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_list_intermediaries_with_fund_filter():
     """GET /intermediaries?fund_id=... filtre par fonds."""
     inter = _make_intermediary()
     fund_id = uuid.uuid4()
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediaries",
             new_callable=AsyncMock,
@@ -132,7 +124,8 @@ async def test_list_intermediaries_with_fund_filter(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_get_intermediary_detail(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_get_intermediary_detail():
     """GET /intermediaries/{id} retourne le detail avec fonds couverts."""
     inter = _make_intermediary()
 
@@ -149,7 +142,6 @@ async def test_get_intermediary_detail(mock_user):
     inter.fund_intermediaries = [fi_mock]
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediary_by_id",
             new_callable=AsyncMock,
@@ -172,10 +164,10 @@ async def test_get_intermediary_detail(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_get_intermediary_not_found(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_get_intermediary_not_found():
     """GET /intermediaries/{id} retourne 404 si non trouve."""
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediary_by_id",
             new_callable=AsyncMock,
@@ -194,12 +186,12 @@ async def test_get_intermediary_not_found(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_nearby_intermediaries(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_nearby_intermediaries():
     """GET /intermediaries/nearby?city=Abidjan retourne les intermediaires proches."""
     inter = _make_intermediary(city="Abidjan")
 
     with (
-        patch("app.api.deps.get_current_user", return_value=mock_user),
         patch(
             "app.modules.financing.service.get_intermediaries",
             new_callable=AsyncMock,
@@ -221,15 +213,15 @@ async def test_nearby_intermediaries(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_nearby_requires_city(mock_user):
+@pytest.mark.usefixtures("override_auth")
+async def test_nearby_requires_city():
     """GET /intermediaries/nearby sans city retourne 422."""
-    with patch("app.api.deps.get_current_user", return_value=mock_user):
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as client:
-            response = await client.get(
-                "/api/financing/intermediaries/nearby",
-                headers={"Authorization": "Bearer test"},
-            )
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/financing/intermediaries/nearby",
+            headers={"Authorization": "Bearer test"},
+        )
     assert response.status_code == 422

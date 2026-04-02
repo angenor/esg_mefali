@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
+from tests.conftest import make_conversation_state
+
 
 # --- Tests detection intent credit ---
 
@@ -82,15 +84,16 @@ class TestCreditNode:
             "Votre score combine est de 74.5/100."
         ))
 
-        state = {
-            "messages": [HumanMessage(content="Quel est mon score de credit vert ?")],
-            "user_profile": {"company_name": "Entreprise Test", "sector": "agriculture"},
-            "credit_data": None,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Quel est mon score de credit vert ?")],
+            user_profile={"company_name": "Entreprise Test", "sector": "agriculture"},
+            credit_data=None,
+        )
 
         with patch("app.graph.nodes.get_llm") as mock_llm_fn:
             mock_llm = MagicMock()
             mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_llm.bind_tools.return_value = mock_llm
             mock_llm_fn.return_value = mock_llm
 
             with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
@@ -118,15 +121,16 @@ class TestCreditNode:
             "Rendez-vous sur la page /credit-score pour en generer un."
         ))
 
-        state = {
-            "messages": [HumanMessage(content="Mon score de credit vert")],
-            "user_profile": None,
-            "credit_data": None,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Mon score de credit vert")],
+            user_profile=None,
+            credit_data=None,
+        )
 
         with patch("app.graph.nodes.get_llm") as mock_llm_fn:
             mock_llm = MagicMock()
             mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_llm.bind_tools.return_value = mock_llm
             mock_llm_fn.return_value = mock_llm
 
             with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
@@ -149,15 +153,16 @@ class TestCreditNode:
             "generating": False,
         }
 
-        state = {
-            "messages": [HumanMessage(content="Mon score credit vert")],
-            "user_profile": {"company_name": "Test"},
-            "credit_data": existing_credit_data,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Mon score credit vert")],
+            user_profile={"company_name": "Test"},
+            credit_data=existing_credit_data,
+        )
 
         with patch("app.graph.nodes.get_llm") as mock_llm_fn:
             mock_llm = MagicMock()
             mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_llm.bind_tools.return_value = mock_llm
             mock_llm_fn.return_value = mock_llm
 
             with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
@@ -179,16 +184,10 @@ class TestRouterNodeCredit:
         """router_node doit activer _route_credit pour une demande credit."""
         from app.graph.nodes import router_node
 
-        state = {
-            "messages": [HumanMessage(content="Quel est mon score de credit vert ?")],
-            "user_profile": {"company_name": "Test"},
-            "document_upload": None,
-            "esg_assessment": None,
-            "carbon_data": None,
-            "financing_data": None,
-            "application_data": None,
-            "credit_data": None,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Quel est mon score de credit vert ?")],
+            user_profile={"company_name": "Test"},
+        )
 
         result = await router_node(state)
         assert result.get("_route_credit") is True
@@ -198,16 +197,10 @@ class TestRouterNodeCredit:
         """router_node ne doit pas router vers credit pour une demande ESG."""
         from app.graph.nodes import router_node
 
-        state = {
-            "messages": [HumanMessage(content="Quel est mon score ESG ?")],
-            "user_profile": {"company_name": "Test"},
-            "document_upload": None,
-            "esg_assessment": None,
-            "carbon_data": None,
-            "financing_data": None,
-            "application_data": None,
-            "credit_data": None,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Quel est mon score ESG ?")],
+            user_profile={"company_name": "Test"},
+        )
 
         result = await router_node(state)
         assert result.get("_route_credit") is False

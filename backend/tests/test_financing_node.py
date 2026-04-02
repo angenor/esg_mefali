@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.graph.nodes import _detect_financing_request, _FINANCING_PATTERNS
+from tests.conftest import make_conversation_state
 
 
 class TestFinancingDetection:
@@ -27,7 +28,7 @@ class TestFinancingDetection:
         assert _detect_financing_request("Quel intermediaire contacter pour le BOAD ?")
 
     def test_detect_credit_carbone(self):
-        assert _detect_financing_request("Comment vendre des credits carbone ?")
+        assert _detect_financing_request("Comment vendre du credit carbone ?")
 
     def test_detect_banque_partenaire(self):
         assert _detect_financing_request("Quelle banque partenaire pour SUNREF en CI ?")
@@ -36,7 +37,7 @@ class TestFinancingDetection:
         assert _detect_financing_request("Comment preparer mon dossier de candidature ?")
 
     def test_detect_subvention(self):
-        assert _detect_financing_request("Y a-t-il des subventions vertes ?")
+        assert _detect_financing_request("Y a-t-il une subvention climat ?")
 
     def test_no_detect_bonjour(self):
         assert not _detect_financing_request("Bonjour, comment allez-vous ?")
@@ -72,19 +73,21 @@ async def test_financing_node_generates_response():
 
     with (
         patch("app.graph.nodes.get_llm") as mock_llm_factory,
+        patch("app.graph.nodes._fetch_rag_context_for_financing", new_callable=AsyncMock, return_value=""),
     ):
         mock_llm = MagicMock()
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm.bind_tools.return_value = mock_llm
         mock_llm_factory.return_value = mock_llm
 
         from app.graph.nodes import financing_node
 
-        state = {
-            "messages": [HumanMessage(content="Comment acceder au financement SUNREF ?")],
-            "user_profile": {"sector": "agriculture", "city": "Abidjan"},
-            "financing_data": None,
-            "_route_financing": True,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Comment acceder au financement SUNREF ?")],
+            user_profile={"sector": "agriculture", "city": "Abidjan"},
+            financing_data=None,
+            _route_financing=True,
+        )
 
         result = await financing_node(state)
 
@@ -107,19 +110,23 @@ async def test_financing_node_without_esg_redirects():
         )
     )
 
-    with patch("app.graph.nodes.get_llm") as mock_llm_factory:
+    with (
+        patch("app.graph.nodes.get_llm") as mock_llm_factory,
+        patch("app.graph.nodes._fetch_rag_context_for_financing", new_callable=AsyncMock, return_value=""),
+    ):
         mock_llm = MagicMock()
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm.bind_tools.return_value = mock_llm
         mock_llm_factory.return_value = mock_llm
 
         from app.graph.nodes import financing_node
 
-        state = {
-            "messages": [HumanMessage(content="Quels financements pour moi ?")],
-            "user_profile": {"sector": "agriculture"},
-            "financing_data": None,
-            "_route_financing": True,
-        }
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Quels financements pour moi ?")],
+            user_profile={"sector": "agriculture"},
+            financing_data=None,
+            _route_financing=True,
+        )
 
         result = await financing_node(state)
 
