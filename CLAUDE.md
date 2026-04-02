@@ -150,6 +150,8 @@ alembic upgrade head
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangChain (>=0.3.0), LangGraph (>=0.2.0), langchain-openai (>=0.3.0), SQLAlchemy async (012-langgraph-tool-calling)
 - Python 3.12 (backend), TypeScript 5.x strict (frontend) + FastAPI, LangGraph (>=0.2.0), LangChain (>=0.3.0), langchain-openai (>=0.3.0), SQLAlchemy async, Nuxt 4, Vue Composition API (013-fix-multiturn-routing-timeline)
 - PostgreSQL 16 + pgvector, MemorySaver (LangGraph checkpointer) (013-fix-multiturn-routing-timeline)
+- Python 3.12 + FastAPI, LangGraph, LangChain, langchain-openai (014-concise-chat-style)
+- N/A (pas de changement BDD) (014-concise-chat-style)
 
 ## Recent Changes
 - 013-fix-multiturn-routing-timeline: Correction routing multi-tour LangGraph (BUG-1) et format timeline (BUG-2). Mecanisme active_module dans ConversationState (2 champs: active_module str|None, active_module_data dict|None) pour maintenir le contexte entre les tours de conversation. Classification binaire LLM continuation/changement dans router_node avec defaut securitaire (rester dans le module en cas d'erreur). Tous les 9 noeuds specialistes gerent le cycle de vie active_module (activation au demarrage, mise a jour progressive, desactivation a la finalisation). Reprise de module apres interruption via detection in_progress en base. Transition directe entre modules sans perte de donnees. Frontend: normalisation TimelineBlock.vue tolerante aux variantes (phases/items/steps → events, aliases period→date, name→title, state→status, details→description, defaut status=todo). Prompts backend standardises sur format canonique events (action_plan.py, carbon.py, financing.py). 34 tests backend + 21 tests frontend, zero regression.

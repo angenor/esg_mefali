@@ -100,6 +100,8 @@ def build_action_plan_prompt(
     Returns:
         Prompt formaté pour le LLM
     """
+    from app.prompts.system import STYLE_INSTRUCTION
+
     return ACTION_PLAN_PROMPT.format(
         company_context=company_context,
         esg_context=esg_context,
@@ -107,4 +109,4 @@ def build_action_plan_prompt(
         financing_context=financing_context,
         intermediaries_context=intermediaries_context,
         timeframe=timeframe,
-    )
+    ) + "\n\n" + STYLE_INSTRUCTION

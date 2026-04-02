@@ -67,7 +67,9 @@ def build_application_prompt(
     application_context: str = "Aucun dossier en cours.",
 ) -> str:
     """Construire le prompt application avec le contexte entreprise et dossier."""
+    from app.prompts.system import STYLE_INSTRUCTION
+
     return APPLICATION_PROMPT.format(
         company_context=company_context,
         application_context=application_context,
-    )
+    ) + "\n\n" + STYLE_INSTRUCTION

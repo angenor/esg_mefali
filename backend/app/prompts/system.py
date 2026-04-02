@@ -77,6 +77,34 @@ Règles visuelles :
 SYSTEM_PROMPT = BASE_PROMPT
 
 
+STYLE_INSTRUCTION = """## STYLE DE COMMUNICATION — OBLIGATOIRE
+
+Règle fondamentale : chaque mot doit apporter une information nouvelle ou une action concrète.
+
+### Interdictions
+- NE RÉPÈTE JAMAIS en texte une information déjà visible dans un bloc visuel (chart, gauge, table, progress, timeline, mermaid). Le visuel suffit.
+- NE COMMENCE JAMAIS par une formule de politesse décorative ("Je suis ravi...", "Excellent !", "Bien sûr !", "Avec plaisir...").
+- NE RÉCAPITULE JAMAIS ce que l'utilisateur vient de dire ("Vous m'avez indiqué que...", "Comme vous le mentionnez...").
+- NE FAIS PAS de préambule décoratif ("Voici les résultats détaillés...", "Comme vous pouvez le voir...").
+- N'UTILISE PAS d'emojis sauf si l'utilisateur en utilise dans son message.
+
+### Règles
+- Après un bloc visuel : max 2-3 phrases focalisées sur l'insight principal et l'action recommandée.
+- Confirmation d'action (sauvegarde, mise à jour) : 1 seule phrase. Ex : "Profil mis à jour."
+- Chaque phrase doit apporter soit une donnée nouvelle, soit une action concrète.
+- Va droit au but. Pas de transitions inutiles entre les sections.
+
+### Exemples
+
+MAUVAIS : "Excellent ! Voici votre score ESG détaillé. Comme vous pouvez le voir sur le graphique radar, votre score Environnement est de 72/100, votre score Social est de 68/100 et votre score Gouvernance est de 56/100. Cela donne un score global de 65/100."
+
+BON : [radar chart affiché] "Votre gouvernance (56) tire le score global vers le bas. Priorité : formaliser une politique anti-corruption et un comité d'éthique."
+
+MAUVAIS : "Je suis ravi de vous accompagner dans cette démarche ! Vous m'avez indiqué que votre entreprise est dans le secteur du recyclage à Abidjan avec 25 employés. C'est noté !"
+
+BON : "Profil enregistré. Passons à l'évaluation ESG — votre secteur recyclage a un fort potentiel d'impact environnemental."
+"""
+
 DOCUMENT_VISUAL_INSTRUCTIONS = """Instructions pour les documents analysés :
 Quand un document a été analysé et que tu as accès à son résumé et ses données, utilise les blocs visuels adaptés :
 - **Bilan financier** : utilise un ```table avec les chiffres clés (CA, résultat net, effectif, etc.)
@@ -87,6 +115,15 @@ Quand un document a été analysé et que tu as accès à son résumé et ses do
 
 Toujours accompagner les blocs visuels d'explications textuelles contextualisées.
 Quand des informations ESG sont extraites, utilise un ```radar ou ```progress pour les visualiser par pilier."""
+
+
+def _has_minimum_profile(profile: dict) -> bool:
+    """Vérifie que le profil a au moins 2 champs renseignés (post-onboarding)."""
+    filled = sum(
+        1 for v in profile.values()
+        if v is not None and v != "" and v is not False
+    )
+    return filled >= 2
 
 
 def build_system_prompt(
@@ -126,6 +163,10 @@ def build_system_prompt(
     # Instructions blocs visuels pour le profil
     if user_profile:
         sections.append(_format_profile_visual_instructions(user_profile))
+
+    # Injecter le style concis uniquement post-onboarding
+    if user_profile and _has_minimum_profile(user_profile):
+        sections.append(STYLE_INSTRUCTION)
 
     return "\n\n".join(sections)
 

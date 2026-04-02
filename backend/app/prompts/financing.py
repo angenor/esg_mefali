@@ -77,7 +77,9 @@ def build_financing_prompt(
     rag_context: str = "Aucune information supplementaire disponible.",
 ) -> str:
     """Construire le prompt financement avec le contexte entreprise et RAG."""
+    from app.prompts.system import STYLE_INSTRUCTION
+
     return FINANCING_PROMPT.format(
         company_context=company_context,
         rag_context=rag_context,
-    )
+    ) + "\n\n" + STYLE_INSTRUCTION
