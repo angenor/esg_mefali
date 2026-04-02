@@ -164,13 +164,14 @@ class TestApplicationToolsExport:
     """Tests pour l'export du module."""
 
     def test_tools_list_count(self):
-        """APPLICATION_TOOLS contient 5 tools."""
-        assert len(APPLICATION_TOOLS) == 5
+        """APPLICATION_TOOLS contient 6 tools."""
+        assert len(APPLICATION_TOOLS) == 6
 
     def test_tool_names(self):
         """Les tools ont les bons noms."""
         names = {t.name for t in APPLICATION_TOOLS}
         assert names == {
+            "create_fund_application",
             "generate_application_section",
             "update_application_section",
             "get_application_checklist",

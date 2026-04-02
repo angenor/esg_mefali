@@ -278,6 +278,7 @@ def get_llm() -> ChatOpenAI:
         api_key=settings.openrouter_api_key,
         streaming=True,
         max_tokens=4096,
+        request_timeout=60,
     )
 
 

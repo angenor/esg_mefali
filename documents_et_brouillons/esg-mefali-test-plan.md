@@ -634,59 +634,26 @@ Fais mon bilan carbone pour l'année 1850.
 
 ## RÉCAPITULATIF — SCORECARD
 
-| Module | Tests | Pass | Fail | Notes |
-|---|---|---|---|---|
-| Profiling | 1.1 à 1.5 | 5 / 5 | 0 | Tous les champs extraits correctement |
-| Documents | 2.1 à 2.3 | 2 / 3 | 1 | 2.1 FAIL (upload OK, analyse auto KO — toléré) |
-| ESG Scoring | 3.1 à 3.5 | 3 / 5 | 0 | 3.4 non testé, 3.5 timeout (30 critères = trop d'appels tool) |
-| Carbone | 4.1 à 4.4 | 4 / 4 | 0 | Bilan 2025 finalisé : 573.82 tCO2e |
-| Financement | 5.1 à 5.5 | 4 / 5 | 0 | 5.4 non testé (manque de temps) |
-| Dossier candidature | 6.1 à 6.4 | 0 / 1 | 1 | 6.1 FAIL : LLM fournit la structure mais ne crée pas le dossier via tool. 6.2-6.4 non testés |
-| Crédit vert | 7.1 à 7.3 | 0 / 1 | 1 | 7.1 FAIL : LLM ne call pas `generate_credit_score`. 7.2-7.3 non testés |
-| Plan d'action | 8.1 à 8.4 | 2 / 2 | 0 | **8.1 ✅ 8.2 ✅ (bug corrigé)** — 8.3, 8.4 à tester |
-| Dashboard | 9.1 à 9.2 | 1 / 1 | 0 | 9.2 ✅ (cartes ESG, Carbone 574 tCO2e, financement 12 fonds, actions). 9.1 non testé |
-| Chat contextuel | 10.1 à 10.3 | 1 / 1 | 0 | 10.1 ✅ (mémoire entreprise fonctionne). 10.2-10.3 non testés |
-| Blocs visuels | 11.1 à 11.4 | 4 / 4 | 0 | 11.1 ✅ radar Chart.js. 11.2 ✅ Mermaid SVG. 11.3 ✅ doughnut+barres. 11.4 ✅ fallback propre |
-| Non-régression | 12.1 à 12.3 | 3 / 3 | 0 | 12.1 ✅ (pas d'hallucination Yamoussoukro). 12.2 ✅ (refus score 99). 12.3 ✅ (1850 géré) |
-| **TOTAL** | 36/45 testés | **29 / 36** | **3** | **81% pass**. Fails: 2.1 (OCR toléré), 6.1 + 7.1 (tool calling — anomalies 3-4) |
+| Module | Tests | Pass | Fail |
+|---|---|---|---|
+| Profiling | 1.1 à 1.5 | _ / 5 | _ / 5 |
+| Documents | 2.1 à 2.3 | _ / 3 | _ / 3 |
+| ESG Scoring | 3.1 à 3.5 | _ / 5 | _ / 5 |
+| Carbone | 4.1 à 4.4 | _ / 4 | _ / 4 |
+| Financement | 5.1 à 5.5 | _ / 5 | _ / 5 |
+| Dossier candidature | 6.1 à 6.4 | _ / 4 | _ / 4 |
+| Crédit vert | 7.1 à 7.3 | _ / 3 | _ / 3 |
+| Plan d'action | 8.1 à 8.4 | _ / 4 | _ / 4 |
+| Dashboard | 9.1 à 9.2 | _ / 2 | _ / 2 |
+| Chat contextuel | 10.1 à 10.3 | _ / 3 | _ / 3 |
+| Blocs visuels | 11.1 à 11.4 | _ / 4 | _ / 4 |
+| Non-régression | 12.1 à 12.3 | _ / 3 | _ / 3 |
+| **TOTAL** | | **_ / 45** | |
 
-**Seuil de validation : 42/45 minimum (93%).**
+**Seuil de validation : 43/45 minimum.**
 Les 3 tests qui peuvent échouer sans bloquer : 11.4 (fallback), 12.3 (edge case), 2.1 (OCR dépend du document).
 
 Tous les tests de la catégorie "Plan d'action" (8.x) DOIVENT passer à 100% — c'est le bug qui a été corrigé.
 
----
 
-## BUGS CORRIGÉS PENDANT LES TESTS (2026-04-02)
-
-### BUG 1 — Plan d'action : tool calling bloqué par le prompt (CRITIQUE)
-- **Symptôme** : Le LLM disait "je n'ai pas de fonction de sauvegarde" au lieu d'appeler `generate_action_plan`
-- **Cause** : `ACTION_PLAN_PROMPT` contenait "Retourne UNIQUEMENT un tableau JSON" et "Ne génère AUCUN texte en dehors du JSON", ce qui empêchait le LLM d'émettre des tool calls
-- **Fix** : Réécriture du prompt pour instruire le LLM à utiliser les tools `generate_action_plan`, `get_action_plan`, `update_action_item`
-- **Fichier** : `backend/app/prompts/action_plan.py`
-
-### BUG 2 — Plan d'action : parsing JSON trop greedy dans le service
-- **Symptôme** : `JSONDecodeError: Extra data` lors de l'exécution du tool `generate_action_plan`
-- **Cause** : La regex `\[.*\]` (greedy) dans `_extract_json_array` capturait trop de texte quand le LLM ajoutait du contenu après le JSON
-- **Fix** : Regex non-greedy `\[.*?\]` + fallback par comptage de profondeur `[]`
-- **Fichier** : `backend/app/modules/action_plan/service.py`
-
-### ANOMALIE 3 — Dossier candidature : tool calling absent (à corriger)
-- **Symptôme** : Le LLM fournit la structure du dossier SUNREF en texte mais n'appelle pas `create_fund_application`
-- **Cause probable** : Même pattern que le bug 1 — le prompt du module application empêche probablement le tool calling
-- **Fichier à inspecter** : `backend/app/prompts/` (prompt du module application) + `backend/app/graph/nodes.py` (application_node)
-
-### ANOMALIE 4 — Crédit vert : tool calling absent (à corriger)
-- **Symptôme** : Le LLM explique le score mais n'appelle pas `generate_credit_score`
-- **Cause probable** : Même pattern — prompt du module credit bloque le tool calling
-- **Fichier à inspecter** : `backend/app/prompts/` (prompt du module credit) + `backend/app/graph/nodes.py` (credit_node)
-
-### ANOMALIE 5 — ESG Scoring : timeout sur finalisation 30 critères
-- **Symptôme** : La finalisation de l'évaluation ESG (30 critères) timeout régulièrement
-- **Cause probable** : 30 appels tool `save_esg_criterion_score` séquentiels dépassent le timeout SSE/HTTP
-- **Piste de fix** : Batch les appels tool ou augmenter les timeouts côté backend/frontend
-
-### Amélioration — Token JWT trop court pour les tests
-- **Symptôme** : Token expirait après 60 min, interrompant les sessions de test longues
-- **Fix** : `access_token_expire_minutes` passé de 60 à 480 (8h)
-- **Fichier** : `backend/app/core/config.py`
+## BUGS PENDANT LES TESTS (2026-04-02)

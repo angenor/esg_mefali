@@ -260,9 +260,105 @@ async def get_esg_assessment(
         return f"Erreur lors de la recuperation de l'evaluation ESG : {e}"
 
 
+@tool
+async def batch_save_esg_criteria(
+    assessment_id: str,
+    criteria: list[dict],
+    config: RunnableConfig,
+) -> str:
+    """Sauvegarder plusieurs criteres ESG en un seul appel dans l'evaluation en cours.
+
+    Utilise ce tool pour sauvegarder un pilier entier (10 criteres) en une seule transaction
+    au lieu de 10 appels sequentiels a save_esg_criterion_score.
+
+    Args:
+        assessment_id: Identifiant UUID de l'evaluation ESG.
+        criteria: Liste de criteres, chaque element est un dict avec :
+            - criterion_code (str): Code du critere (ex: E1, S3, G7)
+            - score (int): Note de 0 a 10
+            - justification (str): Justification de la note attribuee
+    """
+    from app.models.esg import ESGStatusEnum
+    from app.modules.esg.service import (
+        compute_overall_score,
+        compute_progress_percent,
+        get_assessment,
+        update_assessment,
+    )
+
+    try:
+        db, user_id = get_db_and_user(config)
+
+        assessment = await get_assessment(
+            db=db,
+            assessment_id=uuid.UUID(assessment_id),
+            user_id=user_id,
+        )
+        if assessment is None:
+            return f"Erreur : evaluation ESG {assessment_id} introuvable."
+
+        if not criteria:
+            return "Erreur : la liste de criteres est vide."
+
+        # Copie immutable des scores et criteres evalues
+        criteria_scores = dict((assessment.assessment_data or {}).get("criteria_scores", {}))
+        evaluated_criteria = list(assessment.evaluated_criteria or [])
+
+        # Appliquer chaque critere
+        for criterion in criteria:
+            code = criterion["criterion_code"]
+            criteria_scores[code] = {
+                "score": criterion["score"],
+                "justification": criterion["justification"],
+            }
+            if code not in evaluated_criteria:
+                evaluated_criteria.append(code)
+
+        # Determiner le pilier courant a partir du dernier critere
+        last_code = criteria[-1]["criterion_code"]
+        current_pillar = assessment.current_pillar
+        if last_code.startswith("E"):
+            current_pillar = "environment"
+        elif last_code.startswith("S"):
+            current_pillar = "social"
+        elif last_code.startswith("G"):
+            current_pillar = "governance"
+
+        # Persister la mise a jour en une seule transaction
+        assessment_data = dict(assessment.assessment_data or {})
+        assessment_data["criteria_scores"] = criteria_scores
+
+        await update_assessment(
+            db=db,
+            assessment=assessment,
+            assessment_data=assessment_data,
+            evaluated_criteria=evaluated_criteria,
+            current_pillar=current_pillar,
+            status=ESGStatusEnum.in_progress,
+        )
+
+        # Calculer la progression et les scores partiels
+        progress = compute_progress_percent(evaluated_criteria)
+        scores = compute_overall_score(criteria_scores, assessment.sector)
+
+        saved_codes = [c["criterion_code"] for c in criteria]
+        return (
+            f"{len(criteria)} criteres enregistres : {', '.join(saved_codes)}.\n"
+            f"- Criteres evalues : {len(evaluated_criteria)}/30\n"
+            f"- Progression : {progress}%\n"
+            f"- Scores partiels — E: {scores['environment_score']}, "
+            f"S: {scores['social_score']}, G: {scores['governance_score']}, "
+            f"Global: {scores['overall_score']}"
+        )
+    except Exception as e:
+        logger.exception("Erreur lors de la sauvegarde par lot de %d criteres", len(criteria))
+        return f"Erreur lors de la sauvegarde par lot : {e}"
+
+
 ESG_TOOLS = [
     create_esg_assessment,
     save_esg_criterion_score,
     finalize_esg_assessment,
     get_esg_assessment,
+    batch_save_esg_criteria,
 ]

@@ -58,6 +58,12 @@ Genere un bloc ```progress montrant les scores du pilier :
 {{"type":"bar","data":{{"labels":["Environnement","Social","Gouvernance","Global"],"datasets":[{{"label":"Votre score","data":[72,68,56,65],"backgroundColor":"#10B981"}},{{"label":"Moyenne sectorielle","data":[52,48,45,48],"backgroundColor":"#94A3B8"}}]}}}}
 ```
 
+## SAUVEGARDE PAR LOT
+Quand tu as plusieurs criteres a sauvegarder (evaluation par pilier ou finalisation), utilise `batch_save_esg_criteria` au lieu de faire plusieurs appels `save_esg_criterion_score`.
+- Apres avoir evalue les 10 criteres d'un pilier, sauvegarde-les tous en UN SEUL appel batch
+- Exemple : apres le pilier Environnement, appelle `batch_save_esg_criteria` avec les 10 criteres E1-E10
+- Cela reduit le temps d'execution de 10 appels sequentiels a 1 seul appel
+
 ## TRANSITION ENTRE PILIERS
 Quand tu termines un pilier, annonce le passage au suivant :
 "Excellent ! Nous avons termine le pilier Environnement. Passons maintenant au pilier Social."

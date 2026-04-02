@@ -1,6 +1,7 @@
 """Tools LangChain pour le noeud dossiers de candidature.
 
-Cinq tools exposes au LLM :
+Six tools exposes au LLM :
+- create_fund_application : creer un nouveau dossier de candidature
 - generate_application_section : generer une section du dossier
 - update_application_section : modifier une section
 - get_application_checklist : consulter la checklist
@@ -53,6 +54,43 @@ async def _export_application(db, application, fmt: str) -> str:
     export_path = f"/uploads/applications/{application.id}.{fmt}"
     logger.info("Export dossier %s au format %s -> %s", application.id, fmt, export_path)
     return export_path
+
+
+@tool
+async def create_fund_application(
+    fund_id: str,
+    config: RunnableConfig,
+    target_type: str | None = None,
+) -> str:
+    """Creer un nouveau dossier de candidature pour un fonds.
+
+    Utilise cet outil quand l'utilisateur demande de creer ou demarrer
+    un dossier de candidature pour un fonds vert specifique.
+
+    Args:
+        fund_id: Identifiant UUID du fonds cible.
+        target_type: Type de destinataire optionnel (direct, banque, agence, developpeur_carbone).
+    """
+    from app.modules.applications.service import create_application
+
+    try:
+        db, user_id = get_db_and_user(config)
+
+        application = await create_application(
+            db=db,
+            user_id=user_id,
+            fund_id=uuid.UUID(fund_id),
+        )
+
+        return (
+            f"Dossier de candidature cree avec succes.\n"
+            f"- ID : {application.id}\n"
+            f"- Statut : {application.status}\n"
+            f"- Fonds : {application.fund_id}"
+        )
+    except Exception as e:
+        logger.exception("Erreur lors de la creation du dossier de candidature")
+        return f"Erreur lors de la creation du dossier : {e}"
 
 
 @tool
@@ -259,6 +297,7 @@ async def export_application(
 
 
 APPLICATION_TOOLS = [
+    create_fund_application,
     generate_application_section,
     update_application_section,
     get_application_checklist,
