@@ -646,9 +646,9 @@ Fais mon bilan carbone pour l'année 1850.
 | Plan d'action | 8.1 à 8.4 | 2 / 2 | 0 | **8.1 ✅ 8.2 ✅ (bug corrigé)** — 8.3, 8.4 à tester |
 | Dashboard | 9.1 à 9.2 | 1 / 1 | 0 | 9.2 ✅ (cartes ESG, Carbone 574 tCO2e, financement 12 fonds, actions). 9.1 non testé |
 | Chat contextuel | 10.1 à 10.3 | 1 / 1 | 0 | 10.1 ✅ (mémoire entreprise fonctionne). 10.2-10.3 non testés |
-| Blocs visuels | 11.1 à 11.4 | _ / 4 | _ | Non testés |
+| Blocs visuels | 11.1 à 11.4 | 4 / 4 | 0 | 11.1 ✅ radar Chart.js. 11.2 ✅ Mermaid SVG. 11.3 ✅ doughnut+barres. 11.4 ✅ fallback propre |
 | Non-régression | 12.1 à 12.3 | 3 / 3 | 0 | 12.1 ✅ (pas d'hallucination Yamoussoukro). 12.2 ✅ (refus score 99). 12.3 ✅ (1850 géré) |
-| **TOTAL** | 32/45 testés | **25 / 32** | **3** | 78% pass. Fails tolérés: 2.1 (OCR), 6.1, 7.1 (tool calling) |
+| **TOTAL** | 36/45 testés | **29 / 36** | **3** | **81% pass**. Fails: 2.1 (OCR toléré), 6.1 + 7.1 (tool calling — anomalies 3-4) |
 
 **Seuil de validation : 42/45 minimum (93%).**
 Les 3 tests qui peuvent échouer sans bloquer : 11.4 (fallback), 12.3 (edge case), 2.1 (OCR dépend du document).
