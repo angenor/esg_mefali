@@ -31,3 +31,5 @@ class ConversationState(TypedDict):
     action_plan_data: dict | None
     _route_action_plan: bool
     tool_call_count: int
+    active_module: str | None
+    active_module_data: dict | None

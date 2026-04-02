@@ -69,7 +69,7 @@ Genere un ```chart bar horizontal montrant les emissions cumulees par categorie 
 
 5. Un ```timeline avec le plan d'action temporel :
 ```timeline
-{{"items":[{{"date":"Court terme (0-3 mois)","title":"Quick wins","description":"Optimisation energetique, tri des dechets"}},{{"date":"Moyen terme (3-12 mois)","title":"Investissements","description":"Panneaux solaires, vehicules hybrides"}},{{"date":"Long terme (12-24 mois)","title":"Transformation","description":"Economie circulaire, compensation carbone"}}]}}
+{{"events":[{{"date":"Court terme (0-3 mois)","title":"Quick wins","status":"in_progress","description":"Optimisation energetique, tri des dechets"}},{{"date":"Moyen terme (3-12 mois)","title":"Investissements","status":"todo","description":"Panneaux solaires, vehicules hybrides"}},{{"date":"Long terme (12-24 mois)","title":"Transformation","status":"todo","description":"Economie circulaire, compensation carbone"}}]}}
 ```
 
 ## TRANSITION ENTRE CATEGORIES

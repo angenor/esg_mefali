@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TimelineBlockData } from '~/types/richblocks'
+import { normalizeTimeline } from '~/utils/normalizeTimeline'
 
 const props = defineProps<{
   rawContent: string
@@ -9,11 +10,12 @@ const parseError = ref('')
 const timelineData = ref<TimelineBlockData | null>(null)
 
 try {
-  const parsed = JSON.parse(props.rawContent) as TimelineBlockData
-  if (!parsed.events?.length) {
-    parseError.value = 'Données de frise chronologique incomplètes (events requis)'
+  const parsed = JSON.parse(props.rawContent)
+  const normalized = normalizeTimeline(parsed)
+  if (!normalized) {
+    parseError.value = 'Données de frise chronologique incomplètes (events, phases, items ou steps requis)'
   } else {
-    timelineData.value = parsed
+    timelineData.value = normalized
   }
 } catch {
   parseError.value = 'JSON invalide pour la frise chronologique'

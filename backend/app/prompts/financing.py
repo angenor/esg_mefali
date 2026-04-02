@@ -60,7 +60,7 @@ graph TD
 
 ### Timeline du processus
 ```timeline
-{{"items":[{{"date":"Semaine 1-2","title":"Preparation","description":"Rassembler les documents, contacter l'intermediaire"}},{{"date":"Semaine 3-4","title":"Montage du dossier","description":"Avec l'aide de la banque partenaire"}},{{"date":"Mois 2-4","title":"Instruction","description":"Evaluation par le fonds"}},{{"date":"Mois 5-6","title":"Decision","description":"Approbation et deblocage des fonds"}}]}}
+{{"events":[{{"date":"Semaine 1-2","title":"Preparation","status":"todo","description":"Rassembler les documents, contacter l'intermediaire"}},{{"date":"Semaine 3-4","title":"Montage du dossier","status":"todo","description":"Avec l'aide de la banque partenaire"}},{{"date":"Mois 2-4","title":"Instruction","status":"todo","description":"Evaluation par le fonds"}},{{"date":"Mois 5-6","title":"Decision","status":"todo","description":"Approbation et deblocage des fonds"}}]}}
 ```
 
 ## CONTEXTE RAG

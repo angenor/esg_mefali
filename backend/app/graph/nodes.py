@@ -138,6 +138,56 @@ _FINANCING_KEYWORDS = [
 _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS]
 
 
+# Mapping module actif → flag de routing correspondant
+_MODULE_ROUTE_FLAGS = {
+    "esg_scoring": "_route_esg",
+    "carbon": "_route_carbon",
+    "financing": "_route_financing",
+    "application": "_route_application",
+    "credit": "_route_credit",
+    "action_plan": "_route_action_plan",
+}
+
+
+async def _is_topic_continuation(message: str, active_module: str) -> bool:
+    """Classification binaire LLM : le message continue-t-il dans le module actif ?
+
+    Retourne True (rester dans le module) en cas d'erreur (defaut securitaire).
+    """
+    module_labels = {
+        "esg_scoring": "évaluation ESG",
+        "carbon": "bilan carbone",
+        "financing": "financement vert",
+        "application": "dossier de candidature",
+        "credit": "scoring crédit vert",
+        "action_plan": "plan d'action",
+        "profiling": "profilage entreprise",
+        "document": "analyse de documents",
+    }
+    module_label = module_labels.get(active_module, active_module)
+
+    prompt = (
+        f"L'utilisateur est actuellement dans un module de {module_label}. "
+        f"Son message est : \"{message}\"\n\n"
+        "Ce message est-il une continuation de la conversation dans ce module "
+        "(réponse à une question, information complémentaire, confirmation, etc.) "
+        "ou un changement de sujet vers un autre thème ?\n\n"
+        "Réponds UNIQUEMENT par 'CONTINUER' ou 'CHANGER'."
+    )
+
+    try:
+        llm = get_llm()
+        response = await llm.ainvoke([
+            SystemMessage(content="Tu es un classifieur de messages. Réponds uniquement par 'CONTINUER' ou 'CHANGER'."),
+            HumanMessage(content=prompt),
+        ])
+        answer = response.content.strip().upper()
+        return "CHANGER" not in answer
+    except Exception:
+        logger.exception("Erreur lors de la classification de continuation de sujet")
+        return True  # Defaut securitaire : rester dans le module
+
+
 def _detect_action_plan_request(text: str) -> bool:
     """Detecter si un message est une demande liee au plan d'action ESG."""
     return any(pattern.search(text) for pattern in _ACTION_PLAN_PATTERNS)
@@ -239,13 +289,16 @@ def _detect_profile_info(text: str) -> bool:
 async def router_node(state: ConversationState) -> ConversationState:
     """Nœud routeur : analyse le message et décide du routage.
 
-    - Détecte si le message contient des infos extractibles
-    - Détecte la présence d'un document uploadé
-    - Vérifie si le profil est < 70% pour le profilage guidé
-    - Stocke les décisions de routage dans le state
+    Logique de priorite :
+    1. Si active_module est defini → classification binaire continuation/changement
+       - Continuation → router vers active_module
+       - Changement → reset active_module, classifier normalement
+    2. Si active_module est null → classification normale par heuristiques
     """
     messages = state["messages"]
     user_profile = state.get("user_profile")
+    active_module = state.get("active_module")
+    active_module_data = state.get("active_module_data")
 
     # Récupérer le dernier message utilisateur
     last_user_msg = ""
@@ -254,39 +307,68 @@ async def router_node(state: ConversationState) -> ConversationState:
             last_user_msg = msg.content
             break
 
-    # Détecter la présence d'un document uploadé
+    # Si un module est actif, verifier si on continue ou on change de sujet
+    if active_module and last_user_msg:
+        try:
+            is_continuation = await _is_topic_continuation(last_user_msg, active_module)
+        except Exception:
+            logger.exception("Erreur classification continuation, defaut = rester dans le module")
+            is_continuation = True
+
+        if is_continuation:
+            # Rester dans le module actif : definir le flag de routing correspondant
+            route_flags = {flag: False for flag in _MODULE_ROUTE_FLAGS.values()}
+            route_flag = _MODULE_ROUTE_FLAGS.get(active_module)
+            if route_flag:
+                route_flags[route_flag] = True
+
+            # Décider si on doit extraire des infos de profil
+            should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
+
+            return {
+                "profile_updates": [] if should_extract else None,
+                "profiling_instructions": None,
+                "has_document": state.get("document_upload") is not None,
+                "esg_assessment": state.get("esg_assessment"),
+                "carbon_data": state.get("carbon_data"),
+                "financing_data": state.get("financing_data"),
+                "application_data": state.get("application_data"),
+                "credit_data": state.get("credit_data"),
+                "action_plan_data": state.get("action_plan_data"),
+                "active_module": active_module,
+                "active_module_data": active_module_data,
+                **route_flags,
+            }
+        else:
+            # Changement de sujet : reset active_module et classifier normalement
+            active_module = None
+            active_module_data = None
+
+    # Classification normale (active_module est null ou changement de sujet)
     has_document = state.get("document_upload") is not None
 
-    # Détecter si c'est une demande ESG ou une évaluation en cours
     esg_assessment = state.get("esg_assessment")
     is_esg_request = _detect_esg_request(last_user_msg) if last_user_msg else False
     has_active_esg = _has_active_esg_assessment(state)
 
-    # Detecter si c'est une demande de bilan carbone ou un bilan en cours
     carbon_data = state.get("carbon_data")
     is_carbon_request = _detect_carbon_request(last_user_msg) if last_user_msg else False
     has_active_carbon = _has_active_carbon_assessment(state)
 
-    # Detecter si c'est une demande de financement
     financing_data = state.get("financing_data")
     is_financing_request = _detect_financing_request(last_user_msg) if last_user_msg else False
 
-    # Detecter si c'est une demande liee aux dossiers de candidature
     application_data = state.get("application_data")
     is_application_request = _detect_application_request(last_user_msg) if last_user_msg else False
 
-    # Detecter si c'est une demande de scoring credit vert
     credit_data = state.get("credit_data")
     is_credit_request = _detect_credit_request(last_user_msg) if last_user_msg else False
 
-    # Detecter si c'est une demande liee au plan d'action
     action_plan_data = state.get("action_plan_data")
     is_action_plan_request = _detect_action_plan_request(last_user_msg) if last_user_msg else False
 
-    # Décider si on doit extraire des infos de profil
     should_extract = _detect_profile_info(last_user_msg) if last_user_msg else False
 
-    # Profilage guidé : injecter des instructions si profil < 70% et message générique
     profiling_instructions: str | None = None
     identity_pct = _compute_identity_completion(user_profile)
     if identity_pct < 70.0 and last_user_msg and not _detect_module_request(last_user_msg) and not is_esg_request and not has_active_esg and not is_carbon_request and not has_active_carbon and not is_financing_request and not is_application_request and not is_credit_request and not is_action_plan_request:
@@ -310,6 +392,8 @@ async def router_node(state: ConversationState) -> ConversationState:
         "_route_credit": is_credit_request,
         "action_plan_data": action_plan_data,
         "_route_action_plan": is_action_plan_request,
+        "active_module": active_module,
+        "active_module_data": active_module_data,
     }
 
 
@@ -551,10 +635,30 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
     if hasattr(response, "tool_calls") and response.tool_calls:
         new_tool_call_count = tool_call_count + 1
 
+    # Gestion du cycle de vie active_module
+    esg_status = esg_assessment.get("status", "in_progress")
+    if esg_status == "completed":
+        # Finalisation : desactiver le module actif
+        new_active_module = None
+        new_active_module_data = None
+    else:
+        # Activation/mise a jour du module actif
+        new_active_module = "esg_scoring"
+        new_active_module_data = {
+            "assessment_id": esg_assessment.get("assessment_id"),
+            "current_criterion": esg_assessment.get("current_pillar"),
+            "criteria_evaluated": esg_assessment.get("evaluated_criteria", []),
+            "criteria_remaining": [
+                c for c in esg_assessment.get("partial_scores", {}).keys()
+            ] if esg_assessment.get("partial_scores") else [],
+        }
+
     return {
         "messages": [response],
         "esg_assessment": esg_assessment,
         "tool_call_count": new_tool_call_count,
+        "active_module": new_active_module,
+        "active_module_data": new_active_module_data,
     }
 
 
@@ -673,9 +777,24 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     llm_with_tools = llm.bind_tools(CARBON_TOOLS) if CARBON_TOOLS else llm
     response = await llm_with_tools.ainvoke(chat_messages)
 
+    # Gestion du cycle de vie active_module
+    carbon_status = carbon_data.get("status", "in_progress")
+    if carbon_status == "completed":
+        new_active_module = None
+        new_active_module_data = None
+    else:
+        new_active_module = "carbon"
+        new_active_module_data = {
+            "assessment_id": carbon_data.get("assessment_id"),
+            "entries_collected": carbon_data.get("completed_categories", []),
+            "current_category": carbon_data.get("current_category"),
+        }
+
     return {
         "messages": [response],
         "carbon_data": carbon_data,
+        "active_module": new_active_module,
+        "active_module_data": new_active_module_data,
     }
 
 
@@ -767,6 +886,12 @@ async def financing_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "financing_data": financing_data,
+        "active_module": "financing",
+        "active_module_data": {
+            "search_done": True,
+            "selected_fund_id": (financing_data or {}).get("selected_fund_id"),
+            "interest_expressed": (financing_data or {}).get("interest_expressed", False),
+        },
     }
 
 
@@ -930,6 +1055,8 @@ async def credit_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "credit_data": credit_data,
+        "active_module": "credit",
+        "active_module_data": {"session_id": None},
     }
 
 
@@ -1087,6 +1214,8 @@ async def application_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "application_data": application_data,
+        "active_module": "application",
+        "active_module_data": {"session_id": None},
     }
 
 
@@ -1149,6 +1278,8 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
     return {
         "messages": [response],
         "action_plan_data": action_plan_data,
+        "active_module": "action_plan",
+        "active_module_data": {"session_id": None},
     }
 
 
