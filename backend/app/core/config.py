@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Sécurité JWT
     secret_key: str = "changez-cette-cle-en-production"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 480
     refresh_token_expire_days: int = 30
 
     # OpenRouter / LLM

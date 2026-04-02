@@ -33,10 +33,29 @@ def _extract_json_array(text: str) -> list:
     if md_match:
         return json.loads(md_match.group(1))
 
-    # Tenter extraction du premier tableau JSON brut
-    bracket_match = re.search(r"\[.*\]", text, re.DOTALL)
+    # Tenter extraction du premier tableau JSON brut (non-greedy)
+    bracket_match = re.search(r"\[.*?\]", text, re.DOTALL)
     if bracket_match:
-        return json.loads(bracket_match.group(0))
+        try:
+            return json.loads(bracket_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback: trouver le début du tableau et parser progressivement
+    start = text.find("[")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "[":
+                depth += 1
+            elif ch == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start : i + 1])
+                    except json.JSONDecodeError:
+                        pass
+                    break
 
     raise ValueError(f"Aucun tableau JSON valide trouvé dans la réponse LLM : {text[:200]}")
 
