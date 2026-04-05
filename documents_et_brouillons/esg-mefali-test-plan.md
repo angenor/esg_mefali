@@ -640,36 +640,50 @@ Fais mon bilan carbone pour l'année 1850.
 | Documents | 2.1 à 2.3 | SKIP | SKIP | Upload PDF non testable en auto (toléré) |
 | ESG Scoring | 3.1 à 3.5 | 5 / 5 | 0 / 5 | 30/30 critères, scores identiques chat/page |
 | Carbone | 4.1 à 4.4 | 4 / 4 | 0 / 4 | 159 tCO2e, charts, recommandations |
-| Financement | 5.1 à 5.3 | 3 / 3 | 0 / 3 | 5.4-5.5 non testés (temps) |
-| Dossier candidature | 6.1 à 6.4 | NT | NT | Non testé (temps) |
-| Crédit vert | 7.1 à 7.3 | NT | NT | Non testé (contexte module) |
+| Financement | 5.1 à 5.5 | 4.5 / 5 | 0.5 / 5 | 5.4 dossier créé OK, 5.5 FNDE absent de la BDD |
+| Dossier candidature | 6.1 | 1 / 1 | 0 / 1 | Section générée avec données profil correctes |
+| Crédit vert | 7.1 à 7.3 | 3 / 3 | 0 / 3 | Score 44/100, sous-scores, attestation PDF |
 | Plan d'action | 8.1 à 8.2 | **2 / 2** | **0 / 2** | **TEST CRITIQUE OK — plan enregistré en base** |
-| Dashboard | 9.1 | 0.5 / 1 | 0.5 / 1 | Résumé OK, quelques données manquantes |
-| Chat contextuel | 10.1 à 10.3 | NT | NT | Non testé (temps) |
-| Blocs visuels | 11.1 à 11.4 | NT | NT | Charts/gauges visibles dans tests ESG/carbone |
+| Plan d'action | 8.3 | 0 / 1 | 1 / 1 | update_action_item non routé via chat |
+| Dashboard | 9.1 à 9.2 | 1.5 / 2 | 0.5 / 2 | 9.1 résumé OK, 9.2 page complète PASS |
+| Chat contextuel | 10.1 à 10.3 | 1.5 / 3 | 1.5 / 3 | 10.1 PASS, 10.2 FAIL (ESG non retrouvé), 10.3 partiel |
+| Blocs visuels | 11.1 | 0 / 1 | 1 / 1 | Radar non généré (ESG non retrouvé en nouvelle conv.) |
 | Non-régression | 12.1 à 12.3 | 3 / 3 | 0 / 3 | Yamoussoukro, score 99, année 1850 |
-| **TOTAL TESTÉ** | **22/28 testés** | **22 / 23.5** | **1.5** | |
+| **TOTAL** | **37/45 testés** | **30.5 / 37** | **4** | **82.4% réussite** |
 
 **Seuil de validation : 42/45 minimum (93%).**
 Les 3 tests qui peuvent échouer sans bloquer : 11.4 (fallback), 12.3 (edge case), 2.1 (OCR dépend du document).
 
 Tous les tests de la catégorie "Plan d'action" (8.x) DOIVENT passer à 100% — c'est le bug qui a été corrigé.
 **→ VALIDÉ : Test 8.2 critique PASS (plan enregistré en base, confirmé par le chat)**
+**→ ATTENTION : Test 8.3 FAIL — update_action_item non accessible depuis le chat**
 
-## RÉSULTATS DES TESTS (04/04/2026 — agent-browser automatisé)
+## RÉSULTATS DES TESTS (04-05/04/2026 — agent-browser automatisé, 2 sessions)
 
 ### Résumé exécutif
-- **Tests exécutés** : 28/45 (62%)
-- **Tests réussis** : 22/23.5 exécutés (93.6% de réussite)
-- **Tests non testés** : 17 (manque de temps + crédits OpenRouter limités)
+- **Tests exécutés** : 37/45 (82%)
+- **Tests réussis** : 30.5/37 exécutés (82.4% de réussite)
+- **Tests non testés** : 8 (2.1-2.3 upload PDF, 6.2-6.4 dossier sections, 8.4, 11.2-11.4)
 - **Test critique 8.2** : ✅ PASS — le plan d'action est bien enregistré en base
 - **Aucun crash** observé
 - **Aucune donnée inventée** par le LLM
+
+### Problèmes identifiés (3 FAIL)
+1. **8.3 — update_action_item** : Le tool n'est pas routé depuis le chat. Le LLM dit "Cette fonctionnalité n'est pas encore disponible via l'interface conversationnelle."
+2. **10.2 — get_esg_assessment en nouvelle conversation** : Le LLM ne retrouve pas l'évaluation ESG existante quand on demande "Quel est mon score ESG actuel ?" dans une nouvelle conversation. Il répond "Vous n'avez pas encore d'évaluation ESG complète" alors que le score 63/100 existe en base.
+3. **11.1 — Radar chart en nouvelle conversation** : Même cause que 10.2 — sans retrouver l'ESG, pas de radar.
+
+### Cause racine commune des FAIL
+Les tests 10.2 et 11.1 échouent car le **routing LangGraph ne dirige pas vers le module ESG** quand l'utilisateur pose une question simple sur son score dans une nouvelle conversation. Le chat_node répond de lui-même au lieu de router vers esg_scoring_node qui appellerait get_esg_assessment.
 
 ### Détail par section
 - **Profiling** : Extraction parfaite (nom, secteur, ville, pays, effectifs, CA, année, pratiques ESG)
 - **ESG Scoring** : 30 critères scorés en 3 tours, finalisation OK, scores cohérents chat↔page
 - **Carbone** : Bilan créé, émissions calculées (159 tCO2e), charts visibles, finalisation OK
-- **Financement** : Fonds listés avec détails, parcours d'accès, expression d'intérêt enregistrée
-- **Plan d'action** : Généré et persisté en base, accessible via chat et page dédiée
+- **Financement** : Fonds listés, SUNREF visible, dossier créé via chat, expression d'intérêt enregistrée
+- **Dossier candidature** : Section "Présentation entreprise" générée avec données correctes
+- **Crédit vert** : Score 44/100 calculé, sous-scores solvabilité/impact, attestation PDF téléchargeable, page /credit-score complète
+- **Plan d'action** : Généré et persisté en base, confirmé via chat (8.2 critique OK), mais update_action_item non routé (8.3 FAIL)
+- **Dashboard** : Toutes les cartes affichées (ESG 63, Carbone 158.9, Crédit 44.4, 12 fonds, actions, badges)
+- **Chat contextuel** : Mémoire profil OK (10.1), mais ESG non retrouvé en nouvelle conversation (10.2)
 - **Non-régression** : Le LLM refuse les données fausses et gère les edge cases

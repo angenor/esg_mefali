@@ -169,3 +169,10 @@ alembic upgrade head
 - 005-esg-scoring-assessment: Module evaluation et scoring ESG complet (30 criteres E-S-G, ponderation sectorielle, scoring dynamique, esg_scoring_node LangGraph, API REST /api/esg, page resultats /esg, RAG documentaire par critere, benchmark sectoriel avec fallback, historique evaluations Chart.js, reprise evaluations interrompues, 71 tests, 80% couverture)
 - 004-document-upload-analysis: Module complet upload/analyse documents (PyMuPDF, pytesseract, OCR, embeddings pgvector, chat integration, dark mode, 81% couverture tests)
 - 001-technical-foundation: Added Python 3.12, TypeScript 5.x (strict mode)
+
+
+## Parallel Sub-agents Strategy
+
+Use multiple sub-agents in parallel for efficiency(10 max):
+- Search frontend + backend simultaneously
+- Explore multiple files/folders at the same time
