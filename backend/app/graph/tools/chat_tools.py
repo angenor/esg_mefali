@@ -141,7 +141,7 @@ async def get_esg_assessment_chat(
     """
     import uuid
 
-    from app.modules.esg.service import get_assessment, get_resumable_assessment
+    from app.modules.esg.service import get_assessment, get_latest_assessment, get_resumable_assessment
 
     try:
         db, user_id = get_db_and_user(config)
@@ -150,7 +150,10 @@ async def get_esg_assessment_chat(
         if assessment_id:
             assessment = await get_assessment(db=db, assessment_id=uuid.UUID(assessment_id), user_id=user_id)
         else:
+            # Chercher d'abord une evaluation en cours, sinon la plus recente (completed)
             assessment = await get_resumable_assessment(db=db, user_id=user_id)
+            if assessment is None:
+                assessment = await get_latest_assessment(db=db, user_id=user_id)
 
         if assessment is None:
             return "Aucune evaluation ESG trouvee pour cet utilisateur."

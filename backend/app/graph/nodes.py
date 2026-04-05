@@ -67,14 +67,27 @@ _APPLICATION_KEYWORDS = [
 ]
 _APPLICATION_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _APPLICATION_KEYWORDS]
 
-# Heuristiques pour détecter une demande d'évaluation ESG spécifiquement
+# Heuristiques pour détecter une CONSULTATION ESG (lecture seule → chat_node)
+# Ces patterns ne doivent PAS router vers esg_scoring_node
+_ESG_QUERY_KEYWORDS = [
+    r"\bmon\s+score\s+ESG\b", r"\bquel\s+est\s+mon\s+score\s+ESG\b",
+    r"\bscore\s+ESG\s+actuel\b", r"\br[ée]sultat.*ESG\b",
+    r"\bmontre.*(?:radar|chart|graphique).*ESG\b",
+    r"\bradar.*ESG\b", r"\bESG.*radar\b",
+    r"\baffiche.*score.*ESG\b", r"\bvoir.*score.*ESG\b",
+]
+_ESG_QUERY_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ESG_QUERY_KEYWORDS]
+
+# Heuristiques pour détecter une demande d'évaluation ESG (interactive → esg_scoring_node)
 _ESG_KEYWORDS = [
     r"\b[ée]valuation\s+ESG\b", r"\b[ée]valuer\s+.*ESG\b",
-    r"\bscoring\s+ESG\b", r"\bscore\s+ESG\b",
+    r"\bscoring\s+ESG\b",
     r"\banalyse\s+ESG\b", r"\baudit\s+ESG\b",
     r"\blancer\s+.*[ée]valuation\b.*\bESG\b",
-    r"\bmon\s+score\s+ESG\b", r"\bcriteres?\s+ESG\b",
+    r"\bcriteres?\s+ESG\b",
     r"\bdiagnostic\s+ESG\b", r"\bbilan\s+ESG\b",
+    r"\bcontinuer.*[ée]valuation.*ESG\b",
+    r"\bfaire.*[ée]valuation.*ESG\b",
 ]
 _ESG_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ESG_KEYWORDS]
 
@@ -104,6 +117,17 @@ _ACTION_PLAN_KEYWORDS = [
     r"\bmon\s+plan\s+(?:d'action|ESG)\b",
     r"\bprogression\s+(?:du|de\s+mon)\s+plan\b",
     r"\btaches?\s+(?:ESG|en\s+cours|prioritaires?)\b",
+    # Mises a jour de statut d'actions
+    r"\bmets?\s+.*(?:action|tache).*(?:en\s+cours|termin|fait)\b",
+    r"\b(?:action|tache).*(?:en\s+cours|termin[ée]e?|fait)\b",
+    r"\bcommenc[ée]\s+.*(?:audit|action|tache)\b",
+    r"\bj'ai\s+commenc[ée]\b",
+    r"\bj'ai\s+termin[ée]\b",
+    r"\bj'ai\s+fait\b.*\b(?:action|audit|formation|charte)\b",
+    r"\bstatut\s+(?:de\s+)?(?:l'|mon|une)\s+action\b",
+    r"\bmettre?\s+[àa]\s+jour\s+.*action\b",
+    r"\bpris\s+rendez-vous\b",
+    r"\bj'attends?\s+(?:leur|une|la)\s+r[ée]ponse\b",
 ]
 _ACTION_PLAN_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _ACTION_PLAN_KEYWORDS]
 
@@ -221,8 +245,18 @@ def _has_active_carbon_assessment(state: dict) -> bool:
     return carbon.get("status") == "in_progress"
 
 
+def _detect_esg_query(text: str) -> bool:
+    """Détecter si un message est une consultation ESG (lecture seule)."""
+    return any(pattern.search(text) for pattern in _ESG_QUERY_PATTERNS)
+
+
 def _detect_esg_request(text: str) -> bool:
-    """Détecter si un message est une demande d'évaluation ESG."""
+    """Détecter si un message est une demande d'évaluation ESG (interactive).
+
+    Exclut les consultations simples (score actuel, radar, résultats).
+    """
+    if _detect_esg_query(text):
+        return False
     return any(pattern.search(text) for pattern in _ESG_PATTERNS)
 
 

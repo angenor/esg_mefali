@@ -209,6 +209,20 @@ async def get_resumable_assessment(
     return result.scalar_one_or_none()
 
 
+async def get_latest_assessment(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> ESGAssessment | None:
+    """Trouver l'evaluation la plus recente, quel que soit le statut."""
+    result = await db.execute(
+        select(ESGAssessment)
+        .where(ESGAssessment.user_id == user_id)
+        .order_by(ESGAssessment.updated_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_assessment(
     db: AsyncSession,
     user_id: uuid.UUID,

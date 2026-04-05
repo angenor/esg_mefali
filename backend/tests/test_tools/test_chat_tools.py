@@ -116,14 +116,38 @@ class TestGetEsgAssessmentChat:
         mock_get.assert_awaited_once()
 
     @pytest.mark.asyncio
+    @patch("app.modules.esg.service.get_latest_assessment", new_callable=AsyncMock)
     @patch("app.modules.esg.service.get_resumable_assessment", new_callable=AsyncMock)
-    async def test_no_assessment(self, mock_get, mock_config):
+    async def test_no_assessment(self, mock_resumable, mock_latest, mock_config):
         """Pas d'evaluation retourne un message."""
-        mock_get.return_value = None
+        mock_resumable.return_value = None
+        mock_latest.return_value = None
 
         result = await get_esg_assessment_chat.ainvoke({}, config=mock_config)
 
         assert "Aucune" in result or "aucune" in result
+
+    @pytest.mark.asyncio
+    @patch("app.modules.esg.service.get_latest_assessment", new_callable=AsyncMock)
+    @patch("app.modules.esg.service.get_resumable_assessment", new_callable=AsyncMock)
+    async def test_completed_assessment_found_via_latest(self, mock_resumable, mock_latest, mock_config):
+        """Evaluation completed trouvee via get_latest_assessment."""
+        mock_resumable.return_value = None
+        assessment = MagicMock()
+        assessment.id = uuid.uuid4()
+        assessment.status = MagicMock(value="completed")
+        assessment.overall_score = 63
+        assessment.environment_score = 59
+        assessment.social_score = 70
+        assessment.governance_score = 60
+        assessment.sector = "recyclage"
+        mock_latest.return_value = assessment
+
+        result = await get_esg_assessment_chat.ainvoke({}, config=mock_config)
+
+        assert "63" in result
+        mock_resumable.assert_awaited_once()
+        mock_latest.assert_awaited_once()
 
 
 class TestGetCarbonSummaryChat:

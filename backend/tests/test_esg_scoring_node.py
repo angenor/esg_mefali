@@ -13,13 +13,28 @@ class TestESGIntentDetection:
     """Tests de detection d'intention ESG dans le router_node."""
 
     def test_detect_esg_keywords(self) -> None:
-        """T012-01 : Detection des mots-cles ESG."""
+        """T012-01 : Detection des mots-cles ESG (evaluation interactive)."""
         from app.graph.nodes import _detect_esg_request
 
         assert _detect_esg_request("Je veux evaluer mon entreprise sur les criteres ESG") is True
         assert _detect_esg_request("Lancer une evaluation ESG") is True
-        assert _detect_esg_request("Quel est mon score ESG ?") is True
         assert _detect_esg_request("scoring ESG de mon entreprise") is True
+        assert _detect_esg_request("Je veux faire mon evaluation ESG") is True
+
+    def test_esg_query_not_routed_to_scoring(self) -> None:
+        """T012-01b : Les consultations ESG restent dans chat_node."""
+        from app.graph.nodes import _detect_esg_query, _detect_esg_request
+
+        # Consultations simples → chat_node (pas esg_scoring_node)
+        assert _detect_esg_query("Quel est mon score ESG ?") is True
+        assert _detect_esg_query("Mon score ESG actuel") is True
+        assert _detect_esg_query("Montre-moi un radar de mon ESG") is True
+        assert _detect_esg_request("Quel est mon score ESG ?") is False
+        assert _detect_esg_request("Mon score ESG actuel") is False
+
+        # Evaluations interactives → esg_scoring_node
+        assert _detect_esg_query("Lancer une evaluation ESG") is False
+        assert _detect_esg_query("Je veux evaluer mon entreprise") is False
 
     def test_no_esg_keywords(self) -> None:
         """T012-02 : Pas de detection pour messages generiques."""
