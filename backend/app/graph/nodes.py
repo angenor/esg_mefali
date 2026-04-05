@@ -760,21 +760,7 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     )
     full_prompt = system_prompt + carbon_state_context
 
-    # Instructions tool calling carbone
-    tool_instructions = (
-        "\n\n## OUTILS DISPONIBLES\n"
-        "- `create_carbon_assessment` : Creer un nouveau bilan pour une annee donnee\n"
-        "- `save_emission_entry` : Enregistrer une entree d'emission (calcul tCO2e automatique)\n"
-        "- `finalize_carbon_assessment` : Finaliser le bilan (DEMANDER CONFIRMATION a l'utilisateur avant)\n"
-        "- `get_carbon_summary` : Obtenir le resume complet du bilan\n\n"
-        "## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
-        "Quand l'utilisateur fournit une donnee de consommation, tu DOIS appeler "
-        "`save_emission_entry` pour CHAQUE source identifiee AVANT de repondre.\n"
-        "- Ne JAMAIS calculer des emissions sans les persister via le tool.\n"
-        "- Ne JAMAIS utiliser tes connaissances generales pour estimer — consulte la base via le tool.\n"
-        "- Si le tool echoue, informe l'utilisateur et reessaie.\n"
-    )
-    full_prompt = full_prompt + tool_instructions
+    # Les instructions tool calling sont maintenant dans le template prompt
 
     # Envoyer au LLM avec tools
     from app.graph.tools.carbon_tools import CARBON_TOOLS
@@ -1048,20 +1034,8 @@ async def credit_node(state: ConversationState) -> ConversationState:
             )
         system_prompt += history_text
 
-    # Instructions tool calling — REGLE ABSOLUE
-    tool_instructions = (
-        "\n\n## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
-        "Tu DOIS appeler le tool generate_credit_score quand l'utilisateur demande "
-        "a calculer, generer ou connaitre son score de credit vert. Ne donne JAMAIS "
-        "une estimation textuelle (ex: '65-70/100') — seul le score calcule par le tool est valide.\n"
-        "Tu DOIS appeler le tool get_credit_score pour consulter un score existant.\n"
-        "Tu DOIS appeler le tool generate_credit_certificate pour generer une attestation PDF.\n\n"
-        "INTERDIT : estimer un score dans le texte sans appel tool. "
-        "INTERDIT : donner une fourchette approximative. "
-        "Appelle le tool AVANT de repondre, puis presente le resultat avec des blocs visuels."
-    )
-
-    full_prompt = system_prompt + tool_instructions
+    # Les instructions tool calling sont dans le template prompt
+    full_prompt = system_prompt
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
@@ -1213,18 +1187,8 @@ async def application_node(state: ConversationState) -> ConversationState:
         application_context=application_context,
     )
 
-    # Instructions tool calling
-    tool_instructions = (
-        "\n\nINSTRUCTIONS OBLIGATOIRES :\n"
-        "- Pour generer une section : utilise TOUJOURS le tool generate_application_section.\n"
-        "- Pour modifier une section : utilise TOUJOURS le tool update_application_section.\n"
-        "- Pour la checklist : utilise TOUJOURS le tool get_application_checklist.\n"
-        "- Pour simuler : utilise TOUJOURS le tool simulate_financing.\n"
-        "- Pour exporter : utilise TOUJOURS le tool export_application.\n"
-        "- Sauvegarde SYSTEMATIQUEMENT chaque section generee ou modifiee."
-    )
-
-    full_prompt = system_prompt + tool_instructions
+    # Les instructions tool calling sont dans le template prompt
+    full_prompt = system_prompt
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
@@ -1268,32 +1232,89 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
                 company_lines.append(f"- {key}: {value}")
     company_context = "\n".join(company_lines) if company_lines else "Aucun profil disponible."
 
-    # Construire le prompt plan d'action
+    # Recuperer le contexte reel depuis la BDD pour enrichir le prompt
+    user_id = state.get("user_id")
+    esg_context = "Aucune evaluation ESG disponible."
+    carbon_context = "Aucun bilan carbone disponible."
+    financing_context = "Aucun matching financement disponible."
+    intermediaries_context = "Aucun intermediaire identifie."
+
+    if user_id:
+        try:
+            import uuid as uuid_mod
+
+            from sqlalchemy import select as sa_select
+
+            from app.core.database import async_session_factory
+
+            async with async_session_factory() as db:
+                uid = uuid_mod.UUID(str(user_id))
+
+                # Contexte ESG — dernier assessment
+                from app.models.esg import ESGAssessment
+                esg_result = await db.execute(
+                    sa_select(ESGAssessment)
+                    .where(ESGAssessment.user_id == uid)
+                    .order_by(ESGAssessment.created_at.desc())
+                    .limit(1)
+                )
+                esg = esg_result.scalar_one_or_none()
+                if esg:
+                    esg_context = (
+                        f"Score ESG global : {esg.overall_score or 'N/A'}/100. "
+                        f"E={esg.environment_score or 'N/A'}, S={esg.social_score or 'N/A'}, "
+                        f"G={esg.governance_score or 'N/A'}. "
+                        f"Statut : {esg.status.value if hasattr(esg.status, 'value') else esg.status}."
+                    )
+
+                # Contexte Carbone — dernier assessment
+                from app.models.carbon import CarbonAssessment
+                carbon_result = await db.execute(
+                    sa_select(CarbonAssessment)
+                    .where(CarbonAssessment.user_id == uid)
+                    .order_by(CarbonAssessment.created_at.desc())
+                    .limit(1)
+                )
+                carbon = carbon_result.scalar_one_or_none()
+                if carbon:
+                    carbon_context = (
+                        f"Bilan carbone {carbon.year} : {carbon.total_emissions_tco2e or 0:.1f} tCO2e. "
+                        f"Statut : {carbon.status.value if hasattr(carbon.status, 'value') else carbon.status}."
+                    )
+
+                # Contexte Financement — matches existants
+                from app.models.financing import FundMatch
+                matches_result = await db.execute(
+                    sa_select(FundMatch)
+                    .where(FundMatch.user_id == uid)
+                    .order_by(FundMatch.compatibility_score.desc())
+                    .limit(5)
+                )
+                matches = list(matches_result.scalars().all())
+                if matches:
+                    # Charger les noms de fonds
+                    parts = []
+                    for m in matches:
+                        await db.refresh(m, ["fund"])
+                        if m.fund:
+                            parts.append(f"{m.fund.name} ({m.compatibility_score}%)")
+                    financing_context = f"{len(matches)} fonds matches : {', '.join(parts)}."
+
+        except Exception:
+            logger.exception("Erreur lors de la recuperation du contexte pour le plan d'action")
+
+    # Construire le prompt plan d'action avec les donnees reelles
     system_prompt = build_action_plan_prompt(
         company_context=company_context,
-        esg_context="Consultez votre évaluation ESG sur la plateforme.",
-        carbon_context="Consultez votre bilan carbone sur la plateforme.",
-        financing_context="Consultez vos financements matchés sur la plateforme.",
-        intermediaries_context="Consultez l'annuaire des intermédiaires sur la plateforme.",
+        esg_context=esg_context,
+        carbon_context=carbon_context,
+        financing_context=financing_context,
+        intermediaries_context=intermediaries_context,
         timeframe=12,
     )
 
-    # Instructions tool calling — REGLE ABSOLUE
-    tool_instructions = (
-        "\n\n## REGLE ABSOLUE — TOOL CALLING OBLIGATOIRE\n"
-        "Tu DOIS appeler le tool generate_action_plan quand l'utilisateur demande "
-        "de generer, creer ou sauvegarder un plan d'action. Ne genere JAMAIS un plan "
-        "en texte ou JSON dans le chat — seul le tool persiste les donnees.\n"
-        "Tu DOIS appeler le tool get_action_plan quand l'utilisateur demande a voir, "
-        "consulter ou verifier son plan existant.\n"
-        "Tu DOIS appeler le tool update_action_item quand l'utilisateur indique avoir "
-        "progresse ou change le statut d'une action.\n\n"
-        "INTERDIT : repondre avec un plan textuel sans appel tool. "
-        "INTERDIT : dire que tu n'as pas acces a la sauvegarde.\n"
-        "Presente les resultats avec des blocs visuels (timeline, gauge, table)."
-    )
-
-    full_prompt = system_prompt + tool_instructions
+    # Les instructions tool calling sont dans le template prompt
+    full_prompt = system_prompt
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
