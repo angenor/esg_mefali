@@ -117,8 +117,15 @@ def build_credit_prompt(
 ) -> str:
     """Construire le prompt credit avec le contexte entreprise et scoring."""
     from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return CREDIT_PROMPT.format(
-        company_context=company_context,
-        scoring_context=scoring_context,
-    ) + "\n\n" + STYLE_INSTRUCTION
+    return (
+        CREDIT_PROMPT.format(
+            company_context=company_context,
+            scoring_context=scoring_context,
+        )
+        + "\n\n"
+        + STYLE_INSTRUCTION
+        + "\n\n"
+        + WIDGET_INSTRUCTION
+    )

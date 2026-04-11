@@ -86,8 +86,15 @@ def build_esg_prompt(
 ) -> str:
     """Construire le prompt ESG avec le contexte entreprise et documents."""
     from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return ESG_SCORING_PROMPT.format(
-        company_context=company_context,
-        document_context=document_context,
-    ) + "\n\n" + STYLE_INSTRUCTION
+    return (
+        ESG_SCORING_PROMPT.format(
+            company_context=company_context,
+            document_context=document_context,
+        )
+        + "\n\n"
+        + STYLE_INSTRUCTION
+        + "\n\n"
+        + WIDGET_INSTRUCTION
+    )

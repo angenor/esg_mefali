@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
 import { useChat } from '~/composables/useChat'
 import { useUiStore } from '~/stores/ui'
 
@@ -18,13 +19,57 @@ const {
   documentProgress,
   reportSuggestion,
   activeToolCall,
+  currentInteractiveQuestion,
+  interactiveQuestionsByMessage,
   fetchConversations,
   createConversation,
   selectConversation,
   sendMessage,
+  submitInteractiveAnswer,
+  onInteractiveQuestionAbandoned,
   deleteConversation,
   renameConversation,
 } = useChat()
+
+async function handleInteractiveAnswer(payload: { questionId: string; answer: InteractiveQuestionAnswer }) {
+  await submitInteractiveAnswer(payload.questionId, payload.answer)
+  await fetchConversations()
+}
+
+function handleInteractiveAbandoned(questionId: string) {
+  onInteractiveQuestionAbandoned(questionId)
+}
+
+// Handlers pour la nouvelle bottom sheet interactive
+async function handleBottomSheetSubmit(answer: InteractiveQuestionAnswer) {
+  if (!currentInteractiveQuestion.value) return
+  await submitInteractiveAnswer(currentInteractiveQuestion.value.id, answer)
+  await fetchConversations()
+}
+
+const runtimeConfig = useRuntimeConfig()
+async function handleBottomSheetAbandonAndSend(content: string) {
+  if (!currentInteractiveQuestion.value) return
+  const qid = currentInteractiveQuestion.value.id
+  // Marquer la question comme abandoned cote backend (best effort)
+  try {
+    const authStore = useAuthStore()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (authStore.accessToken) {
+      headers.Authorization = `Bearer ${authStore.accessToken}`
+    }
+    await fetch(
+      `${runtimeConfig.public.apiBase}/chat/interactive-questions/${qid}/abandon`,
+      { method: 'POST', headers, body: '{}' },
+    )
+  } catch {
+    // Best effort : si l'abandon echoue, le backend marquera la question comme expired
+    // au prochain message texte via _expire_pending_questions
+  }
+  onInteractiveQuestionAbandoned(qid)
+  await sendMessage(content)
+  await fetchConversations()
+}
 
 const messagesContainer = ref<HTMLElement | null>(null)
 const userScrolledUp = ref(false)
@@ -187,6 +232,9 @@ async function handleRename(conversationId: string, title: string) {
             :message="msg"
             :is-streaming="isStreaming && idx === messages.length - 1 && msg.role === 'assistant'"
             :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
+            :interactive-question="interactiveQuestionsByMessage[msg.id] || (idx === messages.length - 1 && msg.role === 'assistant' && currentInteractiveQuestion?.id ? currentInteractiveQuestion : null)"
+            @interactive-answer="handleInteractiveAnswer"
+            @interactive-abandoned="handleInteractiveAbandoned"
           />
         </div>
       </div>
@@ -235,8 +283,16 @@ async function handleRename(conversationId: string, title: string) {
         {{ error }}
       </div>
 
-      <!-- Zone de saisie -->
+      <!-- Zone de saisie / Bottom sheet interactif -->
+      <InteractiveQuestionInputBar
+        v-if="currentInteractiveQuestion?.state === 'pending'"
+        :question="currentInteractiveQuestion"
+        :loading="isStreaming"
+        @submit="handleBottomSheetSubmit"
+        @abandon-and-send="handleBottomSheetAbandonAndSend"
+      />
       <ChatInput
+        v-else
         :disabled="isStreaming"
         @send="handleSend"
         @send-with-file="handleSendWithFile"

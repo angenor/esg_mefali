@@ -1,6 +1,13 @@
 import { ref } from 'vue'
 import type { Conversation, Message, PaginatedResponse } from '~/types'
 import type { ProfileUpdateEvent, CompletionResponse } from '~/types/company'
+import type {
+  InteractiveQuestion,
+  InteractiveQuestionAnswer,
+  InteractiveOption,
+  InteractiveQuestionType,
+  InteractiveQuestionState,
+} from '~/types/interactive-question'
 import { useAuthStore } from '~/stores/auth'
 import { useCompanyStore } from '~/stores/company'
 
@@ -30,6 +37,9 @@ export function useChat() {
     args: Record<string, unknown>
     callId: string
   } | null>(null)
+  // Feature 018 — interactive widgets
+  const currentInteractiveQuestion = ref<InteractiveQuestion | null>(null)
+  const interactiveQuestionsByMessage = ref<Record<string, InteractiveQuestion>>({})
 
   function getHeaders(): Record<string, string> {
     return {
@@ -74,6 +84,32 @@ export function useChat() {
     if (!response.ok) throw new Error('Erreur lors du chargement des messages')
     const data: PaginatedResponse<Message> = await response.json()
     messages.value = data.items
+
+    // Hydrater les questions interactives associees (feature 018)
+    try {
+      const iqResp = await fetch(
+        `${apiBase}/chat/conversations/${conversationId}/interactive-questions?state=all&limit=200`,
+        { headers: getHeaders() },
+      )
+      if (iqResp.ok) {
+        const iqBody = await iqResp.json()
+        const items: Array<InteractiveQuestion & { assistant_message_id: string | null }> = iqBody.data || []
+        const byMessage: Record<string, InteractiveQuestion> = {}
+        let pending: InteractiveQuestion | null = null
+        for (const q of items) {
+          if (q.assistant_message_id) {
+            byMessage[q.assistant_message_id] = q
+          }
+          if (q.state === 'pending') {
+            pending = q
+          }
+        }
+        interactiveQuestionsByMessage.value = byMessage
+        currentInteractiveQuestion.value = pending
+      }
+    } catch {
+      // Best effort : ne pas bloquer le chargement des messages
+    }
   }
 
   async function sendMessage(content: string, file?: File): Promise<void> {
@@ -170,6 +206,21 @@ export function useChat() {
               result_summary?: string
               error_message?: string
               message?: string
+              // Feature 018 — interactive widgets
+              id?: string
+              conversation_id?: string
+              question_type?: InteractiveQuestionType
+              prompt?: string
+              options?: InteractiveOption[]
+              min_selections?: number
+              max_selections?: number
+              requires_justification?: boolean
+              justification_prompt?: string | null
+              module?: string
+              created_at?: string
+              response_values?: string[] | null
+              response_justification?: string | null
+              answered_at?: string
             }
 
             if (event.type === 'token' && event.content) {
@@ -184,11 +235,20 @@ export function useChat() {
             } else if (event.type === 'done' && event.message_id) {
               // Mettre a jour l'ID du message avec l'ID persiste
               const lastIdx = messages.value.length - 1
+              const oldId = messages.value[lastIdx]?.id
               messages.value = messages.value.map((msg, idx) =>
                 idx === lastIdx
                   ? { ...msg, id: event.message_id! }
                   : msg,
               )
+              // Transferer la question interactive du tempId au vrai message_id
+              if (oldId && interactiveQuestionsByMessage.value[oldId]) {
+                const q = interactiveQuestionsByMessage.value[oldId]!
+                const updated = { ...interactiveQuestionsByMessage.value }
+                delete updated[oldId]
+                updated[event.message_id!] = q
+                interactiveQuestionsByMessage.value = updated
+              }
               documentProgress.value = null
             } else if (event.type === 'document_upload') {
               // Document recu
@@ -244,6 +304,68 @@ export function useChat() {
             } else if (event.type === 'tool_call_error') {
               // Erreur d'un tool
               activeToolCall.value = null
+            } else if (event.type === 'interactive_question' && event.id) {
+              // Feature 018 — affichage d'une question interactive cliquable
+              const question: InteractiveQuestion = {
+                id: event.id,
+                conversation_id: event.conversation_id || '',
+                question_type: event.question_type || 'qcu',
+                prompt: event.prompt || '',
+                options: event.options || [],
+                min_selections: event.min_selections ?? 1,
+                max_selections: event.max_selections ?? 1,
+                requires_justification: event.requires_justification ?? false,
+                justification_prompt: event.justification_prompt ?? null,
+                module: event.module || 'chat',
+                created_at: event.created_at || new Date().toISOString(),
+                state: 'pending',
+                response_values: null,
+                response_justification: null,
+                answered_at: null,
+              }
+              currentInteractiveQuestion.value = question
+              // Lier la question au dernier message assistant
+              const lastIdx = messages.value.length - 1
+              if (lastIdx >= 0 && messages.value[lastIdx]?.role === 'assistant') {
+                interactiveQuestionsByMessage.value = {
+                  ...interactiveQuestionsByMessage.value,
+                  [messages.value[lastIdx]!.id]: question,
+                }
+              }
+            } else if (event.type === 'interactive_question_resolved' && event.id) {
+              // Mise a jour finale d'une question (answered/abandoned/expired)
+              const newState = (event.state || 'answered') as InteractiveQuestionState
+              if (currentInteractiveQuestion.value?.id === event.id) {
+                currentInteractiveQuestion.value = {
+                  ...currentInteractiveQuestion.value,
+                  state: newState,
+                  response_values: event.response_values ?? null,
+                  response_justification: event.response_justification ?? null,
+                  answered_at: event.answered_at ?? null,
+                }
+              }
+              // Mettre a jour la question liee a un message si presente
+              const updated: Record<string, InteractiveQuestion> = {}
+              for (const [msgId, q] of Object.entries(interactiveQuestionsByMessage.value)) {
+                if (q.id === event.id) {
+                  updated[msgId] = {
+                    ...q,
+                    state: newState,
+                    response_values: event.response_values ?? null,
+                    response_justification: event.response_justification ?? null,
+                    answered_at: event.answered_at ?? null,
+                  }
+                } else {
+                  updated[msgId] = q
+                }
+              }
+              interactiveQuestionsByMessage.value = updated
+              if (newState !== 'pending') {
+                // Liberer le state courant pour debloquer l'input texte
+                if (currentInteractiveQuestion.value?.id === event.id) {
+                  currentInteractiveQuestion.value = null
+                }
+              }
             } else if (event.type === 'report_suggestion' && event.assessment_id) {
               reportSuggestion.value = {
                 assessmentId: event.assessment_id,
@@ -301,6 +423,186 @@ export function useChat() {
     }
   }
 
+  async function submitInteractiveAnswer(
+    questionId: string,
+    answer: InteractiveQuestionAnswer,
+  ): Promise<void> {
+    if (!currentConversation.value || isStreaming.value) return
+
+    error.value = ''
+    isStreaming.value = true
+    streamingContent.value = ''
+
+    // Construire la representation textuelle du choix utilisateur
+    const question = currentInteractiveQuestion.value
+    const labels = question
+      ? question.options
+          .filter(opt => answer.values.includes(opt.id))
+          .map(opt => opt.label)
+      : answer.values
+    const displayContent = labels.join(', ') + (
+      answer.justification ? `\n_${answer.justification}_` : ''
+    )
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: displayContent,
+      created_at: new Date().toISOString(),
+    }
+    messages.value = [...messages.value, userMessage]
+
+    // Marquer la question courante comme answered localement
+    if (currentInteractiveQuestion.value?.id === questionId) {
+      const resolved: InteractiveQuestion = {
+        ...currentInteractiveQuestion.value,
+        state: 'answered',
+        response_values: answer.values,
+        response_justification: answer.justification ?? null,
+        answered_at: new Date().toISOString(),
+      }
+      currentInteractiveQuestion.value = null
+      const updated: Record<string, InteractiveQuestion> = {}
+      for (const [msgId, q] of Object.entries(interactiveQuestionsByMessage.value)) {
+        updated[msgId] = q.id === questionId ? resolved : q
+      }
+      interactiveQuestionsByMessage.value = updated
+    }
+
+    try {
+      const formData = new FormData()
+      formData.append('content', '')
+      formData.append('interactive_question_id', questionId)
+      formData.append('interactive_question_values', JSON.stringify(answer.values))
+      if (answer.justification) {
+        formData.append('interactive_question_justification', answer.justification)
+      }
+
+      const headers: Record<string, string> = {}
+      if (authStore.accessToken) {
+        headers.Authorization = `Bearer ${authStore.accessToken}`
+      }
+
+      const response = await fetch(
+        `${apiBase}/chat/conversations/${currentConversation.value.id}/messages`,
+        { method: 'POST', headers, body: formData },
+      )
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'envoi de la reponse")
+      }
+
+      // Lecture du flux SSE de la reponse
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString(),
+      }
+      messages.value = [...messages.value, assistantMessage]
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const jsonStr = line.slice(6)
+          try {
+            const evt = JSON.parse(jsonStr) as {
+              type: string
+              content?: string
+              message_id?: string
+              id?: string
+              conversation_id?: string
+              question_type?: InteractiveQuestionType
+              prompt?: string
+              options?: InteractiveOption[]
+              min_selections?: number
+              max_selections?: number
+              requires_justification?: boolean
+              justification_prompt?: string | null
+              module?: string
+              created_at?: string
+            }
+            if (evt.type === 'token' && evt.content) {
+              streamingContent.value += evt.content
+              const lastIdx = messages.value.length - 1
+              messages.value = messages.value.map((msg, idx) =>
+                idx === lastIdx ? { ...msg, content: streamingContent.value } : msg,
+              )
+            } else if (evt.type === 'done' && evt.message_id) {
+              const lastIdx = messages.value.length - 1
+              const oldId = messages.value[lastIdx]?.id
+              messages.value = messages.value.map((msg, idx) =>
+                idx === lastIdx ? { ...msg, id: evt.message_id! } : msg,
+              )
+              // Transferer la question interactive du tempId au vrai message_id
+              if (oldId && interactiveQuestionsByMessage.value[oldId]) {
+                const q = interactiveQuestionsByMessage.value[oldId]!
+                const updated = { ...interactiveQuestionsByMessage.value }
+                delete updated[oldId]
+                updated[evt.message_id!] = q
+                interactiveQuestionsByMessage.value = updated
+              }
+            } else if (evt.type === 'interactive_question' && evt.id) {
+              // Feature 018 — nouvelle question interactive dans un nouveau tour (apres submit d'une reponse)
+              const newQ: InteractiveQuestion = {
+                id: evt.id,
+                conversation_id: evt.conversation_id || '',
+                question_type: evt.question_type || 'qcu',
+                prompt: evt.prompt || '',
+                options: evt.options || [],
+                min_selections: evt.min_selections ?? 1,
+                max_selections: evt.max_selections ?? 1,
+                requires_justification: evt.requires_justification ?? false,
+                justification_prompt: evt.justification_prompt ?? null,
+                module: evt.module || 'chat',
+                created_at: evt.created_at || new Date().toISOString(),
+                state: 'pending',
+                response_values: null,
+                response_justification: null,
+                answered_at: null,
+              }
+              currentInteractiveQuestion.value = newQ
+              const lastIdx = messages.value.length - 1
+              if (lastIdx >= 0 && messages.value[lastIdx]?.role === 'assistant') {
+                interactiveQuestionsByMessage.value = {
+                  ...interactiveQuestionsByMessage.value,
+                  [messages.value[lastIdx]!.id]: newQ,
+                }
+              }
+            }
+          } catch {
+            // Ignorer les lignes invalides
+          }
+        }
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+    } finally {
+      isStreaming.value = false
+      streamingContent.value = ''
+    }
+  }
+
+  function onInteractiveQuestionAbandoned(questionId: string): void {
+    if (currentInteractiveQuestion.value?.id === questionId) {
+      currentInteractiveQuestion.value = null
+    }
+    const updated: Record<string, InteractiveQuestion> = {}
+    for (const [msgId, q] of Object.entries(interactiveQuestionsByMessage.value)) {
+      updated[msgId] = q.id === questionId
+        ? { ...q, state: 'abandoned', answered_at: new Date().toISOString() }
+        : q
+    }
+    interactiveQuestionsByMessage.value = updated
+  }
+
   const searchQuery = ref('')
 
   const filteredConversations = computed(() => {
@@ -323,11 +625,15 @@ export function useChat() {
     documentProgress,
     reportSuggestion,
     activeToolCall,
+    currentInteractiveQuestion,
+    interactiveQuestionsByMessage,
     fetchConversations,
     createConversation,
     selectConversation,
     fetchMessages,
     sendMessage,
+    submitInteractiveAnswer,
+    onInteractiveQuestionAbandoned,
     deleteConversation,
     renameConversation,
   }

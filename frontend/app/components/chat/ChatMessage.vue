@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { Message } from '~/types'
 import type { ProfileUpdateEvent } from '~/types/company'
+import type {
+  InteractiveQuestion,
+  InteractiveQuestionAnswer,
+} from '~/types/interactive-question'
 import { useCompanyStore } from '~/stores/company'
+import InteractiveQuestionHost from './InteractiveQuestionHost.vue'
 
 const props = defineProps<{
   message: Message
@@ -11,7 +16,25 @@ const props = defineProps<{
     filename: string
     status: 'uploaded' | 'extracting' | 'analyzing' | 'done' | 'error'
   } | null
+  interactiveQuestion?: InteractiveQuestion | null
 }>()
+
+const emit = defineEmits<{
+  (e: 'interactive-answer', payload: { questionId: string; answer: InteractiveQuestionAnswer }): void
+  (e: 'interactive-abandoned', questionId: string): void
+}>()
+
+function onAnswer(payload: InteractiveQuestionAnswer) {
+  if (props.interactiveQuestion) {
+    emit('interactive-answer', { questionId: props.interactiveQuestion.id, answer: payload })
+  }
+}
+
+function onAbandoned() {
+  if (props.interactiveQuestion) {
+    emit('interactive-abandoned', props.interactiveQuestion.id)
+  }
+}
 
 const companyStore = useCompanyStore()
 const isUser = computed(() => props.message.role === 'user')
@@ -118,6 +141,15 @@ async function copyContent() {
           <MessageParser
             :content="message.content"
             :is-streaming="isStreaming"
+          />
+          <!-- Widget interactif (feature 018) : uniquement pour les etats finaux
+               (historique) — les questions pending sont affichees dans la bottom sheet
+               en bas de la page pour une meilleure UX. -->
+          <InteractiveQuestionHost
+            v-if="interactiveQuestion && interactiveQuestion.state !== 'pending'"
+            :question="interactiveQuestion"
+            @answer="onAnswer"
+            @abandoned="onAbandoned"
           />
           <span
             v-if="isStreaming"

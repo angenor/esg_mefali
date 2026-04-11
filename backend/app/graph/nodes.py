@@ -667,7 +667,8 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
-    llm_with_tools = llm.bind_tools(ESG_TOOLS)
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
+    llm_with_tools = llm.bind_tools(ESG_TOOLS + INTERACTIVE_TOOLS)
     response = await llm_with_tools.ainvoke(chat_messages)
 
     # Incrementer le compteur de tool calls si le LLM a demande des tools
@@ -798,12 +799,14 @@ async def carbon_node(state: ConversationState) -> ConversationState:
 
     # Envoyer au LLM avec tools
     from app.graph.tools.carbon_tools import CARBON_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
 
     chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
     ]]
 
-    llm_with_tools = llm.bind_tools(CARBON_TOOLS) if CARBON_TOOLS else llm
+    all_carbon_tools = (CARBON_TOOLS or []) + INTERACTIVE_TOOLS
+    llm_with_tools = llm.bind_tools(all_carbon_tools)
     response = await llm_with_tools.ainvoke(chat_messages)
 
     # Gestion du cycle de vie active_module
@@ -855,13 +858,13 @@ async def financing_node(state: ConversationState) -> ConversationState:
     Conserve le RAG pour le contexte enrichi.
     """
     from app.graph.tools.financing_tools import FINANCING_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.prompts.financing import build_financing_prompt
 
     llm = get_llm()
 
-    # Lier les tools financement au LLM
-    if FINANCING_TOOLS:
-        llm = llm.bind_tools(FINANCING_TOOLS)
+    # Lier les tools financement + interactif au LLM
+    llm = llm.bind_tools((FINANCING_TOOLS or []) + INTERACTIVE_TOOLS)
 
     user_profile = state.get("user_profile") or {}
     financing_data = state.get("financing_data")
@@ -1027,13 +1030,13 @@ async def credit_node(state: ConversationState) -> ConversationState:
     generate_credit_certificate pour calculer et consulter le score.
     """
     from app.graph.tools.credit_tools import CREDIT_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.prompts.credit import build_credit_prompt
 
     llm = get_llm()
 
-    # Lier les tools credit au LLM
-    if CREDIT_TOOLS:
-        llm = llm.bind_tools(CREDIT_TOOLS)
+    # Lier les tools credit + interactif au LLM
+    llm = llm.bind_tools((CREDIT_TOOLS or []) + INTERACTIVE_TOOLS)
 
     user_profile = state.get("user_profile") or {}
     credit_data = state.get("credit_data")
@@ -1095,12 +1098,13 @@ async def chat_node(state: ConversationState) -> ConversationState:
     """
     from app.graph.tools.chat_tools import CHAT_TOOLS
     from app.graph.tools.document_tools import DOCUMENT_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.graph.tools.profiling_tools import PROFILING_TOOLS
 
     llm = get_llm()
 
-    # Combiner les tools de profilage, lecture et documents
-    all_tools = PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS
+    # Combiner les tools de profilage, lecture, documents et widgets interactifs
+    all_tools = PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS + INTERACTIVE_TOOLS
     if all_tools:
         llm = llm.bind_tools(all_tools)
 
@@ -1128,7 +1132,8 @@ async def chat_node(state: ConversationState) -> ConversationState:
         "evaluation juste pour afficher un graphique."
     )
 
-    full_prompt = system_prompt + tool_instructions
+    from app.prompts.widget import WIDGET_INSTRUCTION
+    full_prompt = system_prompt + tool_instructions + "\n\n" + WIDGET_INSTRUCTION
 
     # Ajouter le prompt systeme en tete
     messages = state["messages"]
@@ -1186,13 +1191,13 @@ async def application_node(state: ConversationState) -> ConversationState:
     get_application_checklist, simulate_financing et export_application.
     """
     from app.graph.tools.application_tools import APPLICATION_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.prompts.application import build_application_prompt
 
     llm = get_llm()
 
-    # Lier les tools application au LLM
-    if APPLICATION_TOOLS:
-        llm = llm.bind_tools(APPLICATION_TOOLS)
+    # Lier les tools application + interactif au LLM
+    llm = llm.bind_tools((APPLICATION_TOOLS or []) + INTERACTIVE_TOOLS)
 
     user_profile = state.get("user_profile") or {}
     application_data = state.get("application_data")
@@ -1246,13 +1251,13 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
     pour generer, modifier et consulter les plans d'action en base.
     """
     from app.graph.tools.action_plan_tools import ACTION_PLAN_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.prompts.action_plan import build_action_plan_prompt
 
     llm = get_llm()
 
-    # Lier les tools action plan au LLM
-    if ACTION_PLAN_TOOLS:
-        llm = llm.bind_tools(ACTION_PLAN_TOOLS)
+    # Lier les tools action plan + interactif au LLM
+    llm = llm.bind_tools((ACTION_PLAN_TOOLS or []) + INTERACTIVE_TOOLS)
 
     user_profile = state.get("user_profile") or {}
     action_plan_data = state.get("action_plan_data")
