@@ -1,44 +1,39 @@
 # ==========================================
-# Virtual host ESG Mefali pour reverse proxy existant
+# Virtual host ESG Mefali — a inserer dans le
+# nginx.conf UAfricas (reverse proxy central)
 # ==========================================
-# A ajouter dans le nginx UAfricas (ou tout autre
-# reverse proxy central sur le VPS).
-#
-# Sur le serveur UAfricas :
-#   - Copier ce fichier dans /opt/uafricas/nginx/
-#     et l'inclure depuis nginx.conf via :
-#       include /etc/nginx/conf.d/esg-mefali-vhost.conf;
-#   - OU coller son contenu dans le bloc http{} du
-#     nginx.conf UAfricas existant.
 #
 # Prerequis :
-#   1. Containers ESG Mefali demarres via
-#      docker-compose.prod.yml (expose frontend
-#      sur 127.0.0.1:3010 et backend sur 127.0.0.1:8010)
-#   2. Certificat Let's Encrypt obtenu pour
-#      esg.mefali.com
-#   3. Le container nginx UAfricas a acces au host
-#      via "host.docker.internal" (Linux : ajouter
-#      extra_hosts dans son docker-compose) ou via
-#      "network_mode: host" pour le nginx.
+#   1. Containers ESG Mefali demarres et connectes
+#      au reseau Docker uafricas_uafricas_net :
+#        docker network inspect uafricas_uafricas_net \
+#          | grep -E "esg_mefali_(backend|frontend)"
+#   2. Certificat Let's Encrypt pour esg.mefali.com
+#      copie dans /opt/uafricas/nginx/ssl/esg-mefali/
+#      (fullchain.pem + privkey.pem)
+#
+# Les upstreams utilisent les noms DNS internes
+# Docker — pas besoin d'exposer les ports host.
 # ==========================================
 
-upstream esg_mefali_backend {
-    server 127.0.0.1:8010;
+upstream upstream_esg_mefali_backend {
+    # Nom DNS Docker du container backend ESG Mefali
+    # (reseau partage uafricas_uafricas_net)
+    server esg_mefali_backend:8000;
     keepalive 32;
 }
 
-upstream esg_mefali_frontend {
-    server 127.0.0.1:3010;
+upstream upstream_esg_mefali_frontend {
+    server esg_mefali_frontend:3000;
     keepalive 32;
 }
 
-# HTTP : redirection HTTPS
+# HTTP : ACME challenge + redirection HTTPS
 server {
     listen 80;
     server_name esg.mefali.com;
 
-    # Let's Encrypt ACME challenge
+    # Let's Encrypt ACME challenge (partage avec UAfricas)
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
@@ -54,11 +49,11 @@ server {
     http2 on;
     server_name esg.mefali.com;
 
-    # Certificats Let's Encrypt
+    # Certificats Let's Encrypt (deposes par deploy.sh ssl)
     ssl_certificate /etc/nginx/ssl/esg-mefali/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/esg-mefali/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL_ESG:10m;
     ssl_session_timeout 1d;
@@ -75,15 +70,9 @@ server {
     client_max_body_size 50M;
     client_body_timeout 120s;
 
-    # Compression
-    gzip on;
-    gzip_vary on;
-    gzip_comp_level 6;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
-
     # API Backend (FastAPI + LangGraph SSE)
     location /api/ {
-        proxy_pass http://esg_mefali_backend;
+        proxy_pass http://upstream_esg_mefali_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -105,7 +94,7 @@ server {
 
     # Frontend Nuxt 4 (SSR Node)
     location / {
-        proxy_pass http://esg_mefali_frontend;
+        proxy_pass http://upstream_esg_mefali_frontend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

@@ -22,7 +22,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     # Expose uniquement en local pour eviter le conflit avec d'autres Postgres
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -61,6 +61,8 @@ services:
         condition: service_healthy
     networks:
       - esg_mefali_net
+      # Reseau partage avec le nginx UAfricas (reverse proxy central)
+      - uafricas_net
 
   frontend:
     build:
@@ -80,6 +82,8 @@ services:
       - backend
     networks:
       - esg_mefali_net
+      # Reseau partage avec le nginx UAfricas (reverse proxy central)
+      - uafricas_net
 
 volumes:
   postgres_data:
@@ -88,3 +92,9 @@ volumes:
 networks:
   esg_mefali_net:
     driver: bridge
+  # Reseau externe deja cree par le projet UAfricas.
+  # Permet au container uafricas_nginx (reverse proxy central) d'atteindre
+  # esg_mefali_backend:8000 et esg_mefali_frontend:3000 par nom DNS.
+  uafricas_net:
+    external: true
+    name: uafricas_uafricas_net
