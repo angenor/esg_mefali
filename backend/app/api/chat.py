@@ -822,6 +822,25 @@ async def send_message(
                 await sse_db.flush()
                 await sse_db.refresh(assistant_message)
 
+                # Lier la question interactive pending creee dans ce tour au
+                # message assistant qui vient d'etre persiste (feature 018).
+                try:
+                    from app.models.interactive_question import (
+                        InteractiveQuestion as IQ,
+                        InteractiveQuestionState as IQState,
+                    )
+                    await sse_db.execute(
+                        update(IQ)
+                        .where(
+                            IQ.conversation_id == conv_id,
+                            IQ.state == IQState.PENDING.value,
+                            IQ.assistant_message_id.is_(None),
+                        )
+                        .values(assistant_message_id=assistant_message.id)
+                    )
+                except Exception:  # pragma: no cover
+                    logger.debug("Liaison assistant_message_id echouee", exc_info=True)
+
                 yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
 
                 # Notification rapport : si une evaluation ESG vient d'etre completee

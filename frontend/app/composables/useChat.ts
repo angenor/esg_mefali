@@ -84,6 +84,32 @@ export function useChat() {
     if (!response.ok) throw new Error('Erreur lors du chargement des messages')
     const data: PaginatedResponse<Message> = await response.json()
     messages.value = data.items
+
+    // Hydrater les questions interactives associees (feature 018)
+    try {
+      const iqResp = await fetch(
+        `${apiBase}/chat/conversations/${conversationId}/interactive-questions?state=all&limit=200`,
+        { headers: getHeaders() },
+      )
+      if (iqResp.ok) {
+        const iqBody = await iqResp.json()
+        const items: Array<InteractiveQuestion & { assistant_message_id: string | null }> = iqBody.data || []
+        const byMessage: Record<string, InteractiveQuestion> = {}
+        let pending: InteractiveQuestion | null = null
+        for (const q of items) {
+          if (q.assistant_message_id) {
+            byMessage[q.assistant_message_id] = q
+          }
+          if (q.state === 'pending') {
+            pending = q
+          }
+        }
+        interactiveQuestionsByMessage.value = byMessage
+        currentInteractiveQuestion.value = pending
+      }
+    } catch {
+      // Best effort : ne pas bloquer le chargement des messages
+    }
   }
 
   async function sendMessage(content: string, file?: File): Promise<void> {
@@ -209,11 +235,20 @@ export function useChat() {
             } else if (event.type === 'done' && event.message_id) {
               // Mettre a jour l'ID du message avec l'ID persiste
               const lastIdx = messages.value.length - 1
+              const oldId = messages.value[lastIdx]?.id
               messages.value = messages.value.map((msg, idx) =>
                 idx === lastIdx
                   ? { ...msg, id: event.message_id! }
                   : msg,
               )
+              // Transferer la question interactive du tempId au vrai message_id
+              if (oldId && interactiveQuestionsByMessage.value[oldId]) {
+                const q = interactiveQuestionsByMessage.value[oldId]!
+                const updated = { ...interactiveQuestionsByMessage.value }
+                delete updated[oldId]
+                updated[event.message_id!] = q
+                interactiveQuestionsByMessage.value = updated
+              }
               documentProgress.value = null
             } else if (event.type === 'document_upload') {
               // Document recu
@@ -478,7 +513,22 @@ export function useChat() {
           if (!line.startsWith('data: ')) continue
           const jsonStr = line.slice(6)
           try {
-            const evt = JSON.parse(jsonStr) as { type: string; content?: string; message_id?: string }
+            const evt = JSON.parse(jsonStr) as {
+              type: string
+              content?: string
+              message_id?: string
+              id?: string
+              conversation_id?: string
+              question_type?: InteractiveQuestionType
+              prompt?: string
+              options?: InteractiveOption[]
+              min_selections?: number
+              max_selections?: number
+              requires_justification?: boolean
+              justification_prompt?: string | null
+              module?: string
+              created_at?: string
+            }
             if (evt.type === 'token' && evt.content) {
               streamingContent.value += evt.content
               const lastIdx = messages.value.length - 1
@@ -487,9 +537,45 @@ export function useChat() {
               )
             } else if (evt.type === 'done' && evt.message_id) {
               const lastIdx = messages.value.length - 1
+              const oldId = messages.value[lastIdx]?.id
               messages.value = messages.value.map((msg, idx) =>
                 idx === lastIdx ? { ...msg, id: evt.message_id! } : msg,
               )
+              // Transferer la question interactive du tempId au vrai message_id
+              if (oldId && interactiveQuestionsByMessage.value[oldId]) {
+                const q = interactiveQuestionsByMessage.value[oldId]!
+                const updated = { ...interactiveQuestionsByMessage.value }
+                delete updated[oldId]
+                updated[evt.message_id!] = q
+                interactiveQuestionsByMessage.value = updated
+              }
+            } else if (evt.type === 'interactive_question' && evt.id) {
+              // Feature 018 — nouvelle question interactive dans un nouveau tour (apres submit d'une reponse)
+              const newQ: InteractiveQuestion = {
+                id: evt.id,
+                conversation_id: evt.conversation_id || '',
+                question_type: evt.question_type || 'qcu',
+                prompt: evt.prompt || '',
+                options: evt.options || [],
+                min_selections: evt.min_selections ?? 1,
+                max_selections: evt.max_selections ?? 1,
+                requires_justification: evt.requires_justification ?? false,
+                justification_prompt: evt.justification_prompt ?? null,
+                module: evt.module || 'chat',
+                created_at: evt.created_at || new Date().toISOString(),
+                state: 'pending',
+                response_values: null,
+                response_justification: null,
+                answered_at: null,
+              }
+              currentInteractiveQuestion.value = newQ
+              const lastIdx = messages.value.length - 1
+              if (lastIdx >= 0 && messages.value[lastIdx]?.role === 'assistant') {
+                interactiveQuestionsByMessage.value = {
+                  ...interactiveQuestionsByMessage.value,
+                  [messages.value[lastIdx]!.id]: newQ,
+                }
+              }
             }
           } catch {
             // Ignorer les lignes invalides

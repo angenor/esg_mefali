@@ -142,9 +142,11 @@ async function copyContent() {
             :content="message.content"
             :is-streaming="isStreaming"
           />
-          <!-- Widget interactif (feature 018) -->
+          <!-- Widget interactif (feature 018) : uniquement pour les etats finaux
+               (historique) — les questions pending sont affichees dans la bottom sheet
+               en bas de la page pour une meilleure UX. -->
           <InteractiveQuestionHost
-            v-if="interactiveQuestion"
+            v-if="interactiveQuestion && interactiveQuestion.state !== 'pending'"
             :question="interactiveQuestion"
             @answer="onAnswer"
             @abandoned="onAbandoned"
