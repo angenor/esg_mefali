@@ -46,3 +46,10 @@ backend/uploads/*
 
 # Docker
 *.pid
+
+
+# BMAD Method - runtime caches (artefacts restent versionnés)
+_bmad/.cache/
+_bmad/*.log
+_bmad-output/**/.cache/
+_bmad-output/**/*.tmp
