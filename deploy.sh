@@ -27,7 +27,7 @@ DOMAIN="esg-mefali.com"
 # Ports locaux (sur 127.0.0.1 du VPS, pour reverse proxy existant)
 FRONTEND_PORT="3010"
 BACKEND_PORT="8010"
-POSTGRES_PORT="5433"
+POSTGRES_PORT="5434"
 
 echo -e "${GREEN}=== ESG Mefali Deployment ===${NC}"
 echo -e "Serveur: ${BLUE}${REMOTE_USER}@${REMOTE_HOST}${NC}"
