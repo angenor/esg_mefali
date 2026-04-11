@@ -123,8 +123,15 @@ def build_carbon_prompt(
 ) -> str:
     """Construire le prompt carbone avec le contexte entreprise."""
     from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return CARBON_PROMPT.format(
-        company_context=company_context,
-        applicable_categories=applicable_categories,
-    ) + "\n\n" + STYLE_INSTRUCTION
+    return (
+        CARBON_PROMPT.format(
+            company_context=company_context,
+            applicable_categories=applicable_categories,
+        )
+        + "\n\n"
+        + STYLE_INSTRUCTION
+        + "\n\n"
+        + WIDGET_INSTRUCTION
+    )

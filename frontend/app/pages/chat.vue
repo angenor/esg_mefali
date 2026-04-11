@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
 import { useChat } from '~/composables/useChat'
 import { useUiStore } from '~/stores/ui'
 
@@ -18,13 +19,26 @@ const {
   documentProgress,
   reportSuggestion,
   activeToolCall,
+  currentInteractiveQuestion,
+  interactiveQuestionsByMessage,
   fetchConversations,
   createConversation,
   selectConversation,
   sendMessage,
+  submitInteractiveAnswer,
+  onInteractiveQuestionAbandoned,
   deleteConversation,
   renameConversation,
 } = useChat()
+
+async function handleInteractiveAnswer(payload: { questionId: string; answer: InteractiveQuestionAnswer }) {
+  await submitInteractiveAnswer(payload.questionId, payload.answer)
+  await fetchConversations()
+}
+
+function handleInteractiveAbandoned(questionId: string) {
+  onInteractiveQuestionAbandoned(questionId)
+}
 
 const messagesContainer = ref<HTMLElement | null>(null)
 const userScrolledUp = ref(false)
@@ -187,6 +201,9 @@ async function handleRename(conversationId: string, title: string) {
             :message="msg"
             :is-streaming="isStreaming && idx === messages.length - 1 && msg.role === 'assistant'"
             :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
+            :interactive-question="interactiveQuestionsByMessage[msg.id] || (idx === messages.length - 1 && msg.role === 'assistant' && currentInteractiveQuestion?.id ? currentInteractiveQuestion : null)"
+            @interactive-answer="handleInteractiveAnswer"
+            @interactive-abandoned="handleInteractiveAbandoned"
           />
         </div>
       </div>
@@ -237,7 +254,7 @@ async function handleRename(conversationId: string, title: string) {
 
       <!-- Zone de saisie -->
       <ChatInput
-        :disabled="isStreaming"
+        :disabled="isStreaming || currentInteractiveQuestion?.state === 'pending'"
         @send="handleSend"
         @send-with-file="handleSendWithFile"
       />

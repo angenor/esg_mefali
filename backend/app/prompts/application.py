@@ -101,8 +101,15 @@ def build_application_prompt(
 ) -> str:
     """Construire le prompt application avec le contexte entreprise et dossier."""
     from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return APPLICATION_PROMPT.format(
-        company_context=company_context,
-        application_context=application_context,
-    ) + "\n\n" + STYLE_INSTRUCTION
+    return (
+        APPLICATION_PROMPT.format(
+            company_context=company_context,
+            application_context=application_context,
+        )
+        + "\n\n"
+        + STYLE_INSTRUCTION
+        + "\n\n"
+        + WIDGET_INSTRUCTION
+    )

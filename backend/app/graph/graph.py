@@ -119,6 +119,7 @@ def build_graph() -> StateGraph:
     from app.graph.tools.document_tools import DOCUMENT_TOOLS
     from app.graph.tools.esg_tools import ESG_TOOLS
     from app.graph.tools.financing_tools import FINANCING_TOOLS
+    from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.graph.tools.profiling_tools import PROFILING_TOOLS
 
     graph = StateGraph(ConversationState)
@@ -127,15 +128,14 @@ def build_graph() -> StateGraph:
     graph.add_node("router", router_node)
     graph.add_node("document", document_node)
 
-    # Noeuds avec boucle tool calling
-    # chat_node : profiling + lecture temps reel + documents
-    create_tool_loop(graph, "chat", chat_node, tools=PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS)
-    create_tool_loop(graph, "esg_scoring", esg_scoring_node, tools=ESG_TOOLS)
-    create_tool_loop(graph, "carbon", carbon_node, tools=CARBON_TOOLS)
-    create_tool_loop(graph, "financing", financing_node, tools=FINANCING_TOOLS)
-    create_tool_loop(graph, "application", application_node, tools=APPLICATION_TOOLS)
-    create_tool_loop(graph, "credit", credit_node, tools=CREDIT_TOOLS)
-    create_tool_loop(graph, "action_plan", action_plan_node, tools=ACTION_PLAN_TOOLS)
+    # Noeuds avec boucle tool calling — INTERACTIVE_TOOLS injecte partout (feature 018)
+    create_tool_loop(graph, "chat", chat_node, tools=PROFILING_TOOLS + CHAT_TOOLS + DOCUMENT_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "esg_scoring", esg_scoring_node, tools=ESG_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "carbon", carbon_node, tools=CARBON_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "financing", financing_node, tools=FINANCING_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "application", application_node, tools=APPLICATION_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "credit", credit_node, tools=CREDIT_TOOLS + INTERACTIVE_TOOLS)
+    create_tool_loop(graph, "action_plan", action_plan_node, tools=ACTION_PLAN_TOOLS + INTERACTIVE_TOOLS)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(

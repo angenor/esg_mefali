@@ -8,7 +8,7 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -88,6 +88,7 @@ async def stream_graph_events(
     context_memory: list[str] | None = None,
     document_analysis_summary: str | None = None,
     document_upload: dict | None = None,
+    widget_response: dict | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Streamer les événements du graphe LangGraph via astream_events().
 
@@ -135,8 +136,22 @@ async def stream_graph_events(
             "user_id": user_id,
             "db": db,
             "conversation_id": uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id,
+            "widget_response": widget_response,
         },
     }
+
+    # Emettre interactive_question_resolved au debut du tour si la reponse
+    # provient d'un widget interactif (feature 018)
+    if widget_response:
+        from datetime import datetime, timezone
+        yield {
+            "type": "interactive_question_resolved",
+            "id": widget_response.get("question_id"),
+            "state": "answered",
+            "response_values": widget_response.get("values"),
+            "response_justification": widget_response.get("justification"),
+            "answered_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     try:
         async for event in compiled_graph.astream_events(
@@ -173,7 +188,15 @@ async def stream_graph_events(
                 tool_name = event.get("name", "unknown")
                 output = event.get("data", {}).get("output", "")
                 run_id = event.get("run_id", "")
-                result_summary = str(output)[:200] if output else ""
+
+                # Extraire le contenu reel du ToolMessage (sinon str() produit
+                # une repr qui escape les quotes et casse le parse JSON du marker)
+                if hasattr(output, "content"):
+                    output_str = str(output.content) if output.content else ""
+                else:
+                    output_str = str(output) if output else ""
+
+                result_summary = output_str[:200]
                 yield {
                     "type": "tool_call_end",
                     "tool_name": tool_name,
@@ -182,9 +205,8 @@ async def stream_graph_events(
                     "result_summary": result_summary,
                 }
 
-                # Émettre les événements SSE profile_update/completion
-                # si le tool a retourné des métadonnées de profil
-                output_str = str(output) if output else ""
+                # Émettre les événements SSE profile_update/completion ou
+                # interactive_question si le tool a retourné des métadonnées
                 sse_marker = "<!--SSE:"
                 if sse_marker in output_str:
                     try:
@@ -197,6 +219,13 @@ async def stream_graph_events(
                             completion = sse_data.get("completion")
                             if completion:
                                 yield {"type": "profile_completion", **completion}
+                        elif sse_data.get("__sse_interactive_question__"):
+                            # Émettre l'event interactive_question (feature 018)
+                            event_payload = {
+                                k: v for k, v in sse_data.items()
+                                if k != "__sse_interactive_question__"
+                            }
+                            yield event_payload
                     except (ValueError, json.JSONDecodeError):
                         logger.debug("Impossible de parser les métadonnées SSE du tool")
 
@@ -335,6 +364,109 @@ async def _summarize_previous_conversation(
     if summary:
         prev_conv.summary = summary
         await db.flush()
+
+
+# ─── Interactive questions (feature 018) ────────────────────────────
+
+
+async def _expire_pending_questions(
+    db: AsyncSession, conversation_id: uuid.UUID
+) -> None:
+    """Marquer toutes les questions pending d'une conversation comme expired.
+
+    Conformement a la clarification Q4 : un nouveau message assistant ou un
+    message utilisateur libre marque toute question pending comme expired.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.interactive_question import (
+        InteractiveQuestion,
+        InteractiveQuestionState,
+    )
+
+    await db.execute(
+        update(InteractiveQuestion)
+        .where(
+            InteractiveQuestion.conversation_id == conversation_id,
+            InteractiveQuestion.state == InteractiveQuestionState.PENDING.value,
+        )
+        .values(
+            state=InteractiveQuestionState.EXPIRED.value,
+            answered_at=datetime.now(timezone.utc),
+        )
+    )
+
+
+async def _resolve_interactive_question(
+    db: AsyncSession,
+    *,
+    question_uuid: uuid.UUID,
+    conversation: Conversation,
+    values_json: str | None,
+    justification: str | None,
+):
+    """Resoudre une question interactive (passage en answered).
+
+    Retourne (question, contenu_synthetise) ou leve HTTPException.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.interactive_question import (
+        InteractiveQuestion,
+        InteractiveQuestionState,
+    )
+
+    result = await db.execute(
+        select(InteractiveQuestion).where(InteractiveQuestion.id == question_uuid)
+    )
+    question = result.scalar_one_or_none()
+    if question is None:
+        raise HTTPException(status_code=404, detail="QUESTION_NOT_FOUND")
+
+    if question.conversation_id != conversation.id:
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+
+    if question.state != InteractiveQuestionState.PENDING.value:
+        raise HTTPException(status_code=409, detail="QUESTION_NOT_PENDING")
+
+    # Parse values
+    try:
+        values = json.loads(values_json) if values_json else []
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="INVALID_VALUES") from exc
+
+    if not isinstance(values, list) or not values:
+        raise HTTPException(status_code=422, detail="VALUES_REQUIRED")
+
+    if len(values) < question.min_selections or len(values) > question.max_selections:
+        raise HTTPException(status_code=400, detail="INVALID_VALUES")
+
+    valid_ids = {opt.get("id") for opt in (question.options or [])}
+    if not all(v in valid_ids for v in values):
+        raise HTTPException(status_code=400, detail="INVALID_VALUES")
+
+    # Justification (defense en profondeur : tronquer a 400)
+    just = justification
+    if question.requires_justification:
+        if not just or not just.strip():
+            raise HTTPException(status_code=400, detail="JUSTIFICATION_REQUIRED")
+    if just and len(just) > 400:
+        raise HTTPException(status_code=400, detail="JUSTIFICATION_TOO_LONG")
+
+    # Synthese textuelle
+    label_by_id = {opt.get("id"): opt.get("label", "") for opt in (question.options or [])}
+    chosen_labels = [label_by_id.get(v, v) for v in values]
+    synthesized = ", ".join(chosen_labels)
+    if just:
+        synthesized = f"{synthesized}\n_{just}_"
+
+    question.state = InteractiveQuestionState.ANSWERED.value
+    question.response_values = list(values)
+    question.response_justification = just
+    question.answered_at = datetime.now(timezone.utc)
+
+    await db.flush()
+    return question, synthesized
 
 
 # ─── CRUD Conversations ──────────────────────────────────────────────
@@ -484,6 +616,9 @@ async def send_message(
     conversation_id: uuid.UUID,
     content: str = Form(None),
     file: UploadFile | None = File(None),
+    interactive_question_id: str | None = Form(None),
+    interactive_question_values: str | None = Form(None),
+    interactive_question_justification: str | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
@@ -491,11 +626,50 @@ async def send_message(
 
     Accepte un message texte (content) et/ou un fichier (file) en multipart.
     Si un fichier est joint, il est uploadé et analysé avant la réponse IA.
+    Si `interactive_question_id` est fourni, la reponse provient d'un widget
+    interactif (feature 018).
     """
     conversation = await get_user_conversation(conversation_id, current_user, db)
 
     # Gérer le contenu : multipart (Form) ou JSON fallback
     message_content = content or ""
+
+    # Resolution d'une question interactive (feature 018) — avant validation contenu
+    widget_response_payload: dict | None = None
+    if interactive_question_id:
+        try:
+            iq_uuid = uuid.UUID(interactive_question_id)
+        except ValueError:
+            return StreamingResponse(
+                _error_sse("interactive_question_id invalide"),
+                media_type="text/event-stream",
+            )
+
+        try:
+            iq, synthesized = await _resolve_interactive_question(
+                db,
+                question_uuid=iq_uuid,
+                conversation=conversation,
+                values_json=interactive_question_values,
+                justification=interactive_question_justification,
+            )
+        except HTTPException as exc:
+            return StreamingResponse(
+                _error_sse(str(exc.detail)),
+                media_type="text/event-stream",
+                status_code=exc.status_code,
+            )
+
+        # Le contenu utilisateur est synthetise a partir des choix
+        if not message_content:
+            message_content = synthesized
+
+        widget_response_payload = {
+            "question_id": str(iq.id),
+            "values": iq.response_values,
+            "justification": iq.response_justification,
+            "module": iq.module,
+        }
 
     # Si pas de contenu et pas de fichier, tenter de lire le body JSON
     if not message_content and file is None:
@@ -538,6 +712,23 @@ async def send_message(
     )
     db.add(user_message)
     await db.flush()
+
+    # Lier le message utilisateur a la question interactive (feature 018)
+    if widget_response_payload and interactive_question_id:
+        try:
+            from app.models.interactive_question import InteractiveQuestion
+            await db.execute(
+                update(InteractiveQuestion)
+                .where(
+                    InteractiveQuestion.id == uuid.UUID(interactive_question_id),
+                )
+                .values(response_message_id=user_message.id)
+            )
+        except Exception:  # pragma: no cover
+            logger.debug("Lien response_message_id echoue", exc_info=True)
+    elif not widget_response_payload:
+        # Clarification Q4 : un message texte standard EXPIRE toute question pending
+        await _expire_pending_questions(db, conversation.id)
 
     # Capturer les IDs avant de quitter le scope de la session FastAPI
     conv_id = conversation.id
@@ -604,6 +795,7 @@ async def send_message(
                     context_memory=context_memory,
                     document_analysis_summary=doc_analysis_summary,
                     document_upload=doc_upload_info,
+                    widget_response=widget_response_payload,
                 ):
                     event_type = event.get("type")
 
@@ -611,7 +803,10 @@ async def send_message(
                         full_response += event["content"]
                         yield f"data: {json.dumps(event)}\n\n"
 
-                    elif event_type in ("tool_call_start", "tool_call_end", "tool_call_error"):
+                    elif event_type in (
+                        "tool_call_start", "tool_call_end", "tool_call_error",
+                        "interactive_question", "interactive_question_resolved",
+                    ):
                         yield f"data: {json.dumps(event)}\n\n"
 
                     elif event_type == "error":
@@ -710,6 +905,105 @@ async def send_message_json(
         conversation_id=conversation_id,
         content=data.content,
         file=None,
+        interactive_question_id=None,
+        interactive_question_values=None,
+        interactive_question_justification=None,
         current_user=current_user,
         db=db,
     )
+
+
+# ─── Interactive questions endpoints (feature 018) ──────────────────
+
+
+@router.post("/interactive-questions/{question_id}/abandon")
+async def abandon_interactive_question(
+    question_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Marquer une question interactive comme abandonnee (« Repondre autrement »).
+
+    Permet a l'utilisateur de contourner un widget et reprendre l'input texte.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.interactive_question import (
+        InteractiveQuestion,
+        InteractiveQuestionState,
+    )
+
+    result = await db.execute(
+        select(InteractiveQuestion).where(InteractiveQuestion.id == question_id)
+    )
+    question = result.scalar_one_or_none()
+    if question is None:
+        raise HTTPException(status_code=404, detail="QUESTION_NOT_FOUND")
+
+    # Verifier ownership via la conversation
+    conv_result = await db.execute(
+        select(Conversation).where(Conversation.id == question.conversation_id)
+    )
+    conversation = conv_result.scalar_one_or_none()
+    if conversation is None or conversation.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+
+    if question.state != InteractiveQuestionState.PENDING.value:
+        raise HTTPException(status_code=409, detail="QUESTION_NOT_PENDING")
+
+    now = datetime.now(timezone.utc)
+    question.state = InteractiveQuestionState.ABANDONED.value
+    question.answered_at = now
+    await db.flush()
+
+    return {
+        "success": True,
+        "data": {
+            "id": str(question.id),
+            "state": question.state,
+            "answered_at": now.isoformat(),
+        },
+    }
+
+
+@router.get(
+    "/conversations/{conversation_id}/interactive-questions",
+)
+async def list_interactive_questions(
+    conversation_id: uuid.UUID,
+    state: str = Query(default="all"),
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Lister les questions interactives d'une conversation pour l'hydratation."""
+    from app.models.interactive_question import (
+        InteractiveQuestion,
+        InteractiveQuestionState,
+    )
+    from app.schemas.interactive_question import InteractiveQuestionResponse
+
+    # Verification ownership
+    await get_user_conversation(conversation_id, current_user, db)
+
+    stmt = select(InteractiveQuestion).where(
+        InteractiveQuestion.conversation_id == conversation_id,
+    )
+    if state != "all":
+        if state not in {s.value for s in InteractiveQuestionState}:
+            raise HTTPException(status_code=422, detail="INVALID_STATE")
+        stmt = stmt.where(InteractiveQuestion.state == state)
+
+    stmt = stmt.order_by(InteractiveQuestion.created_at.asc()).limit(limit)
+    result = await db.execute(stmt)
+    questions = result.scalars().all()
+
+    items = [
+        InteractiveQuestionResponse.model_validate(q).model_dump(mode="json")
+        for q in questions
+    ]
+    return {
+        "success": True,
+        "data": items,
+        "meta": {"total": len(items), "limit": limit},
+    }
