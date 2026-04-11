@@ -52,9 +52,7 @@ class CompanyProfile(UUIDMixin, TimestampMixin, Base):
 
     # Localisation
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    country: Mapped[str | None] = mapped_column(
-        String(100), default="Côte d'Ivoire", nullable=True
-    )
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # ESG
     has_waste_management: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

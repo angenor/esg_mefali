@@ -1,11 +1,15 @@
 """Router d'authentification : register, login, refresh, me."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.geolocation import (
+    SUPPORTED_COUNTRIES,
+    detect_country_from_request,
+)
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -13,6 +17,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.models.company import CompanyProfile
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -25,9 +30,24 @@ from app.schemas.auth import (
 router = APIRouter()
 
 
+@router.get("/detect-country")
+async def detect_country(request: Request) -> dict:
+    """Détecter le pays de l'utilisateur via son IP publique.
+
+    Retourne la liste des pays supportés et le pays détecté (si possible).
+    Utilisé par le frontend pour pré-remplir le dropdown à l'inscription.
+    """
+    detected = await detect_country_from_request(request)
+    return {
+        "detected_country": detected,
+        "supported_countries": SUPPORTED_COUNTRIES,
+    }
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     data: RegisterRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Créer un nouveau compte utilisateur."""
@@ -39,6 +59,13 @@ async def register(
             detail="Un compte avec cet email existe déjà",
         )
 
+    # Déterminer le pays : priorité à la valeur envoyée par le frontend
+    # (saisie par l'utilisateur dans le dropdown), sinon fallback sur la
+    # détection IP côté serveur.
+    country = data.country
+    if not country:
+        country = await detect_country_from_request(request)
+
     user = User(
         email=data.email,
         hashed_password=hash_password(data.password),
@@ -48,6 +75,17 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+
+    # Initialiser le profil entreprise avec le nom fourni à l'inscription
+    # afin que le LLM y ait accès dès la première conversation.
+    profile = CompanyProfile(
+        user_id=user.id,
+        company_name=data.company_name,
+        country=country,
+    )
+    db.add(profile)
+    await db.flush()
+
     return user
 
 

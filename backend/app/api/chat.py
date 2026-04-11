@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import async_session_factory, get_db
-from app.models.company import CompanyProfile
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
@@ -250,11 +249,15 @@ async def stream_llm_tokens(
 async def _load_profile_for_state(
     db: AsyncSession, user_id: uuid.UUID
 ) -> dict | None:
-    """Charger le profil utilisateur pour le state du graphe."""
-    result = await db.execute(
-        select(CompanyProfile).where(CompanyProfile.user_id == user_id)
-    )
-    profile = result.scalar_one_or_none()
+    """Charger le profil utilisateur pour le state du graphe.
+
+    Utilise `get_or_create_profile` pour garantir qu'un profil existe et
+    qu'il contient au minimum le `company_name` fourni à l'inscription
+    (backfill depuis `User.company_name` si nécessaire).
+    """
+    from app.modules.company.service import get_or_create_profile
+
+    profile = await get_or_create_profile(db, user_id)
     if profile is None:
         return None
 

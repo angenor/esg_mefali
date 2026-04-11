@@ -116,7 +116,7 @@ class TestGetOrCreateProfile:
     async def test_creates_profile_if_not_exists(
         self, db_session: AsyncSession, user_id: uuid.UUID
     ) -> None:
-        """Crée un profil avec country par défaut si inexistant."""
+        """Crée un profil initialisé avec le company_name de l'utilisateur."""
         # Créer un utilisateur d'abord
         from app.models.user import User
 
@@ -133,8 +133,12 @@ class TestGetOrCreateProfile:
         profile = await get_or_create_profile(db_session, user_id)
 
         assert profile.user_id == user_id
-        assert profile.country == "Côte d'Ivoire"
-        assert profile.company_name is None
+        # Le country n'est plus hardcodé : il est déterminé à l'inscription
+        # via géolocalisation IP (ou saisi par l'utilisateur).
+        assert profile.country is None
+        # Le company_name est backfillé depuis User.company_name pour que
+        # le LLM ait accès au nom de l'entreprise dès la première conversation.
+        assert profile.company_name == "Test Co"
 
     @pytest.mark.asyncio
     async def test_returns_existing_profile(
@@ -196,7 +200,8 @@ class TestUpdateProfile:
 
         assert updated_profile.company_name == "EcoPlast"
         assert updated_profile.sector.value == "recyclage"
-        assert updated_profile.country == "Côte d'Ivoire"  # Pas modifié
+        # country reste tel qu'il était (None dans ce contexte de test)
+        assert updated_profile.country is None
         assert len(changed) == 2
         assert any(c["field"] == "company_name" for c in changed)
 

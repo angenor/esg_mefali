@@ -35,11 +35,19 @@ export function useAuth() {
     password: string
     full_name: string
     company_name: string
+    country?: string | null
   }): Promise<User> {
     return apiFetch<User>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  }
+
+  async function detectCountry(): Promise<{
+    detected_country: string | null
+    supported_countries: string[]
+  }> {
+    return apiFetch('/auth/detect-country')
   }
 
   async function login(email: string, password: string): Promise<void> {
@@ -79,6 +87,7 @@ export function useAuth() {
 
   return {
     register,
+    detectCountry,
     login,
     fetchUser,
     refresh,

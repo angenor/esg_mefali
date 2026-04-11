@@ -3,22 +3,43 @@ definePageMeta({
   layout: false,
 })
 
-const { register, login } = useAuth()
+const { register, detectCountry, login } = useAuth()
 
 const form = reactive({
   email: '',
   password: '',
   full_name: '',
   company_name: '',
+  country: '' as string,
 })
 const error = ref('')
 const loading = ref(false)
+const countries = ref<string[]>([])
+const detecting = ref(true)
+
+// Détecter le pays et charger la liste au montage
+onMounted(async () => {
+  try {
+    const { detected_country, supported_countries } = await detectCountry()
+    countries.value = supported_countries
+    if (detected_country) {
+      form.country = detected_country
+    }
+  } catch {
+    // Silencieux : si la détection échoue, l'utilisateur choisira manuellement
+  } finally {
+    detecting.value = false
+  }
+})
 
 async function handleRegister() {
   error.value = ''
   loading.value = true
   try {
-    await register({ ...form })
+    await register({
+      ...form,
+      country: form.country || null,
+    })
     await login(form.email, form.password)
     await navigateTo('/')
   } catch (e) {
@@ -70,6 +91,26 @@ async function handleRegister() {
               class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
               placeholder="EcoSolaire SARL"
             />
+          </div>
+
+          <div>
+            <label for="country" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Pays
+            </label>
+            <select
+              id="country"
+              v-model="form.country"
+              required
+              :disabled="detecting"
+              class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none disabled:opacity-60"
+            >
+              <option v-if="detecting" value="">Détection en cours...</option>
+              <option v-else value="" disabled>Sélectionnez un pays</option>
+              <option v-for="c in countries" :key="c" :value="c">{{ c }}</option>
+            </select>
+            <p v-if="!detecting && form.country" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Détecté automatiquement — modifiable si besoin.
+            </p>
           </div>
 
           <div>

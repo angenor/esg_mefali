@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import CompanyProfile
+from app.models.user import User
 from app.modules.company.schemas import (
     CompanyProfileUpdate,
     CompletionResponse,
@@ -115,17 +116,36 @@ def compute_completion(profile: CompanyProfile) -> CompletionResponse:
 async def get_or_create_profile(
     db: AsyncSession, user_id: uuid.UUID
 ) -> CompanyProfile:
-    """Récupérer le profil existant ou en créer un nouveau."""
+    """Récupérer le profil existant ou en créer un nouveau.
+
+    Si le profil n'existe pas ou n'a pas de nom d'entreprise, initialise
+    le champ `company_name` depuis `User.company_name` (valeur fournie
+    à l'inscription), pour que le LLM puisse le voir dès la première
+    conversation.
+    """
     result = await db.execute(
         select(CompanyProfile).where(CompanyProfile.user_id == user_id)
     )
     profile = result.scalar_one_or_none()
 
     if profile is None:
-        profile = CompanyProfile(user_id=user_id, country="Côte d'Ivoire")
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        profile = CompanyProfile(
+            user_id=user_id,
+            company_name=user.company_name if user else None,
+        )
         db.add(profile)
         await db.flush()
         await db.refresh(profile)
+    elif not profile.company_name:
+        # Backfill pour les profils existants créés avant cette correction
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        if user and user.company_name:
+            profile.company_name = user.company_name
+            await db.flush()
+            await db.refresh(profile)
 
     return profile
 

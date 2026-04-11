@@ -47,7 +47,7 @@ class TestGetProfile:
 
     @pytest.mark.asyncio
     async def test_get_profile_creates_if_not_exists(self, client: AsyncClient) -> None:
-        """GET crée un profil vide si l'utilisateur n'en a pas encore."""
+        """GET crée un profil initialisé avec le nom fourni à l'inscription."""
         _, token = await create_authenticated_user(client)
 
         response = await client.get(
@@ -58,8 +58,10 @@ class TestGetProfile:
         assert response.status_code == 200
         body = response.json()
         assert "id" in body
-        assert body["country"] == "Côte d'Ivoire"
-        assert body["company_name"] is None
+        # country est None en test (géolocalisation impossible sur 127.0.0.1)
+        assert body["country"] is None
+        # Le company_name est pré-rempli depuis User.company_name à l'inscription
+        assert body["company_name"] == "EcoVert SARL"
 
     @pytest.mark.asyncio
     async def test_get_profile_returns_existing(self, client: AsyncClient) -> None:
@@ -122,7 +124,7 @@ class TestUpdateProfile:
         assert body["company_name"] == "EcoPlast SARL"
         assert body["sector"] == "recyclage"
         assert body["employee_count"] == 15
-        assert body["country"] == "Côte d'Ivoire"
+        assert body["country"] is None
 
     @pytest.mark.asyncio
     async def test_update_profile_invalid_sector(self, client: AsyncClient) -> None:
@@ -192,7 +194,7 @@ class TestGetCompletion:
 
     @pytest.mark.asyncio
     async def test_completion_empty_profile(self, client: AsyncClient) -> None:
-        """Profil vide → complétion basse (seul country est rempli)."""
+        """Profil initial → seul company_name est pré-rempli (1/8)."""
         _, token = await create_authenticated_user(client)
         await client.get("/api/company/profile", headers=auth_headers(token))
 
@@ -203,11 +205,13 @@ class TestGetCompletion:
 
         assert response.status_code == 200
         body = response.json()
-        assert body["identity_completion"] == 12.5  # country seul = 1/8
+        # Seul company_name est pré-rempli à l'inscription (country dépend
+        # de la géolocalisation IP, indisponible en test) = 1/8
+        assert body["identity_completion"] == 12.5
         assert body["esg_completion"] == 0.0
         assert body["overall_completion"] == pytest.approx(6.25, abs=0.1)
-        assert "country" in body["identity_fields"]["filled"]
-        assert "company_name" in body["identity_fields"]["missing"]
+        assert "company_name" in body["identity_fields"]["filled"]
+        assert "country" in body["identity_fields"]["missing"]
 
     @pytest.mark.asyncio
     async def test_completion_partial_profile(self, client: AsyncClient) -> None:
@@ -234,11 +238,11 @@ class TestGetCompletion:
 
         assert response.status_code == 200
         body = response.json()
-        # 5 champs identité remplis sur 8 = 62.5%
-        assert body["identity_completion"] == 62.5
+        # 4 champs identité remplis sur 8 (company_name + sector + city + employee_count) = 50%
+        assert body["identity_completion"] == 50.0
         # 1 champ ESG rempli sur 8 = 12.5%
         assert body["esg_completion"] == 12.5
-        assert body["overall_completion"] == 37.5
+        assert body["overall_completion"] == pytest.approx(31.25, abs=0.1)
 
     @pytest.mark.asyncio
     async def test_completion_unauthenticated(self, client: AsyncClient) -> None:
