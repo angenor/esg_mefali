@@ -16,7 +16,7 @@
 #      docker-compose.prod.yml (expose frontend
 #      sur 127.0.0.1:3010 et backend sur 127.0.0.1:8010)
 #   2. Certificat Let's Encrypt obtenu pour
-#      esg-mefali.com et www.esg-mefali.com
+#      esg.mefali.com
 #   3. Le container nginx UAfricas a acces au host
 #      via "host.docker.internal" (Linux : ajouter
 #      extra_hosts dans son docker-compose) ou via
@@ -36,7 +36,7 @@ upstream esg_mefali_frontend {
 # HTTP : redirection HTTPS
 server {
     listen 80;
-    server_name esg-mefali.com www.esg-mefali.com;
+    server_name esg.mefali.com;
 
     # Let's Encrypt ACME challenge
     location /.well-known/acme-challenge/ {
@@ -52,7 +52,7 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name esg-mefali.com www.esg-mefali.com;
+    server_name esg.mefali.com;
 
     # Certificats Let's Encrypt
     ssl_certificate /etc/nginx/ssl/esg-mefali/fullchain.pem;

@@ -3,7 +3,7 @@
 # ==========================================
 # Cette configuration suppose qu'un reverse proxy
 # externe (ex: nginx UAfricas) gere le SSL et le
-# routage du domaine esg-mefali.com vers :
+# routage du domaine esg.mefali.com vers :
 #   - http://127.0.0.1:${FRONTEND_PORT}  (Nuxt SSR)
 #   - http://127.0.0.1:${BACKEND_PORT}   (FastAPI)
 #

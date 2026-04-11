@@ -22,7 +22,8 @@ REMOTE_USER="root"
 REMOTE_HOST="161.97.92.63"
 REMOTE_DIR="/opt/esg_mefali"
 REPO_URL="https://github.com/angenor/esg_mefali.git"
-DOMAIN="esg-mefali.com"
+DOMAIN="esg.mefali.com"
+ADMIN_EMAIL="admin@mefali.com"
 
 # Ports locaux (sur 127.0.0.1 du VPS, pour reverse proxy existant)
 FRONTEND_PORT="3010"
@@ -376,8 +377,9 @@ ENDSSH
 # ========================================
 ssl() {
     DOMAIN_ARG="${2:-${DOMAIN}}"
+    EMAIL_ARG="${3:-${ADMIN_EMAIL}}"
 
-    echo -e "${GREEN}Configuration SSL pour ${DOMAIN_ARG} et www.${DOMAIN_ARG}...${NC}"
+    echo -e "${GREEN}Configuration SSL pour ${DOMAIN_ARG} (email : ${EMAIL_ARG})...${NC}"
     ssh_heredoc << ENDSSH
         apt-get update
         apt-get install -y certbot
@@ -386,10 +388,10 @@ ssl() {
         UAFRICAS_NGINX="uafricas_nginx"
         docker stop \${UAFRICAS_NGINX} 2>/dev/null || echo "(nginx UAfricas non actif)"
 
-        # Obtenir le certificat
+        # Obtenir le certificat (un seul -d car c'est un sous-domaine)
         certbot certonly --standalone \
-            -d ${DOMAIN_ARG} -d www.${DOMAIN_ARG} \
-            --non-interactive --agree-tos --email admin@${DOMAIN_ARG}
+            -d ${DOMAIN_ARG} \
+            --non-interactive --agree-tos --email ${EMAIL_ARG}
 
         # Copier les certificats dans le dossier ssl du nginx UAfricas
         UAFRICAS_SSL_DIR="/opt/uafricas/nginx/ssl/esg-mefali"
@@ -405,7 +407,7 @@ ssl() {
          echo "15 3 * * * certbot renew --quiet --pre-hook 'docker stop \${UAFRICAS_NGINX}' --post-hook 'cp /etc/letsencrypt/live/${DOMAIN_ARG}/fullchain.pem \${UAFRICAS_SSL_DIR}/ && cp /etc/letsencrypt/live/${DOMAIN_ARG}/privkey.pem \${UAFRICAS_SSL_DIR}/ && docker start \${UAFRICAS_NGINX}' # esg-mefali") | crontab -
 
         echo ""
-        echo "Certificat SSL installe pour ${DOMAIN_ARG} et www.${DOMAIN_ARG}"
+        echo "Certificat SSL installe pour ${DOMAIN_ARG}"
         echo "Certificats copies dans : \${UAFRICAS_SSL_DIR}"
         echo ""
         echo "Redemarrer nginx UAfricas pour prendre en compte la nouvelle conf :"
@@ -551,7 +553,7 @@ case "$1" in
         echo "  $0 setup                              # Premiere installation"
         echo "  $0 deploy                             # Deployer"
         echo "  $0 logs backend                       # Logs du backend"
-        echo "  $0 ssl esg-mefali.com                 # SSL pour un domaine"
+        echo "  $0 ssl esg.mefali.com                 # SSL pour un domaine"
         echo "  $0 restore backups/backup_xxx.sql     # Restaurer une sauvegarde"
         exit 1
         ;;
