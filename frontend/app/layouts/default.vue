@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useUiStore } from '~/stores/ui'
+import { useDeviceDetection } from '~/composables/useDeviceDetection'
 
 const uiStore = useUiStore()
+const { isDesktop } = useDeviceDetection()
 </script>
 
 <template>
@@ -20,4 +22,10 @@ const uiStore = useUiStore()
     <!-- Panneau chat IA -->
     <ChatPanel />
   </div>
+
+  <!-- Widget flottant copilot (desktop uniquement) -->
+  <template v-if="isDesktop">
+    <FloatingChatButton />
+    <FloatingChatWidget />
+  </template>
 </template>

@@ -5,6 +5,7 @@ export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
   const chatPanelOpen = ref(true)
   const conversationDrawerOpen = ref(false)
+  const chatWidgetOpen = ref(false)
   const theme = ref<'light' | 'dark'>('light')
 
   function initTheme() {
@@ -45,6 +46,14 @@ export const useUiStore = defineStore('ui', () => {
     conversationDrawerOpen.value = !conversationDrawerOpen.value
   }
 
+  function toggleChatWidget() {
+    chatWidgetOpen.value = !chatWidgetOpen.value
+  }
+
+  function closeChatWidget() {
+    chatWidgetOpen.value = false
+  }
+
   function setTheme(newTheme: 'light' | 'dark') {
     theme.value = newTheme
     if (import.meta.client) {
@@ -57,11 +66,14 @@ export const useUiStore = defineStore('ui', () => {
     sidebarOpen,
     chatPanelOpen,
     conversationDrawerOpen,
+    chatWidgetOpen,
     theme,
     initTheme,
     toggleSidebar,
     toggleChatPanel,
     toggleConversationDrawer,
+    toggleChatWidget,
+    closeChatWidget,
     toggleTheme,
     setTheme,
   }

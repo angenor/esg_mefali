@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { Conversation, Message, PaginatedResponse } from '~/types'
 import type { ProfileUpdateEvent, CompletionResponse } from '~/types/company'
 import type {
@@ -11,35 +11,52 @@ import type {
 import { useAuthStore } from '~/stores/auth'
 import { useCompanyStore } from '~/stores/company'
 
+// Sécurité : ce module-level state ne doit jamais s'exécuter côté serveur
+if (import.meta.server) throw new Error('useChat is client-only')
+
+// ── Module-level state (singleton partagé entre tous les consommateurs) ──
+const conversations = ref<Conversation[]>([])
+const currentConversation = ref<Conversation | null>(null)
+const messages = ref<Message[]>([])
+const isStreaming = ref(false)
+const streamingContent = ref('')
+const error = ref('')
+const documentProgress = ref<{
+  documentId: string
+  filename: string
+  status: 'uploaded' | 'extracting' | 'analyzing' | 'done' | 'error'
+} | null>(null)
+const reportSuggestion = ref<{
+  assessmentId: string
+  message: string
+} | null>(null)
+const activeToolCall = ref<{
+  name: string
+  args: Record<string, unknown>
+  callId: string
+} | null>(null)
+// Feature 018 — interactive widgets
+const currentInteractiveQuestion = ref<InteractiveQuestion | null>(null)
+const interactiveQuestionsByMessage = ref<Record<string, InteractiveQuestion>>({})
+const searchQuery = ref('')
+// SSE cross-routes : AbortController et reader module-level
+const abortController = ref<AbortController | null>(null)
+const sseReader = ref<ReadableStreamDefaultReader | null>(null)
+
+const filteredConversations = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return conversations.value
+  return conversations.value.filter(c =>
+    c.title.toLowerCase().includes(query),
+  )
+})
+
 export function useChat() {
+  // Les composables Nuxt doivent rester dans le contexte setup
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
   const companyStore = useCompanyStore()
   const apiBase = config.public.apiBase
-
-  const conversations = ref<Conversation[]>([])
-  const currentConversation = ref<Conversation | null>(null)
-  const messages = ref<Message[]>([])
-  const isStreaming = ref(false)
-  const streamingContent = ref('')
-  const error = ref('')
-  const documentProgress = ref<{
-    documentId: string
-    filename: string
-    status: 'uploaded' | 'extracting' | 'analyzing' | 'done' | 'error'
-  } | null>(null)
-  const reportSuggestion = ref<{
-    assessmentId: string
-    message: string
-  } | null>(null)
-  const activeToolCall = ref<{
-    name: string
-    args: Record<string, unknown>
-    callId: string
-  } | null>(null)
-  // Feature 018 — interactive widgets
-  const currentInteractiveQuestion = ref<InteractiveQuestion | null>(null)
-  const interactiveQuestionsByMessage = ref<Record<string, InteractiveQuestion>>({})
 
   function getHeaders(): Record<string, string> {
     return {
@@ -132,6 +149,13 @@ export function useChat() {
     }
     messages.value = [...messages.value, userMessage]
 
+    // Annuler le stream précédent s'il existe
+    if (abortController.value) {
+      abortController.value.abort()
+    }
+    abortController.value = new AbortController()
+    const localController = abortController.value
+
     try {
       // Construire la requete : multipart si fichier, sinon Form data
       const formData = new FormData()
@@ -151,6 +175,7 @@ export function useChat() {
           method: 'POST',
           headers,
           body: formData,
+          signal: localController.signal,
         },
       )
 
@@ -158,8 +183,17 @@ export function useChat() {
         throw new Error('Erreur lors de l\'envoi du message')
       }
 
-      // Lire le flux SSE
-      const reader = response.body!.getReader()
+      if (!response.body) {
+        throw new Error('Réponse sans body — streaming impossible')
+      }
+
+      // Annuler le reader précédent s'il existe (cancel() est safe même si le read est en cours)
+      if (sseReader.value) {
+        await sseReader.value.cancel()
+      }
+      // Lire le flux SSE via le reader module-level
+      sseReader.value = response.body.getReader()
+      const reader = sseReader.value
       const decoder = new TextDecoder()
 
       // Ajouter un message assistant vide pour le streaming
@@ -380,10 +414,14 @@ export function useChat() {
         }
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       error.value = e instanceof Error ? e.message : 'Erreur inconnue'
     } finally {
-      isStreaming.value = false
-      streamingContent.value = ''
+      // Reset si c'est le même appel actif OU si aucun nouvel appel n'a pris le relais
+      if (abortController.value === localController || abortController.value === null) {
+        isStreaming.value = false
+        streamingContent.value = ''
+      }
     }
   }
 
@@ -469,6 +507,13 @@ export function useChat() {
       interactiveQuestionsByMessage.value = updated
     }
 
+    // Annuler le stream précédent s'il existe
+    if (abortController.value) {
+      abortController.value.abort()
+    }
+    abortController.value = new AbortController()
+    const localController = abortController.value
+
     try {
       const formData = new FormData()
       formData.append('content', '')
@@ -485,15 +530,24 @@ export function useChat() {
 
       const response = await fetch(
         `${apiBase}/chat/conversations/${currentConversation.value.id}/messages`,
-        { method: 'POST', headers, body: formData },
+        { method: 'POST', headers, body: formData, signal: localController.signal },
       )
 
       if (!response.ok) {
         throw new Error("Erreur lors de l'envoi de la reponse")
       }
 
-      // Lecture du flux SSE de la reponse
-      const reader = response.body!.getReader()
+      if (!response.body) {
+        throw new Error('Réponse sans body — streaming impossible')
+      }
+
+      // Annuler le reader précédent s'il existe (cancel() est safe même si le read est en cours)
+      if (sseReader.value) {
+        await sseReader.value.cancel()
+      }
+      // Lecture du flux SSE via le reader module-level
+      sseReader.value = response.body.getReader()
+      const reader = sseReader.value
       const decoder = new TextDecoder()
 
       const assistantMessage: Message = {
@@ -583,10 +637,14 @@ export function useChat() {
         }
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       error.value = e instanceof Error ? e.message : 'Erreur inconnue'
     } finally {
-      isStreaming.value = false
-      streamingContent.value = ''
+      // Reset si c'est le même appel actif OU si aucun nouvel appel n'a pris le relais
+      if (abortController.value === localController || abortController.value === null) {
+        isStreaming.value = false
+        streamingContent.value = ''
+      }
     }
   }
 
@@ -602,16 +660,6 @@ export function useChat() {
     }
     interactiveQuestionsByMessage.value = updated
   }
-
-  const searchQuery = ref('')
-
-  const filteredConversations = computed(() => {
-    const query = searchQuery.value.trim().toLowerCase()
-    if (!query) return conversations.value
-    return conversations.value.filter(c =>
-      c.title.toLowerCase().includes(query),
-    )
-  })
 
   return {
     conversations,
