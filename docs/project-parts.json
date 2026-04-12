@@ -1,0 +1,119 @@
+{
+  "repository_type": "monorepo",
+  "parts": [
+    {
+      "part_id": "frontend",
+      "display_name": "Frontend Nuxt 4",
+      "project_type_id": "web",
+      "root_path": "frontend",
+      "entry_points": [
+        "frontend/nuxt.config.ts",
+        "frontend/app/app.vue",
+        "frontend/app/layouts/default.vue"
+      ],
+      "primary_language": "TypeScript",
+      "framework": "Nuxt 4 + Vue 3 Composition API",
+      "state_management": "Pinia 3",
+      "styling": "TailwindCSS 4 + dark mode @theme",
+      "build_tool": "Nuxt / Vite",
+      "test_framework": "Vitest (unit) + Playwright (E2E)",
+      "critical_directories": [
+        "frontend/app/pages",
+        "frontend/app/components",
+        "frontend/app/composables",
+        "frontend/app/stores",
+        "frontend/app/types",
+        "frontend/app/middleware",
+        "frontend/app/plugins",
+        "frontend/app/assets/css"
+      ],
+      "counts": {
+        "pages": 18,
+        "components": 56,
+        "composables": 14,
+        "stores": 11,
+        "type_files": 11,
+        "layouts": 1,
+        "middleware": 1,
+        "plugins": 3
+      }
+    },
+    {
+      "part_id": "backend",
+      "display_name": "Backend FastAPI",
+      "project_type_id": "backend",
+      "root_path": "backend",
+      "entry_points": [
+        "backend/app/main.py"
+      ],
+      "primary_language": "Python 3.12",
+      "framework": "FastAPI + SQLAlchemy async 2",
+      "orchestration": "LangGraph + LangChain + OpenRouter (Claude Sonnet 4)",
+      "database": "PostgreSQL 16 + pgvector",
+      "auth": "JWT HS256 (python-jose + bcrypt)",
+      "migrations_tool": "Alembic",
+      "test_framework": "pytest + pytest-asyncio",
+      "critical_directories": [
+        "backend/app/api",
+        "backend/app/core",
+        "backend/app/graph",
+        "backend/app/graph/tools",
+        "backend/app/models",
+        "backend/app/modules",
+        "backend/app/prompts",
+        "backend/app/schemas",
+        "backend/alembic/versions",
+        "backend/tests"
+      ],
+      "counts": {
+        "api_endpoints_approx": 73,
+        "sqlalchemy_models": 16,
+        "alembic_migrations": 13,
+        "langgraph_nodes": 10,
+        "langchain_tool_files": 12,
+        "prompt_modules": 9,
+        "pydantic_schema_files": 9,
+        "business_modules": 10,
+        "test_files_approx": 54,
+        "tests_approx": 935
+      }
+    }
+  ],
+  "integration_points": [
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "REST JSON",
+      "protocol": "HTTPS",
+      "description": "Appels synchrones via fetch() natif, header Authorization Bearer JWT, base URL via runtimeConfig.public.apiBase (env NUXT_PUBLIC_API_BASE)"
+    },
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "Server-Sent Events (SSE)",
+      "protocol": "HTTPS + text/event-stream",
+      "endpoint": "POST /api/chat/{conversation_id}/messages",
+      "description": "Stream LangGraph : events token / done / document_* / profile_* / tool_call_* / interactive_question*",
+      "implementation": "frontend/app/composables/useChat.ts ↔ backend/app/api/chat.py + backend/app/graph/"
+    },
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "Multipart upload",
+      "protocol": "HTTPS multipart/form-data",
+      "endpoints": [
+        "POST /api/documents/",
+        "POST /api/chat/{id}/messages (champ file optionnel)"
+      ],
+      "description": "Upload de documents (PDF/DOCX/XLSX/image) déclenche extraction + OCR + embeddings pgvector + analyse LLM"
+    }
+  ],
+  "shared_conventions": {
+    "identifiers": "UUID v4 string",
+    "timestamps": "ISO 8601 UTC",
+    "currency": "FCFA en entiers (pas de float)",
+    "scores": "0-100 float",
+    "emissions": "tCO2e float",
+    "language_code": "Français pour UI et identifiants anglais pour code"
+  }
+}
