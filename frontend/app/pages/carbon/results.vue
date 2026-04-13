@@ -11,6 +11,7 @@ import {
 } from 'chart.js'
 import { useCarbon } from '~/composables/useCarbon'
 import { useCarbonStore } from '~/stores/carbon'
+import { useUiStore } from '~/stores/ui'
 import type { CarbonSummary, BenchmarkResponse } from '~/types/carbon'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
@@ -21,6 +22,7 @@ definePageMeta({
 
 const route = useRoute()
 const carbonStore = useCarbonStore()
+const uiStore = useUiStore()
 const { fetchAssessment, fetchSummary, fetchBenchmark, loading, error } = useCarbon()
 
 const summary = ref<CarbonSummary | null>(null)
@@ -181,12 +183,13 @@ function positionColor(position: string): string {
         <p class="text-gray-500 dark:text-gray-400">
           Aucun bilan carbone termine. Demarrez un bilan dans le chat.
         </p>
-        <NuxtLink
-          to="/chat"
+        <button
+          type="button"
           class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors"
+          @click="uiStore.openChatWidget()"
         >
           Demarrer un bilan
-        </NuxtLink>
+        </button>
       </div>
 
       <!-- Resultats -->

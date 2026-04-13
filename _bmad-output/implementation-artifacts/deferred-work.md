@@ -56,3 +56,7 @@
 
 - **D1** — Dead code `chatPanelOpen` et `toggleChatPanel` dans `stores/ui.ts` (lignes 15, 55-57, 145, 159). Plus aucun consommateur depuis la suppression de ChatPanel et du bouton AppHeader. Nettoyage a planifier dans une story dediee.
 - **D2** — Aucun acces chat sur mobile : le widget flottant est masque sur mobile (`v-if="isDesktop"`) et `pages/chat.vue` est supprime. Le widget flottant occupera tout l'ecran sur mobile (epic dedie).
+
+## Deferred from: code review of story 2-2-mise-a-jour-de-la-navigation-et-des-liens-internes (2026-04-13)
+
+- **D1** — Icone 'applications' manquante dans la chaine `v-else-if` de AppSidebar.vue. L'item "Dossiers" n'a pas d'icone SVG correspondante dans le template. Pre-existant, non introduit par cette story.

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { useCarbon } from '~/composables/useCarbon'
 import { useCarbonStore } from '~/stores/carbon'
+import { useUiStore } from '~/stores/ui'
 
 definePageMeta({
   layout: 'default',
 })
 
 const carbonStore = useCarbonStore()
+const uiStore = useUiStore()
 const { fetchAssessments, loading, error } = useCarbon()
 
 onMounted(() => {
@@ -66,15 +68,16 @@ const categoryColors: Record<string, string> = {
           Calculez et suivez l'empreinte carbone de votre entreprise
         </p>
       </div>
-      <NuxtLink
-        to="/chat"
+      <button
+        type="button"
         class="inline-flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium"
+        @click="uiStore.openChatWidget()"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
         </svg>
         Nouveau bilan
-      </NuxtLink>
+      </button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-6">
@@ -107,12 +110,13 @@ const categoryColors: Record<string, string> = {
         <p class="text-gray-500 dark:text-gray-400 max-w-md mb-6">
           Demarrez votre premier bilan carbone dans le chat. Notre assistant vous guidera a travers les categories d'emissions pour calculer votre empreinte.
         </p>
-        <NuxtLink
-          to="/chat"
+        <button
+          type="button"
           class="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
+          @click="uiStore.openChatWidget()"
         >
           Demarrer dans le chat
-        </NuxtLink>
+        </button>
       </div>
 
       <!-- Liste des bilans -->
@@ -170,16 +174,17 @@ const categoryColors: Record<string, string> = {
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
             </NuxtLink>
-            <NuxtLink
+            <button
               v-else
-              to="/chat"
+              type="button"
               class="inline-flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 hover:underline"
+              @click="uiStore.openChatWidget()"
             >
               Continuer
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
-            </NuxtLink>
+            </button>
           </div>
 
           <!-- Mini barres de categories si completed -->

@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { ref, defineComponent } from 'vue'
+import { ref, defineComponent, watch } from 'vue'
+
+// Stub des auto-imports Nuxt (useRoute, useRouter, watch)
+const mockRoute = ref({ query: {} })
+vi.stubGlobal('useRoute', () => mockRoute.value)
+vi.stubGlobal('useRouter', () => ({
+  replace: vi.fn(),
+}))
+vi.stubGlobal('watch', watch)
+
 import DefaultLayout from '~/layouts/default.vue'
 
 // Stubs pour les composants auto-importes Nuxt
@@ -20,6 +29,7 @@ describe('Layout default.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mockIsDesktop.value = true
+    mockRoute.value = { query: {} }
   })
 
   function mountLayout() {
@@ -60,6 +70,30 @@ describe('Layout default.vue', () => {
   it('rend le slot de contenu principal', () => {
     const wrapper = mountLayout()
     expect(wrapper.find('[data-testid="slot-content"]').exists()).toBe(true)
+  })
+
+  it('ouvre le widget quand openChat=1 est dans le query', async () => {
+    const { useUiStore } = await import('~/stores/ui')
+    const uiStore = useUiStore()
+    const mockReplace = vi.fn()
+    vi.stubGlobal('useRouter', () => ({ replace: mockReplace }))
+
+    mockRoute.value = { query: { openChat: '1' } }
+    mountLayout()
+
+    // Le watcher immediate devrait avoir declenche l'ouverture
+    expect(uiStore.chatWidgetOpen).toBe(true)
+    expect(mockReplace).toHaveBeenCalledWith({ query: {} })
+  })
+
+  it('ne reagit pas si openChat est absent du query', async () => {
+    const { useUiStore } = await import('~/stores/ui')
+    const uiStore = useUiStore()
+
+    mockRoute.value = { query: {} }
+    mountLayout()
+
+    expect(uiStore.chatWidgetOpen).toBe(false)
   })
 
   it('masque le widget flottant sur mobile', () => {

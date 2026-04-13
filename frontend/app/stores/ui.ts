@@ -12,7 +12,6 @@ const WIDGET_STORAGE_KEY = 'esg_mefali_widget_size'
 
 export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
-  const chatPanelOpen = ref(true)
   const conversationDrawerOpen = ref(false)
   const chatWidgetOpen = ref(false)
   const chatWidgetWidth = ref(WIDGET_DEFAULT_WIDTH)
@@ -52,16 +51,16 @@ export const useUiStore = defineStore('ui', () => {
     sidebarOpen.value = !sidebarOpen.value
   }
 
-  function toggleChatPanel() {
-    chatPanelOpen.value = !chatPanelOpen.value
-  }
-
   function toggleConversationDrawer() {
     conversationDrawerOpen.value = !conversationDrawerOpen.value
   }
 
   function toggleChatWidget() {
     chatWidgetOpen.value = !chatWidgetOpen.value
+  }
+
+  function openChatWidget() {
+    chatWidgetOpen.value = true
   }
 
   function closeChatWidget() {
@@ -142,7 +141,6 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     sidebarOpen,
-    chatPanelOpen,
     conversationDrawerOpen,
     chatWidgetOpen,
     chatWidgetWidth,
@@ -156,9 +154,9 @@ export const useUiStore = defineStore('ui', () => {
     setChatWidgetSize,
     resetChatWidgetSize,
     toggleSidebar,
-    toggleChatPanel,
     toggleConversationDrawer,
     toggleChatWidget,
+    openChatWidget,
     closeChatWidget,
     toggleTheme,
     setTheme,

@@ -5,11 +5,24 @@ import { useDeviceDetection } from '~/composables/useDeviceDetection'
 
 const uiStore = useUiStore()
 const { isDesktop } = useDeviceDetection()
+const route = useRoute()
+const router = useRouter()
 
 // D1 : reset le widget flottant quand on passe en mobile
 watch(isDesktop, (desktop) => {
   if (!desktop) uiStore.closeChatWidget()
 })
+
+// Ouvrir le widget quand on arrive via la redirection /chat
+if (import.meta.client) {
+  watch(() => route.query.openChat, (val) => {
+    if (val === '1') {
+      uiStore.openChatWidget()
+      const { openChat: _, ...rest } = route.query
+      router.replace({ query: rest })
+    }
+  }, { immediate: true })
+}
 </script>
 
 <template>

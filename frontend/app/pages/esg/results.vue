@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useEsg } from '~/composables/useEsg'
 import { useEsgStore } from '~/stores/esg'
+import { useUiStore } from '~/stores/ui'
 import type { BenchmarkResponse } from '~/types/esg'
 
 definePageMeta({
@@ -9,6 +10,7 @@ definePageMeta({
 
 const route = useRoute()
 const esgStore = useEsgStore()
+const uiStore = useUiStore()
 const { fetchAssessment, fetchScore, fetchBenchmark, loading, error } = useEsg()
 
 const benchmark = ref<BenchmarkResponse | null>(null)
@@ -112,12 +114,13 @@ const pillarLabels: Record<string, string> = {
         <p class="text-gray-500 dark:text-gray-400">
           Aucune evaluation terminee. Demarrez une evaluation dans le chat.
         </p>
-        <NuxtLink
-          to="/chat"
+        <button
+          type="button"
           class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors"
+          @click="uiStore.openChatWidget()"
         >
           Demarrer une evaluation
-        </NuxtLink>
+        </button>
       </div>
 
       <!-- Resultats -->
