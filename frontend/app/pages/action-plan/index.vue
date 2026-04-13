@@ -212,6 +212,7 @@ onMounted(loadData)
       <Timeline
         v-else
         :items="actionPlanStore.items"
+        data-guide-target="action-plan-timeline"
         @select="onSelectItem"
       />
     </template>

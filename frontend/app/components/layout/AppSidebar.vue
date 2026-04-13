@@ -10,12 +10,12 @@ const companyStore = useCompanyStore()
 const { fetchCompletion } = useCompanyProfile()
 
 const navItems = [
-  { label: 'Tableau de bord', to: '/dashboard', icon: 'dashboard' },
-  { label: 'Plan d\'action', to: '/action-plan', icon: 'action-plan' },
-  { label: 'Évaluation ESG', to: '/esg', icon: 'esg' },
-  { label: 'Empreinte Carbone', to: '/carbon', icon: 'carbon' },
-  { label: 'Financement', to: '/financing', icon: 'financing' },
-  { label: 'Crédit Vert', to: '/credit-score', icon: 'credit' },
+  { label: 'Tableau de bord', to: '/dashboard', icon: 'dashboard', guideTarget: 'sidebar-dashboard-link' },
+  { label: 'Plan d\'action', to: '/action-plan', icon: 'action-plan', guideTarget: 'sidebar-action-plan-link' },
+  { label: 'Évaluation ESG', to: '/esg', icon: 'esg', guideTarget: 'sidebar-esg-link' },
+  { label: 'Empreinte Carbone', to: '/carbon', icon: 'carbon', guideTarget: 'sidebar-carbon-link' },
+  { label: 'Financement', to: '/financing', icon: 'financing', guideTarget: 'sidebar-financing-link' },
+  { label: 'Crédit Vert', to: '/credit-score', icon: 'credit', guideTarget: 'sidebar-credit-link' },
   { label: 'Dossiers', to: '/applications', icon: 'applications' },
   { label: 'Rapports', to: '/reports', icon: 'reports' },
   { label: 'Documents', to: '/documents', icon: 'documents' },
@@ -58,6 +58,7 @@ onMounted(() => {
         v-for="item in navItems"
         :key="item.to"
         :to="item.to"
+        :data-guide-target="item.guideTarget"
         class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover hover:text-brand-green transition-colors"
         active-class="bg-emerald-50 dark:bg-emerald-900/20 text-brand-green font-medium border-r-2 border-brand-green"
       >

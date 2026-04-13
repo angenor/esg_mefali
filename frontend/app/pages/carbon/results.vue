@@ -216,7 +216,7 @@ function positionColor(position: string): string {
               </p>
             </div>
             <!-- Donut chart -->
-            <div v-if="doughnutData" class="w-64 h-64">
+            <div v-if="doughnutData" class="w-64 h-64" data-guide-target="carbon-donut-chart">
               <Doughnut :data="doughnutData" :options="{ responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }" />
             </div>
           </div>
@@ -277,6 +277,7 @@ function positionColor(position: string): string {
         <div
           v-if="summary.reduction_plan"
           class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6"
+          data-guide-target="carbon-reduction-plan"
         >
           <h2 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-4">
             Plan de reduction
@@ -333,6 +334,7 @@ function positionColor(position: string): string {
         <div
           v-if="benchmarkChartData"
           class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6"
+          data-guide-target="carbon-benchmark"
         >
           <h2 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-4">
             Comparaison sectorielle

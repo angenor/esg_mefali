@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-13' (Story 4.1 ready-for-dev — Epic 4 started)
+# last_updated: '2026-04-13' (Story 4.3 done)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -36,8 +36,8 @@
 
 generated: 2026-04-12
 last_updated: '2026-04-13'
-last_story_created: '4-1-installation-driverjs-lazy-loading-et-css-dark-mode'
-last_review_completed: '4-1-installation-driverjs-lazy-loading-et-css-dark-mode'
+last_story_created: '4-3-marquage-data-guide-target-sur-les-composants-existants'
+last_review_completed: '4-3-marquage-data-guide-target-sur-les-composants-existants'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -70,8 +70,8 @@ development_status:
   # Epic 4 : Infrastructure de guidage visuel
   epic-4: in-progress
   4-1-installation-driverjs-lazy-loading-et-css-dark-mode: done
-  4-2-types-et-registre-de-parcours-guides: backlog
-  4-3-marquage-data-guide-target-sur-les-composants-existants: backlog
+  4-2-types-et-registre-de-parcours-guides: done
+  4-3-marquage-data-guide-target-sur-les-composants-existants: done
   epic-4-retrospective: optional
 
   # Epic 5 : Parcours guides et navigation multi-pages

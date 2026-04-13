@@ -132,7 +132,7 @@ onMounted(async () => {
         </div>
 
         <!-- Score global -->
-        <div class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6">
+        <div class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6" data-guide-target="credit-score-gauge">
           <div class="text-center">
             <ScoreGauge :score="store.score!.combined_score" label="Score Credit Vert Combine" />
           </div>

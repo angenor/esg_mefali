@@ -86,6 +86,7 @@ const creditSubtitle = computed(() => {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <!-- Score ESG -->
         <ScoreCard
+          data-guide-target="dashboard-esg-card"
           label="Score ESG"
           icon="🌍"
           :score="store.summary?.esg?.score ?? null"
@@ -123,6 +124,7 @@ const creditSubtitle = computed(() => {
 
         <!-- Score Carbone -->
         <ScoreCard
+          data-guide-target="dashboard-carbon-card"
           label="Empreinte Carbone"
           icon="💨"
           :score="store.summary?.carbon?.total_tco2e ?? null"
@@ -151,6 +153,7 @@ const creditSubtitle = computed(() => {
 
         <!-- Score Crédit -->
         <ScoreCard
+          data-guide-target="dashboard-credit-card"
           label="Crédit Vert"
           icon="⭐"
           :score="store.summary?.credit?.score ?? null"
@@ -168,7 +171,7 @@ const creditSubtitle = computed(() => {
         </ScoreCard>
 
         <!-- Financement -->
-        <FinancingCard :financing="store.summary?.financing ?? null" />
+        <FinancingCard data-guide-target="dashboard-financing-card" :financing="store.summary?.financing ?? null" />
       </div>
 
       <!-- Section prochaines actions + activité récente (2 colonnes desktop) -->

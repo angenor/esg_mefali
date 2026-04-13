@@ -184,7 +184,7 @@ const tabs = [
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto p-6" data-guide-target="financing-fund-list">
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-green" />

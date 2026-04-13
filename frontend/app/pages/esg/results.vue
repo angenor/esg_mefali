@@ -132,7 +132,7 @@ const pillarLabels: Record<string, string> = {
           </h2>
           <div class="flex items-center justify-center gap-12">
             <!-- Score global cercle -->
-            <div class="relative">
+            <div class="relative" data-guide-target="esg-score-circle">
               <EsgScoreCircle
                 :score="esgStore.currentScore.overall_score"
                 :size="140"
@@ -176,6 +176,7 @@ const pillarLabels: Record<string, string> = {
         <div
           v-if="esgStore.currentAssessment.strengths?.length"
           class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6"
+          data-guide-target="esg-strengths-badges"
         >
           <h2 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-4">
             Points forts
@@ -187,6 +188,7 @@ const pillarLabels: Record<string, string> = {
         <div
           v-if="esgStore.currentAssessment.recommendations?.length"
           class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6"
+          data-guide-target="esg-recommendations"
         >
           <h2 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-4">
             Recommandations
