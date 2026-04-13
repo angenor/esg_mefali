@@ -114,6 +114,7 @@ def build_action_plan_prompt(
     Returns:
         Prompt formaté pour le LLM
     """
+    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
     from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
@@ -130,6 +131,8 @@ def build_action_plan_prompt(
         + STYLE_INSTRUCTION
         + "\n\n"
         + WIDGET_INSTRUCTION
+        + "\n\n"
+        + GUIDED_TOUR_INSTRUCTION
     )
 
     page_context = build_page_context_instruction(current_page)

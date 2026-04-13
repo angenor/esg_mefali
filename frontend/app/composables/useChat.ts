@@ -408,6 +408,9 @@ export function useChat() {
                 assessmentId: event.assessment_id,
                 message: event.message || 'Votre evaluation ESG est terminee ! Generez un rapport PDF.',
               }
+            } else if (event.type === 'guided_tour') {
+              // Feature 019 — Declenchement parcours guide via SSE
+              await handleGuidedTourEvent(event as Record<string, unknown>)
             } else if (event.type === 'error') {
               error.value = event.content || 'Erreur du service IA'
             }
@@ -635,6 +638,9 @@ export function useChat() {
                   [messages.value[lastIdx]!.id]: newQ,
                 }
               }
+            } else if (evt.type === 'guided_tour') {
+              // Feature 019 — Declenchement parcours guide via SSE (apres submit reponse interactive)
+              await handleGuidedTourEvent(evt as Record<string, unknown>)
             }
           } catch {
             // Ignorer les lignes invalides
@@ -661,6 +667,37 @@ export function useChat() {
       created_at: new Date().toISOString(),
     }
     messages.value = [...messages.value, msg]
+  }
+
+  /**
+   * Feature 019 — Gestionnaire centralise d'un event SSE `guided_tour`.
+   *
+   * Garde-fous (story 6.1 review) :
+   *   - Ignore silencieusement si `tour_id` absent / vide / non string (log warn pour debug).
+   *   - Bloque le declenchement quand une question interactive est `pending` :
+   *     l'overlay Driver.js masquerait le widget, l'utilisateur ne pourrait plus repondre.
+   *   - Rattrape les rejets asynchrones (`await import` / `startTour`) pour eviter
+   *     les unhandled promise rejections remontees hors du try/catch du flux SSE.
+   */
+  async function handleGuidedTourEvent(event: Record<string, unknown>): Promise<void> {
+    const tourId = event.tour_id
+    if (typeof tourId !== 'string' || !tourId.trim()) {
+      // eslint-disable-next-line no-console
+      console.warn('[useChat] guided_tour event sans tour_id valide', event)
+      return
+    }
+    if (currentInteractiveQuestion.value?.state === 'pending') {
+      addSystemMessage("Repondez d'abord a la question en attente.")
+      return
+    }
+    try {
+      const { useGuidedTour } = await import('~/composables/useGuidedTour')
+      const { startTour } = useGuidedTour()
+      await startTour(tourId, (event.context as Record<string, unknown>) || {})
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[useChat] Echec declenchement guided tour', err)
+    }
   }
 
   function onInteractiveQuestionAbandoned(questionId: string): void {

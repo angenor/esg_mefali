@@ -159,6 +159,90 @@ async def test_stream_profile_tool_emits_sse_metadata():
 
 
 @pytest.mark.asyncio
+async def test_stream_guided_tour_marker():
+    """Un tool_call_end avec __sse_guided_tour__ émet un event guided_tour SSE."""
+    import json
+
+    mock_graph = AsyncMock()
+    sse_metadata = json.dumps({
+        "__sse_guided_tour__": True,
+        "type": "guided_tour",
+        "tour_id": "show_esg_results",
+        "context": {"score": 72},
+    })
+    tool_output = f"Parcours guide 'show_esg_results' declenche.\n\n<!--SSE:{sse_metadata}-->"
+
+    async def mock_astream_events(state, config, version):
+        yield {
+            "event": "on_tool_end",
+            "name": "trigger_guided_tour",
+            "data": {"output": tool_output},
+            "run_id": "call_tour",
+        }
+
+    mock_graph.astream_events = mock_astream_events
+
+    with patch("app.main.compiled_graph", mock_graph):
+        events = []
+        async for event in stream_graph_events(
+            content="test",
+            conversation_id=str(uuid.uuid4()),
+            user_id=uuid.uuid4(),
+            db=AsyncMock(),
+        ):
+            events.append(event)
+
+        event_types = [e["type"] for e in events]
+        assert "tool_call_end" in event_types
+        assert "guided_tour" in event_types
+
+        tour_event = next(e for e in events if e["type"] == "guided_tour")
+        assert tour_event["tour_id"] == "show_esg_results"
+        assert tour_event["context"] == {"score": 72}
+        # Le flag __sse_guided_tour__ ne doit PAS etre dans le payload emis
+        assert "__sse_guided_tour__" not in tour_event
+
+
+@pytest.mark.asyncio
+async def test_stream_guided_tour_without_context():
+    """Un event guided_tour avec context vide est emis correctement."""
+    import json
+
+    mock_graph = AsyncMock()
+    sse_metadata = json.dumps({
+        "__sse_guided_tour__": True,
+        "type": "guided_tour",
+        "tour_id": "show_dashboard_overview",
+        "context": {},
+    })
+    tool_output = f"Parcours guide declenche.\n\n<!--SSE:{sse_metadata}-->"
+
+    async def mock_astream_events(state, config, version):
+        yield {
+            "event": "on_tool_end",
+            "name": "trigger_guided_tour",
+            "data": {"output": tool_output},
+            "run_id": "call_tour2",
+        }
+
+    mock_graph.astream_events = mock_astream_events
+
+    with patch("app.main.compiled_graph", mock_graph):
+        events = []
+        async for event in stream_graph_events(
+            content="test",
+            conversation_id=str(uuid.uuid4()),
+            user_id=uuid.uuid4(),
+            db=AsyncMock(),
+        ):
+            events.append(event)
+
+        tour_event = next(e for e in events if e["type"] == "guided_tour")
+        assert tour_event["tour_id"] == "show_dashboard_overview"
+        assert tour_event["context"] == {}
+
+
+@pytest.mark.asyncio
 async def test_stream_tool_error_event():
     """Les événements on_tool_error sont mappés en tool_call_error SSE."""
     mock_graph = AsyncMock()

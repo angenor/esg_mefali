@@ -228,6 +228,13 @@ async def stream_graph_events(
                                 if k != "__sse_interactive_question__"
                             }
                             yield event_payload
+                        elif sse_data.get("__sse_guided_tour__"):
+                            # Émettre l'event guided_tour (feature 019)
+                            event_payload = {
+                                k: v for k, v in sse_data.items()
+                                if k != "__sse_guided_tour__"
+                            }
+                            yield event_payload
                     except (ValueError, json.JSONDecodeError):
                         logger.debug("Impossible de parser les métadonnées SSE du tool")
 

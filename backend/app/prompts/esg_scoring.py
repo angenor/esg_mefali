@@ -86,6 +86,7 @@ def build_esg_prompt(
     current_page: str | None = None,
 ) -> str:
     """Construire le prompt ESG avec le contexte entreprise et documents."""
+    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
     from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
@@ -98,6 +99,8 @@ def build_esg_prompt(
         + STYLE_INSTRUCTION
         + "\n\n"
         + WIDGET_INSTRUCTION
+        + "\n\n"
+        + GUIDED_TOUR_INSTRUCTION
     )
 
     page_context = build_page_context_instruction(current_page)

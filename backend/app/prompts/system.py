@@ -211,6 +211,11 @@ def build_system_prompt(
     # Injecter le style concis uniquement post-onboarding
     if user_profile and _has_minimum_profile(user_profile):
         sections.append(STYLE_INSTRUCTION)
+        # Story 6.2 : activer les propositions de guidage visuel uniquement
+        # post-onboarding — un utilisateur sans profil n'a aucun resultat a
+        # visiter, proposer un tour guide serait prematue.
+        from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
+        sections.append(GUIDED_TOUR_INSTRUCTION)
 
     return "\n\n".join(sections)
 
