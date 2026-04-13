@@ -1,6 +1,6 @@
 # Story 1.6 : Redimensionnement du widget
 
-Status: review
+Status: done
 
 ## Story
 
@@ -88,6 +88,22 @@ afin d'adapter sa taille au contenu consulte (tableaux, graphiques, conversation
   - [x] 5.7 Tester le composant : double-clic reset aux defauts
   - [x] 5.8 Mettre a jour le test existant qui assertait `w-[400px]` et `h-[600px]` → verifie maintenant `element.style.width/height`
   - [x] 5.9 Couverture >= 80% — 112/112 tests passent, zero regression
+
+### Review Findings
+
+- [x] [Review][Patch] F1 — Documenter le pattern deferred-save (mutation directe pendant drag, persistance au pointerup) [FloatingChatWidget.vue:132-133]
+- [x] [Review][Patch] F2 — Extraire constantes partagees WIDGET_DEFAULT_WIDTH/HEIGHT entre store et composant [ui.ts:90-91, FloatingChatWidget.vue:12-13]
+- [x] [Review][Patch] F3 — Ajouter validation d'entree dans setChatWidgetSize (negatif, zero, NaN) et initWidgetSize [ui.ts:85-89]
+- [x] [Review][Patch] F4 — Guard isVisible dans startResize pour eviter race condition avec GSAP close animation [FloatingChatWidget.vue:87-104]
+- [x] [Review][Patch] F5 — Ajouter try/catch autour de setPointerCapture pour eviter fuite de listeners [FloatingChatWidget.vue:90]
+- [x] [Review][Patch] F6 — Persister la taille corrigee dans localStorage apres clampToViewport [FloatingChatWidget.vue:160-168]
+- [x] [Review][Patch] F7 — Gerer le cas viewport < WIDGET_MIN_WIDTH + WIDGET_MARGIN dans clampWidth/clampHeight [FloatingChatWidget.vue:77-80]
+- [x] [Review][Patch] F8 — releasePointerCapture sur l'element original (stocker la ref du handle) [FloatingChatWidget.vue:139-141]
+- [x] [Review][Patch] F9 — Ajouter test AC4 assertant l'absence de CSS transition sur width/height [Tests]
+- [x] [Review][Defer] D1 — prefersReducedMotion statique, ne reagit pas aux changements OS — deferred, Story 1.7 accessibilite
+- [x] [Review][Defer] D2 — Focus non retourne au bouton declencheur a la fermeture — deferred, Story 1.7 accessibilite
+- [x] [Review][Defer] D3 — Resize concurrent + window resize cause saut visuel — deferred, edge case rare
+- [x] [Review][Defer] D4 — Double mecanisme import.meta.client (plugin Vite + setup.ts) — deferred, pre-existant
 
 ## Dev Notes
 

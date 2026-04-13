@@ -25,8 +25,6 @@ watch(isDesktop, (desktop) => {
       </main>
     </div>
 
-    <!-- Panneau chat IA -->
-    <ChatPanel />
   </div>
 
   <!-- Widget flottant copilot (desktop uniquement) -->

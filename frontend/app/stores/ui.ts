@@ -1,14 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
+// F2: Constantes partagees — referencees par le composant FloatingChatWidget
+export const WIDGET_DEFAULT_WIDTH = 400
+export const WIDGET_DEFAULT_HEIGHT = 600
+export const WIDGET_MIN_WIDTH = 300
+export const WIDGET_MIN_HEIGHT = 400
+export const WIDGET_MARGIN = 100
+
+const WIDGET_STORAGE_KEY = 'esg_mefali_widget_size'
+
 export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
   const chatPanelOpen = ref(true)
   const conversationDrawerOpen = ref(false)
   const chatWidgetOpen = ref(false)
-  const chatWidgetWidth = ref(400)
-  const chatWidgetHeight = ref(600)
+  const chatWidgetWidth = ref(WIDGET_DEFAULT_WIDTH)
+  const chatWidgetHeight = ref(WIDGET_DEFAULT_HEIGHT)
   const theme = ref<'light' | 'dark'>('light')
+  const prefersReducedMotion = ref(false)
+  let _reducedMotionQuery: MediaQueryList | null = null
+  let _reducedMotionHandler: ((e: MediaQueryListEvent) => void) | null = null
 
   function initTheme() {
     if (import.meta.client) {
@@ -56,7 +68,10 @@ export const useUiStore = defineStore('ui', () => {
     chatWidgetOpen.value = false
   }
 
-  const WIDGET_STORAGE_KEY = 'esg_mefali_widget_size'
+  // F3: Validation — rejette les valeurs invalides (negatif, zero, NaN, non-fini)
+  function isValidDimension(n: number): boolean {
+    return Number.isFinite(n) && n > 0
+  }
 
   function initWidgetSize() {
     if (import.meta.client) {
@@ -67,6 +82,7 @@ export const useUiStore = defineStore('ui', () => {
           if (
             typeof parsed === 'object' && parsed !== null
             && typeof parsed.width === 'number' && typeof parsed.height === 'number'
+            && isValidDimension(parsed.width) && isValidDimension(parsed.height)
           ) {
             chatWidgetWidth.value = parsed.width
             chatWidgetHeight.value = parsed.height
@@ -79,18 +95,40 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function setChatWidgetSize(width: number, height: number) {
-    chatWidgetWidth.value = width
-    chatWidgetHeight.value = height
+    // F3: Validation des entrees — clamp aux bornes connues
+    const w = isValidDimension(width) ? Math.max(width, WIDGET_MIN_WIDTH) : WIDGET_DEFAULT_WIDTH
+    const h = isValidDimension(height) ? Math.max(height, WIDGET_MIN_HEIGHT) : WIDGET_DEFAULT_HEIGHT
+    chatWidgetWidth.value = w
+    chatWidgetHeight.value = h
     if (import.meta.client) {
-      localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify({ width, height }))
+      localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify({ width: w, height: h }))
     }
   }
 
   function resetChatWidgetSize() {
-    chatWidgetWidth.value = 400
-    chatWidgetHeight.value = 600
+    chatWidgetWidth.value = WIDGET_DEFAULT_WIDTH
+    chatWidgetHeight.value = WIDGET_DEFAULT_HEIGHT
     if (import.meta.client) {
       localStorage.removeItem(WIDGET_STORAGE_KEY)
+    }
+  }
+
+  function initReducedMotion() {
+    if (import.meta.client) {
+      // F2: guard contre les appels multiples (HMR, tests)
+      destroyReducedMotion()
+      _reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+      prefersReducedMotion.value = _reducedMotionQuery.matches
+      _reducedMotionHandler = (e) => { prefersReducedMotion.value = e.matches }
+      _reducedMotionQuery.addEventListener('change', _reducedMotionHandler)
+    }
+  }
+
+  function destroyReducedMotion() {
+    if (_reducedMotionQuery && _reducedMotionHandler) {
+      _reducedMotionQuery.removeEventListener('change', _reducedMotionHandler)
+      _reducedMotionHandler = null
+      _reducedMotionQuery = null
     }
   }
 
@@ -110,7 +148,10 @@ export const useUiStore = defineStore('ui', () => {
     chatWidgetWidth,
     chatWidgetHeight,
     theme,
+    prefersReducedMotion,
     initTheme,
+    initReducedMotion,
+    destroyReducedMotion,
     initWidgetSize,
     setChatWidgetSize,
     resetChatWidgetSize,

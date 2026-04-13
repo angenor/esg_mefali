@@ -23,7 +23,7 @@ const authStore = useAuthStore()
       </h2>
     </div>
 
-    <!-- Droite : toggle theme + toggle chat + utilisateur -->
+    <!-- Droite : toggle theme + utilisateur -->
     <div class="flex items-center gap-3">
       <!-- Toggle dark mode -->
       <button
@@ -38,17 +38,6 @@ const authStore = useAuthStore()
         <!-- Lune (mode sombre) -->
         <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
           <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-        </svg>
-      </button>
-
-      <!-- Bouton ouvrir/fermer chat panel -->
-      <button
-        class="p-2 text-gray-500 dark:text-gray-400 hover:text-brand-green hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-        :title="uiStore.chatPanelOpen ? 'Fermer le chat' : 'Ouvrir le chat'"
-        @click="uiStore.toggleChatPanel"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd" />
         </svg>
       </button>
 

@@ -1,17 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { gsap } from 'gsap'
-import { useUiStore } from '~/stores/ui'
+import { useUiStore, WIDGET_MIN_WIDTH, WIDGET_MIN_HEIGHT, WIDGET_DEFAULT_WIDTH, WIDGET_DEFAULT_HEIGHT, WIDGET_MARGIN } from '~/stores/ui'
 import { useChat } from '~/composables/useChat'
+import { useFocusTrap } from '~/composables/useFocusTrap'
 import { useAuthStore } from '~/stores/auth'
 import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
-
-// Constantes de dimension
-const WIDGET_MIN_WIDTH = 300
-const WIDGET_MIN_HEIGHT = 400
-const WIDGET_DEFAULT_WIDTH = 400
-const WIDGET_DEFAULT_HEIGHT = 600
-const WIDGET_MARGIN = 100
 
 const uiStore = useUiStore()
 const runtimeConfig = useRuntimeConfig()
@@ -46,10 +40,21 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const userScrolledUp = ref(false)
 const isResizing = ref(false)
 
-// Detecter prefers-reduced-motion
-const prefersReducedMotion = typeof window !== 'undefined'
-  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  : false
+// Focus trap (AC2, AC3)
+const { activate: activateFocusTrap, deactivate: deactivateFocusTrap } = useFocusTrap(widgetRef)
+
+// Escape pour fermer le widget (AC3)
+function handleEscape() {
+  if (uiStore.chatWidgetOpen) {
+    uiStore.closeChatWidget()
+  }
+}
+
+// Retour du focus au bouton flottant (AC3, deferred D2)
+function focusFloatingButton() {
+  const btn = document.querySelector<HTMLElement>('[data-testid="floating-chat-button"]')
+  btn?.focus()
+}
 
 // --- Resize logic (Task 2, 3, 4) ---
 
@@ -72,22 +77,34 @@ let resizeState: {
   startWidth: number
   startHeight: number
   pointerId: number
+  captureTarget: HTMLElement // F8: ref de l'element qui a capture le pointer
 } | null = null
 
+// F7: Si le viewport est tres petit, maxW peut etre < WIDGET_MIN_WIDTH.
+// Dans ce cas, le max du viewport prime pour eviter le debordement.
 function clampWidth(w: number): number {
   const maxW = typeof window !== 'undefined' ? window.innerWidth - WIDGET_MARGIN : 1200
-  return Math.min(Math.max(w, WIDGET_MIN_WIDTH), maxW)
+  return Math.min(Math.max(w, Math.min(WIDGET_MIN_WIDTH, maxW)), maxW)
 }
 
 function clampHeight(h: number): number {
   const maxH = typeof window !== 'undefined' ? window.innerHeight - WIDGET_MARGIN : 800
-  return Math.min(Math.max(h, WIDGET_MIN_HEIGHT), maxH)
+  return Math.min(Math.max(h, Math.min(WIDGET_MIN_HEIGHT, maxH)), maxH)
 }
 
 function startResize(direction: ResizeDirection, event: PointerEvent) {
+  // F4: Ne pas demarrer un resize si le widget est en cours de fermeture
+  if (!isVisible.value) return
+
   event.preventDefault()
   const target = event.currentTarget as HTMLElement
-  target.setPointerCapture(event.pointerId)
+
+  // F5: setPointerCapture peut echouer si l'element est detache — ne pas fuiter les listeners
+  try {
+    target.setPointerCapture(event.pointerId)
+  } catch {
+    return
+  }
 
   isResizing.value = true
   resizeState = {
@@ -97,6 +114,7 @@ function startResize(direction: ResizeDirection, event: PointerEvent) {
     startWidth: widgetWidth.value,
     startHeight: widgetHeight.value,
     pointerId: event.pointerId,
+    captureTarget: target, // F8: stocker la ref pour releasePointerCapture
   }
 
   document.addEventListener('pointermove', onPointerMove)
@@ -129,17 +147,17 @@ function onPointerMove(event: PointerEvent) {
     newWidth = resizeState.startWidth - deltaX
   }
 
+  // F1: Deferred-save pattern — mutation directe pendant le drag pour la performance.
+  // La persistance localStorage se fait au pointerup via setChatWidgetSize.
   uiStore.chatWidgetWidth = clampWidth(newWidth)
   uiStore.chatWidgetHeight = clampHeight(newHeight)
 }
 
-function onPointerUp(event: PointerEvent) {
+function onPointerUp(_event: PointerEvent) {
   if (!resizeState) return
 
-  const target = event.target as HTMLElement
-  if (target.releasePointerCapture) {
-    try { target.releasePointerCapture(resizeState.pointerId) } catch { /* ignore */ }
-  }
+  // F8: releasePointerCapture sur l'element original qui a capture le pointer
+  try { resizeState.captureTarget.releasePointerCapture(resizeState.pointerId) } catch { /* ignore */ }
 
   // Persister la taille dans localStorage
   uiStore.setChatWidgetSize(widgetWidth.value, widgetHeight.value)
@@ -162,17 +180,23 @@ function clampToViewport() {
   const maxW = window.innerWidth - WIDGET_MARGIN
   const maxH = window.innerHeight - WIDGET_MARGIN
   if (widgetWidth.value > maxW || widgetHeight.value > maxH) {
-    uiStore.chatWidgetWidth = clampWidth(widgetWidth.value)
-    uiStore.chatWidgetHeight = clampHeight(widgetHeight.value)
+    const clampedW = clampWidth(widgetWidth.value)
+    const clampedH = clampHeight(widgetHeight.value)
+    // F6: Persister la taille corrigee pour eviter le cycle clamp-on-mount a chaque rechargement
+    uiStore.setChatWidgetSize(clampedW, clampedH)
   }
 }
 
+// F4: Debounce pour eviter les ecritures localStorage excessives pendant le resize de fenetre
+let _resizeTimer: ReturnType<typeof setTimeout> | null = null
 function onWindowResize() {
-  clampToViewport()
+  if (_resizeTimer) clearTimeout(_resizeTimer)
+  _resizeTimer = setTimeout(() => clampToViewport(), 150)
 }
 
 onMounted(() => {
   uiStore.initWidgetSize()
+  uiStore.initReducedMotion()
   clampToViewport()
   window.addEventListener('resize', onWindowResize)
 })
@@ -182,13 +206,25 @@ function animateOpen() {
   if (!el) return
 
   gsap.killTweensOf(el)
-  const duration = prefersReducedMotion ? 0 : 0.25
+  const duration = uiStore.prefersReducedMotion ? 0 : 0.25
 
   isVisible.value = true
+
+  if (duration === 0) {
+    // F1: fast-path reduced-motion — pas de tween, activer le focus trap immediatement
+    gsap.fromTo(el, { scale: 0.8, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: 0 })
+    activateFocusTrap()
+    return
+  }
+
   gsap.fromTo(
     el,
     { scale: 0.8, opacity: 0, y: 20 },
-    { scale: 1, opacity: 1, y: 0, duration, ease: 'power2.out' },
+    {
+      scale: 1, opacity: 1, y: 0, duration, ease: 'power2.out',
+      // F1: guard — ne pas re-activer le trap si le widget a ete ferme entre-temps (race open/close rapide)
+      onComplete: () => { if (uiStore.chatWidgetOpen) activateFocusTrap() },
+    },
   )
 }
 
@@ -196,12 +232,15 @@ function animateClose() {
   const el = widgetRef.value
   if (!el) return
 
+  deactivateFocusTrap()
+
   gsap.killTweensOf(el)
-  const duration = prefersReducedMotion ? 0 : 0.2
+  const duration = uiStore.prefersReducedMotion ? 0 : 0.2
 
   if (duration === 0) {
     // P3: reduction de mouvement — pas d'animation, masquer immediatement
     isVisible.value = false
+    focusFloatingButton()
     return
   }
 
@@ -213,6 +252,7 @@ function animateClose() {
     ease: 'power2.in',
     onComplete: () => {
       isVisible.value = false
+      focusFloatingButton()
     },
   })
 }
@@ -358,8 +398,10 @@ function handleScroll() {
 onBeforeUnmount(() => {
   if (widgetRef.value) gsap.killTweensOf(widgetRef.value)
   window.removeEventListener('resize', onWindowResize)
+  if (_resizeTimer) clearTimeout(_resizeTimer)
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointerup', onPointerUp)
+  uiStore.destroyReducedMotion()
 })
 
 // P6: observer la longueur du tableau (pas le contenu) pour detecter les nouveaux messages
@@ -402,13 +444,16 @@ watch(
     v-show="isVisible || uiStore.chatWidgetOpen"
     ref="widgetRef"
     id="copilot-widget"
-    :aria-hidden="!isVisible"
+    role="dialog"
+    aria-label="Assistant IA ESG"
+    aria-modal="true"
     :style="widgetStyle"
     :class="[
       'fixed bottom-24 right-6 z-50 rounded-2xl flex flex-col widget-glass',
       isResizing ? 'select-none' : '',
       isResizing ? '' : 'overflow-hidden',
     ]"
+    @keydown.escape="handleEscape"
   >
     <!-- Poignees de resize (Task 2.2) -->
     <!-- Bord gauche -->
@@ -471,17 +516,20 @@ watch(
         ]"
         @scroll="handleScroll"
       >
-        <WelcomeMessage v-if="!messages.length" />
-        <template v-else>
-          <ChatMessage
-            v-for="(msg, idx) in messages"
-            :key="msg.id"
-            :message="msg"
-            :is-streaming="isStreaming && idx === messages.length - 1 && msg.role === 'assistant'"
-            :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
-            :interactive-question="interactiveQuestionsByMessage[msg.id] || (idx === messages.length - 1 && msg.role === 'assistant' && currentInteractiveQuestion?.id ? currentInteractiveQuestion : null)"
-          />
-        </template>
+        <!-- F3: aria-live toujours present pour que le premier message soit annonce -->
+        <div aria-live="polite" aria-atomic="false">
+          <WelcomeMessage v-if="!messages.length" />
+          <template v-else>
+            <ChatMessage
+              v-for="(msg, idx) in messages"
+              :key="msg.id"
+              :message="msg"
+              :is-streaming="isStreaming && idx === messages.length - 1 && msg.role === 'assistant'"
+              :document-progress="isStreaming && idx === messages.length - 1 && msg.role === 'assistant' ? documentProgress : null"
+              :interactive-question="interactiveQuestionsByMessage[msg.id] || (idx === messages.length - 1 && msg.role === 'assistant' && currentInteractiveQuestion?.id ? currentInteractiveQuestion : null)"
+            />
+          </template>
+        </div>
       </div>
 
       <!-- Indicateur tool call en cours -->

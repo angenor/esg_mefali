@@ -37,3 +37,17 @@
 - **D3** — `reportSuggestion` non affiche dans le widget : banniere rapport PDF omise, widget 400px trop etroit. Enhancement future.
 - **W1** — `prefersReducedMotion` non-reactif (snapshot au mount, pas de listener `change`). `FloatingChatWidget.vue:41`. Deja traque pour story 1.7 accessibilite.
 - **W2** — Race condition concurrente dans `sendMessage` de `useChat.ts` : pas de mutex atomique entre le guard `isStreaming` et son assignment. `useChat.ts:132`. Pre-existant (scope story 1-1).
+
+## Deferred from: code review of story 1-6-redimensionnement-du-widget (2026-04-13)
+
+- **D1** — `prefersReducedMotion` non-reactif (snapshot au mount, pas de listener `change`). `FloatingChatWidget.vue:50-52`. Deja traque pour Story 1.7 accessibilite.
+- **D2** — Focus non retourne au bouton declencheur (FloatingChatButton) a la fermeture du widget. `FloatingChatWidget.vue:195-218`. Story 1.7 accessibilite.
+- **D3** — Resize concurrent + window resize cause un saut visuel : `onWindowResize` mute le store pendant un drag actif, decalant le delta calcule par `onPointerMove`. `FloatingChatWidget.vue:160-172`. Edge case rare, faible impact.
+- **D4** — Double mecanisme `import.meta.client` : plugin Vite compile-time + `tests/setup.ts` runtime. Redondant mais sans impact. `vitest.config.ts:6-18, tests/setup.ts`. Pre-existant.
+
+## Deferred from: code review of story 1-7-accessibilite-et-navigation-clavier-du-widget (2026-04-13)
+
+- **D1** — `focusFloatingButton` utilise `document.querySelector('[data-testid="floating-chat-button"]')` couplant infra de test a la logique de production. Fonctionnel en l'etat, refactoring en template ref possible plus tard. `FloatingChatWidget.vue:54-57`.
+- **D2** — `setChatWidgetSize` ne clamp pas le maximum viewport (seul le minimum est valide). `clampToViewport()` au mount compense. `ui.ts:96-105`. Faible impact.
+- **D3** — `useFocusTrap` ne redirige pas le focus si celui-ci echappe par un moyen autre que Tab (ex: `focus()` programmatique externe). Limitation connue du composable leger choisi par la spec. `useFocusTrap.ts`.
+- **D4** — AC5 ratio de contraste non verifie par test automatise. Verification manuelle documentee dans les completion notes. Hors scope tests unitaires.

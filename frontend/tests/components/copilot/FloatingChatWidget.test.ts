@@ -677,6 +677,11 @@ describe('FloatingChatWidget', () => {
       uiStore.chatWidgetHeight = 600
       const wrapper = await mountWidget()
 
+      // Ouvrir le widget pour que isVisible=true (F4 guard)
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
+
       const leftHandle = wrapper.find('.cursor-ew-resize')
       // Simuler pointerdown
       await leftHandle.trigger('pointerdown', {
@@ -712,6 +717,11 @@ describe('FloatingChatWidget', () => {
       uiStore.chatWidgetWidth = 400
       uiStore.chatWidgetHeight = 600
       const wrapper = await mountWidget()
+
+      // Ouvrir le widget pour que isVisible=true (F4 guard)
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
 
       const leftHandle = wrapper.find('.cursor-ew-resize')
       // Simuler un drag qui produirait une largeur inferieure au min (300)
@@ -751,9 +761,26 @@ describe('FloatingChatWidget', () => {
       expect(uiStore.chatWidgetHeight).toBe(600)
     })
 
+    it('5.9 — AC4 : pas de CSS transition sur width/height (pas de lag au resize)', async () => {
+      const wrapper = await mountWidget()
+      const widget = wrapper.find('.widget-glass')
+      const style = widget.element.style
+
+      // Verifier qu'aucune transition n'est definie sur les dimensions
+      const transition = style.transition || style.getPropertyValue('transition') || ''
+      expect(transition).not.toMatch(/width/)
+      expect(transition).not.toMatch(/height/)
+    })
+
     it('ajoute select-none pendant le resize', async () => {
       const uiStore = useUiStore()
       const wrapper = await mountWidget()
+
+      // Ouvrir le widget pour que isVisible=true (F4 guard)
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
+
       const widget = wrapper.find('.widget-glass')
 
       // Avant resize : pas de select-none
@@ -777,6 +804,97 @@ describe('FloatingChatWidget', () => {
 
       // Apres resize : select-none retire
       expect(widget.classes()).not.toContain('select-none')
+    })
+  })
+
+  describe('Accessibilite ARIA (Story 1.7)', () => {
+    it('le widget porte role="dialog" et aria-label="Assistant IA ESG" (AC7)', async () => {
+      const wrapper = await mountWidget()
+      const widget = wrapper.find('[role="dialog"]')
+
+      expect(widget.exists()).toBe(true)
+      expect(widget.attributes('aria-label')).toBe('Assistant IA ESG')
+      expect(widget.attributes('aria-modal')).toBe('true')
+    })
+
+    it('la zone messages porte aria-live="polite" (AC4)', async () => {
+      mockMessages.value = [{ id: '1', role: 'assistant', content: 'Bonjour' }]
+      const wrapper = await mountWidget()
+
+      const liveRegion = wrapper.find('[aria-live="polite"]')
+      expect(liveRegion.exists()).toBe(true)
+      expect(liveRegion.attributes('aria-atomic')).toBe('false')
+    })
+
+    it('la region aria-live existe meme sans messages (F3 — premier message annonce)', async () => {
+      mockMessages.value = []
+      const wrapper = await mountWidget()
+
+      const liveRegion = wrapper.find('[aria-live="polite"]')
+      expect(liveRegion.exists()).toBe(true)
+    })
+
+    it('Escape ferme le widget (AC3)', async () => {
+      const wrapper = await mountWidget()
+      const uiStore = useUiStore()
+
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
+
+      expect(uiStore.chatWidgetOpen).toBe(true)
+
+      const widget = wrapper.find('[role="dialog"]')
+      await widget.trigger('keydown', { key: 'Escape' })
+
+      expect(uiStore.chatWidgetOpen).toBe(false)
+    })
+
+    it('le focus retourne au bouton flottant apres fermeture (AC3, D2)', async () => {
+      // Creer un bouton flottant dans le DOM pour le test
+      const floatingBtn = document.createElement('button')
+      floatingBtn.setAttribute('data-testid', 'floating-chat-button')
+      document.body.appendChild(floatingBtn)
+      const focusSpy = vi.spyOn(floatingBtn, 'focus')
+
+      const wrapper = await mountWidget()
+      const uiStore = useUiStore()
+
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
+
+      uiStore.chatWidgetOpen = false
+      await nextTick()
+      await nextTick()
+
+      expect(focusSpy).toHaveBeenCalled()
+
+      document.body.removeChild(floatingBtn)
+    })
+
+    it('AC2 : le premier focusable est dans le header, le dernier est dans le chat input (F5)', async () => {
+      const wrapper = await mountWidget()
+      const uiStore = useUiStore()
+
+      uiStore.chatWidgetOpen = true
+      await nextTick()
+      await nextTick()
+
+      const widget = wrapper.find('[role="dialog"]')
+      const focusable = widget.element.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      )
+
+      expect(focusable.length).toBeGreaterThanOrEqual(2)
+
+      // Premier focusable : dans le header (bouton historique ou fermer)
+      const firstParent = focusable[0].closest('.chat-widget-header-stub')
+      expect(firstParent).not.toBeNull()
+
+      // Dernier focusable : dans le chat input
+      const lastParent = focusable[focusable.length - 1].closest('.chat-input-stub')
+      expect(lastParent).not.toBeNull()
     })
   })
 
