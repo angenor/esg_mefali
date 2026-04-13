@@ -1,7 +1,8 @@
-import { ref, readonly, nextTick } from 'vue'
+import { ref, readonly, nextTick, createApp, h } from 'vue'
 import type { TourState, TourContext, GuidedTourDefinition } from '~/types/guided-tour'
 import { tourRegistry, DEFAULT_ENTRY_COUNTDOWN } from '~/lib/guided-tours/registry'
 import { loadDriver } from '~/composables/useDriverLoader'
+import GuidedTourPopover from '~/components/copilot/GuidedTourPopover.vue'
 
 // Sécurité : ce module-level state ne doit jamais s'exécuter côté serveur
 if (import.meta.server) throw new Error('useGuidedTour is client-only')
@@ -15,6 +16,8 @@ let driverInstance: ReturnType<typeof import('driver.js').driver> | null = null
 let cancelled = false
 let cachedUiStore: ReturnType<typeof import('~/stores/ui').useUiStore> | null = null
 let countdownIntervalId: ReturnType<typeof setInterval> | null = null
+let userInitiatedClose = true
+const mountedApps: ReturnType<typeof createApp>[] = []
 
 // ── Synchronisation GSAP → Driver.js (Story 5.2, ADR6) ──
 let onRetractComplete: (() => void) | null = null
@@ -78,12 +81,42 @@ function clearCountdownTimer(): void {
   }
 }
 
+/** Demonte toutes les mini-apps Vue montees dans les popovers */
+function unmountAllPopoverApps(): void {
+  for (const app of mountedApps) {
+    try { app.unmount() } catch { /* deja demonte */ }
+  }
+  mountedApps.length = 0
+}
+
+/** Supprime les elements DOM orphelins laisses par Driver.js */
+function cleanupDriverResiduals(): void {
+  document.querySelectorAll(
+    '.driver-popover, .driver-overlay',
+  ).forEach(el => el.remove())
+
+  // Retirer la classe au lieu de supprimer l'element (review #8)
+  document.querySelectorAll('.driver-active-element').forEach(el => {
+    el.classList.remove('driver-active-element')
+  })
+
+  document.querySelectorAll('[data-driver-active-element]').forEach(el => {
+    el.removeAttribute('data-driver-active-element')
+  })
+
+  document.querySelectorAll('.driver-highlighted-element, .driver-no-animation').forEach(el => {
+    el.classList.remove('driver-highlighted-element', 'driver-no-animation')
+  })
+}
+
 /** Interruption du parcours : cleanup Driver.js, reset UI et state */
 function interruptTour(uiStore: ReturnType<typeof import('~/stores/ui').useUiStore>): void {
+  unmountAllPopoverApps()
   if (driverInstance) {
     driverInstance.destroy()
     driverInstance = null
   }
+  cleanupDriverResiduals()
   uiStore.chatWidgetMinimized = false
   uiStore.guidedTourActive = false
   tourState.value = 'interrupted'
@@ -94,23 +127,6 @@ function interruptTour(uiStore: ReturnType<typeof import('~/stores/ui').useUiSto
   }, 500)
 }
 
-/** Injecte un badge countdown dans le popover Driver.js courant */
-function injectCountdownBadge(seconds: number): HTMLSpanElement {
-  const badge = document.createElement('span')
-  badge.className = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-semibold tabular-nums'
-  badge.setAttribute('data-countdown-badge', '')
-  badge.textContent = `${seconds}s`
-
-  const popoverDesc = document.querySelector('.driver-popover-description')
-  if (popoverDesc) {
-    const container = document.createElement('div')
-    container.className = 'mt-2'
-    container.appendChild(badge)
-    popoverDesc.appendChild(container)
-  }
-
-  return badge
-}
 
 export function useGuidedTour() {
   async function startTour(tourId: string, context?: TourContext): Promise<void> {
@@ -170,16 +186,29 @@ export function useGuidedTour() {
         if (cancelled) return
       }
 
-      // Creer l'instance Driver.js avec onDestroyStarted dans la config initiale
+      // Creer l'instance Driver.js avec popoverRender custom et interruption (Story 5.4)
       let resolveCurrentStep: (() => void) | null = null
-      driverInstance = driverModule.driver({
-        showProgress: false,
-        showButtons: ['next', 'close'],
-        animate: !uiStore.prefersReducedMotion,
-        onDestroyStarted: () => {
-          resolveCurrentStep?.()
-        },
-      })
+      const totalSteps = interpolatedSteps.length
+
+      /** Fabrique une instance Driver.js avec la config partagee */
+      function createDriverInstance() {
+        return driverModule.driver({
+          showProgress: false,
+          showButtons: [],
+          allowClose: true,
+          animate: !uiStore.prefersReducedMotion,
+          onDestroyStarted: () => {
+            if (cancelled) return // Guard re-entrance (review #1)
+            if (userInitiatedClose) {
+              cancelTour()
+            }
+            resolveCurrentStep?.()
+            userInitiatedClose = true
+          },
+        })
+      }
+
+      driverInstance = createDriverInstance()
 
       // ── Traitement entryStep (Story 5.3 — navigation initiale avec decompteur) ──
       const entryStep = definition.entryStep
@@ -192,53 +221,46 @@ export function useGuidedTour() {
         const countdownDuration = clampCountdown(entryStep.popover.countdown ?? DEFAULT_ENTRY_COUNTDOWN)
 
         await new Promise<void>((resolve) => {
-          let countdownRemaining = countdownDuration
           resolveCurrentStep = resolve
 
           driverInstance!.highlight({
             element: entryStep.selector,
             popover: {
-              title: interpolate(entryStep.popover.title, context),
-              description: interpolate(entryStep.popover.description, context),
-              onNextClick: () => {
-                clearCountdownTimer()
-                resolve()
-              },
-              onCloseClick: () => {
-                clearCountdownTimer()
-                resolve()
+              title: '',
+              description: '',
+              onPopoverRender: (popover: { wrapper: HTMLElement }) => {
+                popover.wrapper.innerHTML = ''
+                const container = document.createElement('div')
+                popover.wrapper.appendChild(container)
+
+                const app = createApp({
+                  render: () => h(GuidedTourPopover, {
+                    title: interpolate(entryStep.popover.title, context),
+                    description: interpolate(entryStep.popover.description, context),
+                    countdown: countdownDuration,
+                    currentStep: 0,
+                    totalSteps,
+                    onClose: () => { cancelTour() },
+                    onNext: () => { userInitiatedClose = false; clearCountdownTimer(); resolve() },
+                    onCountdownExpired: () => { userInitiatedClose = false; clearCountdownTimer(); resolve() },
+                  }),
+                })
+                app.mount(container)
+                mountedApps.push(app)
               },
             },
           })
-
-          // Injecter le badge countdown dans le popover (DOM)
-          const badgeEl = injectCountdownBadge(countdownRemaining)
-
-          // Timer du decompteur
-          countdownIntervalId = setInterval(() => {
-            countdownRemaining--
-            badgeEl.textContent = `${countdownRemaining}s`
-
-            if (countdownRemaining <= 0) {
-              clearCountdownTimer()
-              resolve()
-            }
-          }, 1000)
         })
         resolveCurrentStep = null
 
         if (cancelled) return
 
         // Effectuer la navigation
+        unmountAllPopoverApps()
+        userInitiatedClose = false
         driverInstance?.destroy()
-        driverInstance = driverModule.driver({
-          showProgress: false,
-          showButtons: ['next', 'close'],
-          animate: !uiStore.prefersReducedMotion,
-          onDestroyStarted: () => {
-            resolveCurrentStep?.()
-          },
-        })
+        userInitiatedClose = true
+        driverInstance = createDriverInstance()
 
         tourState.value = 'waiting_dom'
         await navigateTo(entryStep.targetRoute)
@@ -288,35 +310,34 @@ export function useGuidedTour() {
           if (sidebarLink) {
             await new Promise<void>((resolve) => {
               resolveCurrentStep = resolve
-              let remaining = navCountdown
 
               driverInstance!.highlight({
                 element: sidebarSelector,
                 popover: {
-                  title: step.popover.title,
-                  description: step.popover.description,
-                  onNextClick: () => {
-                    clearCountdownTimer()
-                    resolve()
-                  },
-                  onCloseClick: () => {
-                    clearCountdownTimer()
-                    resolve()
+                  title: '',
+                  description: '',
+                  onPopoverRender: (popover: { wrapper: HTMLElement }) => {
+                    popover.wrapper.innerHTML = ''
+                    const container = document.createElement('div')
+                    popover.wrapper.appendChild(container)
+
+                    const app = createApp({
+                      render: () => h(GuidedTourPopover, {
+                        title: step.popover.title,
+                        description: step.popover.description,
+                        countdown: navCountdown,
+                        currentStep: i + 1,
+                        totalSteps,
+                        onClose: () => { cancelTour() },
+                        onNext: () => { userInitiatedClose = false; clearCountdownTimer(); resolve() },
+                        onCountdownExpired: () => { userInitiatedClose = false; clearCountdownTimer(); resolve() },
+                      }),
+                    })
+                    app.mount(container)
+                    mountedApps.push(app)
                   },
                 },
               })
-
-              // Injecter le badge countdown dans le popover sidebar
-              const navBadge = injectCountdownBadge(remaining)
-
-              countdownIntervalId = setInterval(() => {
-                remaining--
-                navBadge.textContent = `${remaining}s`
-                if (remaining <= 0) {
-                  clearCountdownTimer()
-                  resolve()
-                }
-              }, 1000)
             })
             resolveCurrentStep = null
 
@@ -332,15 +353,11 @@ export function useGuidedTour() {
           if (cancelled) return
 
           // Recrer l'instance Driver.js apres navigation
+          unmountAllPopoverApps()
+          userInitiatedClose = false
           if (driverInstance) driverInstance.destroy()
-          driverInstance = driverModule.driver({
-            showProgress: false,
-            showButtons: ['next', 'close'],
-            animate: !uiStore.prefersReducedMotion,
-            onDestroyStarted: () => {
-              resolveCurrentStep?.()
-            },
-          })
+          userInitiatedClose = true
+          driverInstance = createDriverInstance()
 
           // Attente DOM post-navigation
           const el = await waitForElementExtended(step.selector, 10000)
@@ -370,20 +387,35 @@ export function useGuidedTour() {
           }
         }
 
-        // Afficher le highlight
+        // Afficher le highlight avec popover custom (Story 5.4)
+        unmountAllPopoverApps()
         await new Promise<void>((resolve) => {
           resolveCurrentStep = resolve
           driverInstance!.highlight({
             element: step.selector,
             popover: {
-              title: step.popover.title,
-              description: step.popover.description,
+              title: '',
+              description: '',
               side: step.popover.side,
-              onNextClick: () => {
-                resolve()
-              },
-              onCloseClick: () => {
-                resolve()
+              onPopoverRender: (popover: { wrapper: HTMLElement }) => {
+                popover.wrapper.innerHTML = ''
+                const container = document.createElement('div')
+                popover.wrapper.appendChild(container)
+
+                const app = createApp({
+                  render: () => h(GuidedTourPopover, {
+                    title: step.popover.title,
+                    description: step.popover.description,
+                    countdown: step.popover.countdown,
+                    currentStep: i + 1,
+                    totalSteps,
+                    onClose: () => { cancelTour() },
+                    onNext: () => { userInitiatedClose = false; resolve() },
+                    onCountdownExpired: () => { userInitiatedClose = false; resolve() },
+                  }),
+                })
+                app.mount(container)
+                mountedApps.push(app)
               },
             },
           })
@@ -392,10 +424,14 @@ export function useGuidedTour() {
       }
 
       // Finalisation du parcours
+      unmountAllPopoverApps()
       if (driverInstance) {
+        userInitiatedClose = false
         driverInstance.destroy()
+        userInitiatedClose = true
         driverInstance = null
       }
+      cleanupDriverResiduals()
 
       // Reapparition du widget (Story 5.2)
       uiStore.chatWidgetMinimized = false
@@ -414,10 +450,14 @@ export function useGuidedTour() {
     } catch {
       // Reset d'etat en cas d'erreur (loadDriver rejection, highlight throw, etc.)
       clearCountdownTimer()
+      unmountAllPopoverApps()
       if (driverInstance) {
+        userInitiatedClose = false
         driverInstance.destroy()
+        userInitiatedClose = true
         driverInstance = null
       }
+      cleanupDriverResiduals()
       // Reset flags widget (Story 5.2)
       if (cachedUiStore) {
         cachedUiStore.chatWidgetMinimized = false
@@ -437,11 +477,15 @@ export function useGuidedTour() {
 
     cancelled = true
     clearCountdownTimer()
+    unmountAllPopoverApps()
 
     if (driverInstance) {
+      userInitiatedClose = false
       driverInstance.destroy()
+      userInitiatedClose = true
       driverInstance = null
     }
+    cleanupDriverResiduals()
 
     // Reset flags widget (Story 5.2)
     if (cachedUiStore) {

@@ -181,10 +181,18 @@ describe('useGuidedTour', () => {
     const mod = await import('~/composables/useGuidedTour')
     useGuidedTour = mod.useGuidedTour
 
-    // Simuler que les highlights se resolvent immediatement
+    // Simuler que les highlights se resolvent immediatement via popoverRender
     mockHighlight.mockImplementation((opts: Record<string, unknown>) => {
       const popover = opts.popover as Record<string, unknown> | undefined
-      if (popover?.onNextClick) {
+      if (popover?.onPopoverRender) {
+        // Monter le popover custom dans un conteneur DOM
+        const wrapper = document.createElement('div')
+        document.body.appendChild(wrapper)
+        ;(popover.onPopoverRender as (p: { wrapper: HTMLElement }) => void)({ wrapper })
+        // Simuler un clic sur le bouton Suivant (auto-resolve)
+        const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+        if (nextBtn) (nextBtn as HTMLElement).click()
+      } else if (popover?.onNextClick) {
         ;(popover.onNextClick as () => void)()
       }
     })
@@ -279,19 +287,31 @@ describe('useGuidedTour', () => {
 
   // ── T8.6 : Interpolation ──
   describe('interpolation', () => {
-    it('remplace {{key}} par context[key]', async () => {
+    it('remplace {{key}} par context[key] dans le popover custom', async () => {
       setPathname('/test')
       createMockElement('[data-guide-target="test-el"]')
       createMockElement('[data-guide-target="test-el-2"]')
 
+      // Capturer les titres montes dans les popovers
+      const mountedTitles: string[] = []
+      mockHighlight.mockImplementation((opts: Record<string, unknown>) => {
+        const popover = opts.popover as Record<string, unknown> | undefined
+        if (popover?.onPopoverRender) {
+          const wrapper = document.createElement('div')
+          document.body.appendChild(wrapper)
+          ;(popover.onPopoverRender as (p: { wrapper: HTMLElement }) => void)({ wrapper })
+          // Capturer le titre du popover monte
+          const titleEl = wrapper.querySelector('h3')
+          if (titleEl) mountedTitles.push(titleEl.textContent ?? '')
+          const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+          if (nextBtn) (nextBtn as HTMLElement).click()
+        }
+      })
+
       const { startTour } = useGuidedTour()
       await startTour('test_tour', { name: 'Société ABC', score: 85 })
 
-      // Verifier que le premier highlight a recu les textes interpoles
-      const firstCall = mockHighlight.mock.calls[0]?.[0] as Record<string, unknown>
-      const popover = firstCall?.popover as Record<string, unknown>
-      expect(popover?.title).toBe('Titre Société ABC')
-      expect(popover?.description).toBe('Description 85/100')
+      expect(mountedTitles[0]).toBe('Titre Société ABC')
     })
 
     it('cle manquante → chaine vide', async () => {
@@ -299,13 +319,28 @@ describe('useGuidedTour', () => {
       createMockElement('[data-guide-target="test-el"]')
       createMockElement('[data-guide-target="test-el-2"]')
 
+      const mountedTitles: string[] = []
+      const mountedDescriptions: string[] = []
+      mockHighlight.mockImplementation((opts: Record<string, unknown>) => {
+        const popover = opts.popover as Record<string, unknown> | undefined
+        if (popover?.onPopoverRender) {
+          const wrapper = document.createElement('div')
+          document.body.appendChild(wrapper)
+          ;(popover.onPopoverRender as (p: { wrapper: HTMLElement }) => void)({ wrapper })
+          const titleEl = wrapper.querySelector('h3')
+          if (titleEl) mountedTitles.push(titleEl.textContent ?? '')
+          const descEl = wrapper.querySelector('p')
+          if (descEl) mountedDescriptions.push(descEl.textContent ?? '')
+          const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+          if (nextBtn) (nextBtn as HTMLElement).click()
+        }
+      })
+
       const { startTour } = useGuidedTour()
       await startTour('test_tour', {}) // Pas de name ni score
 
-      const firstCall = mockHighlight.mock.calls[0]?.[0] as Record<string, unknown>
-      const popover = firstCall?.popover as Record<string, unknown>
-      expect(popover?.title).toBe('Titre ')
-      expect(popover?.description).toBe('Description /100')
+      expect(mountedTitles[0]).toBe('Titre ')
+      expect(mountedDescriptions[0]).toBe('Description /100')
     })
   })
 
@@ -503,5 +538,152 @@ describe('useGuidedTour', () => {
       await new Promise(r => setTimeout(r, 600))
       expect(tourState.value).toBe('idle')
     }, 10000)
+  })
+
+  // ── T8.14 : Interruption via onDestroyStarted (Story 5.4 — AC1/AC2) ──
+  describe('interruption via onDestroyStarted', () => {
+    it('interruption utilisateur (Escape/clic overlay) declenche cancelTour', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      // Bloquer le highlight : ne pas appeler le next automatiquement
+      let capturedOnDestroyStarted: (() => void) | null = null
+      mockDriverFactory.mockImplementationOnce((config: Record<string, unknown>) => {
+        capturedOnDestroyStarted = config.onDestroyStarted as () => void
+        return mockDriverInstance
+      })
+      mockHighlight.mockImplementationOnce(() => {
+        // Ne pas resolve — le tour reste bloque sur l'etape
+      })
+
+      const { startTour, tourState } = useGuidedTour()
+      startTour('test_tour')
+
+      await new Promise(r => setTimeout(r, 50))
+      expect(tourState.value).toBe('highlighting')
+
+      // Simuler une interruption utilisateur (Escape/clic overlay)
+      // userInitiatedClose est true par defaut → onDestroyStarted appelle cancelTour
+      capturedOnDestroyStarted?.()
+
+      expect(tourState.value).toBe('interrupted')
+      expect(mockUiStoreState.chatWidgetMinimized).toBe(false)
+      expect(mockUiStoreState.guidedTourActive).toBe(false)
+
+      // Pas de message chat sur interruption volontaire (FR25)
+      expect(mockAddSystemMessage).not.toHaveBeenCalled()
+
+      await new Promise(r => setTimeout(r, 600))
+      expect(tourState.value).toBe('idle')
+    }, 10000)
+  })
+
+  // ── T8.15 : Cleanup DOM residuel (Story 5.4 — AC6) ──
+  describe('cleanup DOM residuel', () => {
+    it('supprime les elements orphelins Driver.js apres completion', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      // Simuler des elements Driver.js orphelins dans le DOM
+      const overlay = document.createElement('div')
+      overlay.className = 'driver-overlay'
+      document.body.appendChild(overlay)
+
+      const popover = document.createElement('div')
+      popover.className = 'driver-popover'
+      document.body.appendChild(popover)
+
+      const activeEl = document.createElement('div')
+      activeEl.setAttribute('data-driver-active-element', 'true')
+      document.body.appendChild(activeEl)
+
+      const highlightedEl = document.createElement('div')
+      highlightedEl.classList.add('driver-highlighted-element')
+      document.body.appendChild(highlightedEl)
+
+      const { startTour } = useGuidedTour()
+      await startTour('test_tour')
+
+      // Les elements orphelins doivent avoir ete nettoyes
+      expect(document.querySelector('.driver-overlay')).toBeNull()
+      expect(document.querySelector('.driver-popover')).toBeNull()
+      expect(document.querySelector('[data-driver-active-element]')).toBeNull()
+      expect(document.querySelector('.driver-highlighted-element')).toBeNull()
+    })
+
+    it('preserve les elements non-driver du DOM', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      // Ajouter un element non-driver
+      const userEl = document.createElement('div')
+      userEl.id = 'user-content'
+      userEl.textContent = 'Mon contenu'
+      document.body.appendChild(userEl)
+
+      const { startTour } = useGuidedTour()
+      await startTour('test_tour')
+
+      // L'element non-driver est preserve
+      expect(document.getElementById('user-content')).not.toBeNull()
+      expect(document.getElementById('user-content')?.textContent).toBe('Mon contenu')
+    })
+  })
+
+  // ── T8.16 : popoverRender monte le composant GuidedTourPopover (Story 5.4 — AC3) ──
+  describe('popoverRender', () => {
+    it('passe popoverRender dans chaque highlight pour monter le composant custom', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      let popoverRenderCallCount = 0
+      mockHighlight.mockImplementation((opts: Record<string, unknown>) => {
+        const pop = opts.popover as Record<string, unknown> | undefined
+        if (pop?.onPopoverRender) {
+          popoverRenderCallCount++
+          const wrapper = document.createElement('div')
+          document.body.appendChild(wrapper)
+          ;(pop.onPopoverRender as (p: { wrapper: HTMLElement }) => void)({ wrapper })
+          const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+          if (nextBtn) (nextBtn as HTMLElement).click()
+        }
+      })
+
+      const { startTour } = useGuidedTour()
+      await startTour('test_tour', { name: 'ESG', score: 75 })
+
+      // popoverRender est appele pour chaque etape
+      expect(popoverRenderCallCount).toBe(2)
+    })
+
+    it('allowClose est true dans la config Driver.js', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      const { startTour } = useGuidedTour()
+      await startTour('test_tour')
+
+      expect(mockDriverFactory).toHaveBeenCalledWith(
+        expect.objectContaining({ allowClose: true }),
+      )
+    })
+
+    it('showButtons est vide (le popover custom gere les boutons)', async () => {
+      setPathname('/test')
+      createMockElement('[data-guide-target="test-el"]')
+      createMockElement('[data-guide-target="test-el-2"]')
+
+      const { startTour } = useGuidedTour()
+      await startTour('test_tour')
+
+      expect(mockDriverFactory).toHaveBeenCalledWith(
+        expect.objectContaining({ showButtons: [] }),
+      )
+    })
   })
 })

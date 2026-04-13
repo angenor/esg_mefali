@@ -111,7 +111,13 @@ describe('useGuidedTour — retraction widget (Story 5.2)', () => {
 
     mockHighlight.mockImplementation((opts: Record<string, unknown>) => {
       const popover = opts.popover as Record<string, unknown> | undefined
-      if (popover?.onNextClick) {
+      if (popover?.onPopoverRender) {
+        const wrapper = document.createElement('div')
+        document.body.appendChild(wrapper)
+        ;(popover.onPopoverRender as (p: { wrapper: HTMLElement }) => void)({ wrapper })
+        const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+        if (nextBtn) (nextBtn as HTMLElement).click()
+      } else if (popover?.onNextClick) {
         ;(popover.onNextClick as () => void)()
       }
     })

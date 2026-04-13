@@ -154,10 +154,7 @@ vi.stubGlobal('location', {
 const mockElement = document.createElement('div')
 let querySelectorResult: Element | null = mockElement
 
-const originalQuerySelector = document.querySelector.bind(document)
 vi.spyOn(document, 'querySelector').mockImplementation((selector: string) => {
-  // Retourner le popover pour l'injection du badge
-  if (selector === '.driver-popover-description') return mockElement
   return querySelectorResult
 })
 
@@ -176,7 +173,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
     mockUiStore.chatWidgetMinimized = false
     mockUiStore.chatWidgetOpen = false
 
-    // Simuler que highlight resolve immediatement (clic next)
+    // Simuler que highlight resolve immediatement (clic next via popoverRender)
     mockHighlight.mockImplementation(() => {})
   })
 
@@ -190,16 +187,27 @@ describe('useGuidedTour — navigation multi-pages', () => {
     return mod.useGuidedTour()
   }
 
+  /** Monte le popover custom via popoverRender et clique "Suivant" */
+  function resolvePopoverRender(config: any): void {
+    const popover = config?.popover
+    if (popover?.onPopoverRender) {
+      const wrapper = document.createElement('div')
+      document.body.appendChild(wrapper)
+      popover.onPopoverRender({ wrapper })
+      const nextBtn = wrapper.querySelector('[data-testid="popover-next-btn"]')
+      if (nextBtn) (nextBtn as HTMLElement).click()
+    }
+  }
+
   // ── entryStep processing ──
 
   it('passe a "navigating" quand entryStep.targetRoute !== currentRoute', async () => {
     currentPathname = '/dashboard'
     const { startTour, tourState } = await importFresh()
 
-    // Configurer highlight pour resoudre via onNextClick
+    // Configurer highlight pour resoudre via popoverRender
     mockHighlight.mockImplementation((config: any) => {
-      // Simuler clic immediat
-      setTimeout(() => config?.popover?.onNextClick?.(), 100)
+      setTimeout(() => resolvePopoverRender(config), 100)
     })
 
     const promise = startTour('tour_nav')
@@ -227,13 +235,21 @@ describe('useGuidedTour — navigation multi-pages', () => {
     currentPathname = '/dashboard'
     const { startTour } = await importFresh()
 
-    // Configurer highlight pour les etapes normales (resoudre via onNextClick)
+    // Configurer highlight pour les etapes normales (resoudre via popoverRender)
     let highlightCallCount = 0
     mockHighlight.mockImplementation((config: any) => {
       highlightCallCount++
-      // Premier highlight = entryStep, ne pas resoudre automatiquement (attendre countdown)
+      // Premier highlight = entryStep avec countdown, laisser expirer naturellement
       if (highlightCallCount > 1) {
-        setTimeout(() => config?.popover?.onNextClick?.(), 50)
+        setTimeout(() => resolvePopoverRender(config), 50)
+      } else {
+        // Monter le popover avec countdown sans cliquer "Suivant"
+        const popover = config?.popover
+        if (popover?.onPopoverRender) {
+          const wrapper = document.createElement('div')
+          document.body.appendChild(wrapper)
+          popover.onPopoverRender({ wrapper })
+        }
       }
     })
 
@@ -262,7 +278,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
     const { startTour } = await importFresh()
 
     mockHighlight.mockImplementation((config: any) => {
-      setTimeout(() => config?.popover?.onNextClick?.(), 50)
+      setTimeout(() => resolvePopoverRender(config), 50)
     })
 
     const promise = startTour('tour_same_page')
@@ -282,7 +298,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
     const { startTour } = await importFresh()
 
     mockHighlight.mockImplementation((config: any) => {
-      setTimeout(() => config?.popover?.onNextClick?.(), 50)
+      setTimeout(() => resolvePopoverRender(config), 50)
     })
 
     const promise = startTour('tour_no_entry')
@@ -305,7 +321,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
 
     mockHighlight.mockImplementation((config: any) => {
       // entryStep: simuler clic immediat
-      setTimeout(() => config?.popover?.onNextClick?.(), 50)
+      setTimeout(() => resolvePopoverRender(config), 50)
     })
 
     const promise = startTour('tour_nav')
@@ -334,7 +350,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
     let highlightCount = 0
     mockHighlight.mockImplementation((config: any) => {
       highlightCount++
-      setTimeout(() => config?.popover?.onNextClick?.(), 50)
+      setTimeout(() => resolvePopoverRender(config), 50)
     })
 
     const promise = startTour('tour_multi_route')
