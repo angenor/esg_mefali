@@ -16,3 +16,24 @@
 - **W4** — Boucle SSE dupliquée entre sendMessage et submitInteractiveAnswer (~200 lignes). `useChat.ts:208-415, 561-638`. Pré-existant (voir aussi F9).
 - **W5** — Pas d'AbortController sur fetchConversations/fetchMessages/deleteConversation. `useChat.ts:71-77, 96-103, 429-439`. Pré-existant.
 - **W6** — TextDecoder sans `{ stream: true }` — caractères multi-octets tronqués aux frontières de chunks. `useChat.ts:197, 551`. Pré-existant (voir aussi F8).
+
+## Deferred from: code review of story 1-3-bouton-flottant-et-conteneur-du-widget (2026-04-12)
+
+- **W1** — `prefersReducedMotion` non-réactif (snapshot au mount, pas de listener `change`). `FloatingChatWidget.vue:12`. Story 1.7 accessibilité.
+- **W2** — AbortController/sseReader jamais cleanup à la navigation. `useChat.ts:43-44`. Pré-existant (scope story 1-1).
+- **W3** — `sseReader.cancel()` race condition entre check et reassignment (yield entre await et assignment). `useChat.ts:190-195`. Pré-existant (scope story 1-1).
+- **W4** — `isStreaming` guard bloque les nouveaux messages sans aborter le stream en cours. `useChat.ts:133`. Pré-existant (scope story 1-1).
+- **W5** — `useDeviceDetection` listener leak si appelé hors scope Vue en production (warning dev-only). `useDeviceDetection.ts:22-29`. Pré-existant (scope story 1-2).
+- **W6** — Widget `h-[600px]` overflow viewport sur écrans courts (<680px), header clippé. `FloatingChatWidget.vue:67`. Story 1.6 redimensionnement.
+
+## Deferred from: code review of story 1-4-en-tete-du-widget-et-historique-des-conversations (2026-04-13)
+
+- **F5** — Double appel `fetchConversations` possible en cas de toggle rapide (pas de guard `isFetching`). `FloatingChatWidget.vue:67`. Edge case mineur, pas de consequence grave.
+- **F7** — Decalage visuel du titre quand le bouton retour apparait/disparait (flex layout shift). `ChatWidgetHeader.vue:17-30`. Cosmetic, a traiter en Story 1.7 accessibilite.
+
+## Deferred from: code review of story 1-5-integration-du-chat-complet-dans-le-widget (2026-04-13)
+
+- **D1** — Quick actions WelcomeMessage non cablees : `handleQuickAction` defini mais jamais lie au template. Gap pre-existant (pages/chat.vue non plus). Story dediee necessaire pour ajouter emit a WelcomeMessage sans violer AC9.
+- **D3** — `reportSuggestion` non affiche dans le widget : banniere rapport PDF omise, widget 400px trop etroit. Enhancement future.
+- **W1** — `prefersReducedMotion` non-reactif (snapshot au mount, pas de listener `change`). `FloatingChatWidget.vue:41`. Deja traque pour story 1.7 accessibilite.
+- **W2** — Race condition concurrente dans `sendMessage` de `useChat.ts` : pas de mutex atomique entre le guard `isStreaming` et son assignment. `useChat.ts:132`. Pre-existant (scope story 1-1).

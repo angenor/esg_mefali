@@ -9,7 +9,8 @@ const uiStore = useUiStore()
     type="button"
     class="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-brand-green text-white shadow-lg dark:shadow-dark-border/20 hover:scale-105 active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-brand-green focus:ring-offset-2 dark:focus:ring-offset-surface-dark-bg"
     :aria-label="uiStore.chatWidgetOpen ? 'Fermer l\u2019assistant IA' : 'Ouvrir l\u2019assistant IA'"
-    role="button"
+    :aria-expanded="uiStore.chatWidgetOpen"
+    aria-controls="copilot-widget"
     @click="uiStore.toggleChatWidget()"
   >
     <!-- Icone chat (widget ferme) -->

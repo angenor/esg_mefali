@@ -31,7 +31,7 @@ describe('FloatingChatButton', () => {
 
       expect(button.exists()).toBe(true)
       expect(button.attributes('aria-label')).toBe('Ouvrir l\u2019assistant IA')
-      expect(button.attributes('role')).toBe('button')
+      expect(button.attributes('aria-expanded')).toBe('false')
     })
 
     it('affiche l\'icone chat (pas l\'icone X) quand le widget est ferme', () => {

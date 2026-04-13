@@ -1,6 +1,6 @@
 # Story 1.3 : Bouton flottant et conteneur du widget
 
-Status: review
+Status: done
 
 ## Story
 
@@ -335,6 +335,23 @@ Claude Opus 4.6 (1M context)
 - frontend/tests/composables/useDeviceDetection.test.ts (modifie — annotation @vitest-environment node)
 - frontend/vitest.config.ts (modifie — happy-dom + @vitejs/plugin-vue)
 - frontend/package.json (modifie — ajout @vue/test-utils, happy-dom, @vitejs/plugin-vue en devDependencies)
+
+### Review Findings
+
+- [x] [Review][Decision] D1 — Resize desktop→mobile laisse `chatWidgetOpen=true` — FIXE : watcher sur isDesktop dans default.vue reset chatWidgetOpen
+- [x] [Review][Decision] D2 — `v-if="isDesktop"` detruit le DOM du widget — TOLERE : v-if est au niveau layout (device class), v-show interne respecte pour open/close
+- [x] [Review][Patch] P1 — Race condition GSAP : ajout `killTweensOf` avant animate [FloatingChatWidget.vue]
+- [x] [Review][Patch] P2 — GSAP cleanup : ajout `onBeforeUnmount` avec `killTweensOf` [FloatingChatWidget.vue]
+- [x] [Review][Patch] P3 — Ajout `aria-hidden` dynamique lie a `!isVisible` [FloatingChatWidget.vue]
+- [x] [Review][Patch] P4 — Ajout `aria-expanded` sur le FAB [FloatingChatButton.vue]
+- [x] [Review][Patch] P5 — Suppression `role="button"` redondant [FloatingChatButton.vue]
+- [x] [Review][Patch] P6 — Suppression `isAnimating` dead state [FloatingChatWidget.vue]
+- [x] [Review][Defer] W1 — `prefersReducedMotion` non-reactif (snapshot au mount) [FloatingChatWidget.vue:12] — deferred, Story 1.7 accessibilite
+- [x] [Review][Defer] W2 — AbortController/sseReader jamais cleanup a la navigation [useChat.ts] — deferred, scope story 1-1
+- [x] [Review][Defer] W3 — `sseReader.cancel()` race condition entre check et reassignment [useChat.ts] — deferred, scope story 1-1
+- [x] [Review][Defer] W4 — `isStreaming` guard bloque nouveaux messages sans abort [useChat.ts] — deferred, scope story 1-1
+- [x] [Review][Defer] W5 — `useDeviceDetection` listener leak hors scope Vue en production [useDeviceDetection.ts:22] — deferred, scope story 1-2
+- [x] [Review][Defer] W6 — Widget `h-[600px]` overflow viewport sur ecrans courts (<680px) [FloatingChatWidget.vue:67] — deferred, Story 1.6 redimensionnement
 
 ### Change Log
 

@@ -1,9 +1,15 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useUiStore } from '~/stores/ui'
 import { useDeviceDetection } from '~/composables/useDeviceDetection'
 
 const uiStore = useUiStore()
 const { isDesktop } = useDeviceDetection()
+
+// D1 : reset le widget flottant quand on passe en mobile
+watch(isDesktop, (desktop) => {
+  if (!desktop) uiStore.closeChatWidget()
+})
 </script>
 
 <template>
