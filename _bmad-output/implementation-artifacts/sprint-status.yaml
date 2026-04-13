@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-13' (Story 5.2 done)
-last_story_created: '5-2-retraction-et-reapparition-animee-du-widget-pendant-le-guidage'
-last_review_completed: '5-2-retraction-et-reapparition-animee-du-widget-pendant-le-guidage'
+last_updated: '2026-04-13' (Story 5.3 done)
+last_story_created: '5-3-navigation-multi-pages-avec-decompteur'
+last_review_completed: '5-3-navigation-multi-pages-avec-decompteur'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -78,7 +78,7 @@ development_status:
   epic-5: in-progress
   5-1-composable-useguidedtour-machine-a-etats-et-execution-mono-page: done
   5-2-retraction-et-reapparition-animee-du-widget-pendant-le-guidage: done
-  5-3-navigation-multi-pages-avec-decompteur: backlog
+  5-3-navigation-multi-pages-avec-decompteur: done
   5-4-interruption-du-parcours-et-popover-custom: backlog
   epic-5-retrospective: optional
 

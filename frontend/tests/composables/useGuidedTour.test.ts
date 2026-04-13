@@ -23,12 +23,18 @@ vi.mock('~/composables/useDriverLoader', () => ({
 }))
 
 // Mock du store ui
-const mockPrefersReducedMotion = { value: false }
+const mockUiStoreState = {
+  prefersReducedMotion: false,
+  guidedTourActive: false,
+  chatWidgetMinimized: false,
+  chatWidgetOpen: false,
+}
 vi.mock('~/stores/ui', () => ({
-  useUiStore: () => ({
-    prefersReducedMotion: mockPrefersReducedMotion.value,
-  }),
+  useUiStore: () => mockUiStoreState,
 }))
+
+// Mock navigateTo (auto-import Nuxt)
+vi.stubGlobal('navigateTo', vi.fn(() => Promise.resolve()))
 
 // Mock de useChat (pour addSystemMessage)
 const mockAddSystemMessage = vi.fn()
@@ -165,7 +171,10 @@ describe('useGuidedTour', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     clearDom()
-    mockPrefersReducedMotion.value = false
+    mockUiStoreState.prefersReducedMotion = false
+    mockUiStoreState.guidedTourActive = false
+    mockUiStoreState.chatWidgetMinimized = false
+    mockUiStoreState.chatWidgetOpen = false
 
     // Reset module-level state en re-important
     vi.resetModules()
@@ -406,7 +415,7 @@ describe('useGuidedTour', () => {
   // ── T8.10 : prefers-reduced-motion ──
   describe('prefers-reduced-motion', () => {
     it('passe animate: false a Driver.js quand reduced motion est actif', async () => {
-      mockPrefersReducedMotion.value = true
+      mockUiStoreState.prefersReducedMotion = true
       setPathname('/')
       createMockElement('[data-guide-target="countdown-el"]')
 
@@ -419,7 +428,7 @@ describe('useGuidedTour', () => {
     })
 
     it('passe animate: true quand reduced motion est inactif', async () => {
-      mockPrefersReducedMotion.value = false
+      mockUiStoreState.prefersReducedMotion = false
       setPathname('/')
       createMockElement('[data-guide-target="countdown-el"]')
 
@@ -446,18 +455,17 @@ describe('useGuidedTour', () => {
     })
   })
 
-  // ── T8.12 : zero etapes mono-page ──
-  describe('zero etapes mono-page', () => {
-    it('retour a idle si aucune etape ne correspond a la route courante', async () => {
-      setPathname('/dashboard') // Aucune etape de tour_other_route n'est sur /dashboard
+  // ── T8.12 : etapes sur autre route → navigation (Story 5.3) ──
+  describe('etapes sur autre route', () => {
+    it('navigue vers la route de l\'etape si differente de la route courante', async () => {
+      setPathname('/dashboard') // Etape de tour_other_route est sur /other-page
+      createMockElement('[data-guide-target="other-el"]')
 
       const { startTour, tourState } = useGuidedTour()
       await startTour('tour_other_route')
 
-      // Le tour se termine immediatement sans highlight
-      expect(tourState.value).toBe('idle')
-      expect(mockHighlight).not.toHaveBeenCalled()
-      expect(mockDestroy).not.toHaveBeenCalled()
+      // navigateTo doit avoir ete appele pour la route de l'etape
+      expect(navigateTo).toHaveBeenCalledWith('/other-page')
     })
   })
 
