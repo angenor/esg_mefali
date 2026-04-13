@@ -51,3 +51,8 @@
 - **D2** — `setChatWidgetSize` ne clamp pas le maximum viewport (seul le minimum est valide). `clampToViewport()` au mount compense. `ui.ts:96-105`. Faible impact.
 - **D3** — `useFocusTrap` ne redirige pas le focus si celui-ci echappe par un moyen autre que Tab (ex: `focus()` programmatique externe). Limitation connue du composable leger choisi par la spec. `useFocusTrap.ts`.
 - **D4** — AC5 ratio de contraste non verifie par test automatise. Verification manuelle documentee dans les completion notes. Hors scope tests unitaires.
+
+## Deferred from: code review of story 2-1-suppression-de-la-page-chat-et-de-chatpanel (2026-04-13)
+
+- **D1** — Dead code `chatPanelOpen` et `toggleChatPanel` dans `stores/ui.ts` (lignes 15, 55-57, 145, 159). Plus aucun consommateur depuis la suppression de ChatPanel et du bouton AppHeader. Nettoyage a planifier dans une story dediee.
+- **D2** — Aucun acces chat sur mobile : le widget flottant est masque sur mobile (`v-if="isDesktop"`) et `pages/chat.vue` est supprime. Le widget flottant occupera tout l'ecran sur mobile (epic dedie).

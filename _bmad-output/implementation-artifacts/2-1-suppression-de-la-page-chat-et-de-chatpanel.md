@@ -1,6 +1,6 @@
 # Story 2.1 : Suppression de la page /chat et de ChatPanel
 
-Status: review
+Status: done
 
 ## Story
 
@@ -198,3 +198,9 @@ Claude Opus 4.6 (1M context)
 - `frontend/app/layouts/default.vue` — MODIFIE (retrait de `<ChatPanel />`)
 - `frontend/app/components/layout/AppHeader.vue` — MODIFIE (retrait du bouton toggle chat panel)
 - `frontend/tests/layouts/default.test.ts` — NOUVEAU (5 tests)
+
+### Review Findings
+
+- [x] [Review][Defer] **Aucun acces chat sur mobile** — deferred. Le widget flottant occupera tout l'ecran sur mobile (epic dedie).
+- [x] [Review][Patch] **AC4 couverture verifiee** — `default.vue` 100%, `AppHeader.vue` suppression pure (0 nouveau code), `ui.ts` 74.64% pre-existant (hors scope 2-1). AC4 satisfait.
+- [x] [Review][Defer] **Dead code `chatPanelOpen`/`toggleChatPanel` dans `stores/ui.ts`** — deferred, pre-existant. `stores/ui.ts` est hors scope de cette story (DO NOT TOUCH). Nettoyage a planifier dans une story dediee.
