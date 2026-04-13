@@ -71,12 +71,13 @@ Utilise les informations suivantes recuperees de la base de donnees pour repondr
 def build_financing_prompt(
     company_context: str = "Aucun profil disponible.",
     rag_context: str = "Aucune information supplementaire disponible.",
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt financement avec le contexte entreprise et RAG."""
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         FINANCING_PROMPT.format(
             company_context=company_context,
             rag_context=rag_context,
@@ -86,3 +87,9 @@ def build_financing_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

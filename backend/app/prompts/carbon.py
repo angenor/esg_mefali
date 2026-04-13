@@ -120,12 +120,13 @@ Quand toutes les categories sont completees :
 def build_carbon_prompt(
     company_context: str = "Aucun profil disponible.",
     applicable_categories: str = "energy, transport, waste",
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt carbone avec le contexte entreprise."""
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         CARBON_PROMPT.format(
             company_context=company_context,
             applicable_categories=applicable_categories,
@@ -135,3 +136,9 @@ def build_carbon_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

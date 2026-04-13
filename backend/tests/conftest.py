@@ -129,5 +129,6 @@ def make_conversation_state(**overrides) -> dict:
         "tool_call_count": 0,
         "active_module": None,
         "active_module_data": None,
+        "current_page": None,
     }
     return {**defaults, **overrides}

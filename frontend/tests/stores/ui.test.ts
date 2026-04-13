@@ -2,6 +2,40 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useUiStore } from '~/stores/ui'
 
+describe('useUiStore — currentPage (Story 3.1)', () => {
+  let pinia: ReturnType<typeof createPinia>
+
+  beforeEach(() => {
+    pinia = createPinia()
+    setActivePinia(pinia)
+  })
+
+  it('currentPage est initialise a "/" par defaut', () => {
+    const store = useUiStore()
+    expect(store.currentPage).toBe('/')
+  })
+
+  it('currentPage est modifiable', () => {
+    const store = useUiStore()
+    store.currentPage = '/carbon/results'
+    expect(store.currentPage).toBe('/carbon/results')
+  })
+
+  it('currentPage est expose dans le store', () => {
+    const store = useUiStore()
+    expect('currentPage' in store).toBe(true)
+  })
+
+  it('currentPage n\'est PAS persiste dans localStorage', () => {
+    const store = useUiStore()
+    store.currentPage = '/esg'
+    // Aucune cle localStorage ne doit contenir currentPage
+    const keys = Object.keys(localStorage)
+    const hasCurrentPage = keys.some(k => localStorage.getItem(k)?.includes('currentPage'))
+    expect(hasCurrentPage).toBe(false)
+  })
+})
+
 describe('useUiStore — prefersReducedMotion (Story 1.7)', () => {
   let pinia: ReturnType<typeof createPinia>
 

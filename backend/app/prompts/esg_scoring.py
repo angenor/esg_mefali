@@ -83,12 +83,13 @@ Quand les 30 criteres sont evalues :
 def build_esg_prompt(
     company_context: str = "Aucun profil disponible.",
     document_context: str = "Aucun document analyse.",
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt ESG avec le contexte entreprise et documents."""
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         ESG_SCORING_PROMPT.format(
             company_context=company_context,
             document_context=document_context,
@@ -98,3 +99,9 @@ def build_esg_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

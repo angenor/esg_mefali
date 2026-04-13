@@ -117,6 +117,49 @@ Toujours accompagner les blocs visuels d'explications textuelles contextualisée
 Quand des informations ESG sont extraites, utilise un ```radar ou ```progress pour les visualiser par pilier."""
 
 
+# Mapping page → description contextuelle lisible par le LLM
+PAGE_DESCRIPTIONS: dict[str, str] = {
+    "/dashboard": "le tableau de bord principal avec les cartes de synthèse ESG, carbone, crédit et financement",
+    "/esg": "la page d'évaluation ESG",
+    "/esg/results": "la page des résultats détaillés de l'évaluation ESG (score, piliers, recommandations)",
+    "/carbon": "la page du calculateur d'empreinte carbone",
+    "/carbon/results": "la page des résultats du bilan carbone (répartition, benchmark, plan de réduction)",
+    "/financing": "le catalogue des fonds de financement vert",
+    "/credit-score": "la page du score de crédit vert alternatif",
+    "/action-plan": "la page du plan d'action avec la timeline des actions recommandées",
+    "/reports": "la page de génération des rapports PDF",
+}
+
+
+def build_page_context_instruction(current_page: str | None) -> str:
+    """Générer l'instruction de contexte de page pour le LLM."""
+    if not current_page:
+        return ""
+
+    page_desc = PAGE_DESCRIPTIONS.get(current_page)
+    if page_desc:
+        context_line = f"L'utilisateur consulte actuellement {page_desc} ({current_page})."
+    else:
+        context_line = f"L'utilisateur est actuellement sur la page {current_page}."
+
+    instruction = (
+        "CONTEXTE DE NAVIGATION :\n"
+        f"{context_line}\n"
+        "Adapte tes réponses à ce contexte : si l'utilisateur pose une question en lien avec cette page, "
+        "réponds en tenant compte de ce qu'il voit. Ne répète pas systématiquement le nom de la page.\n"
+    )
+
+    # FR13 : proposition de guidage sur les pages de résultats et le dashboard
+    if current_page in ("/dashboard", "/esg/results", "/carbon/results", "/action-plan"):
+        instruction += (
+            "Si l'utilisateur vient de terminer un module ou si des résultats sont disponibles, "
+            "tu peux lui proposer de l'accompagner vers les résultats ou les prochaines étapes "
+            "(proposition textuelle uniquement).\n"
+        )
+
+    return instruction
+
+
 def _has_minimum_profile(profile: dict) -> bool:
     """Vérifie que le profil a au moins 2 champs renseignés (post-onboarding)."""
     filled = sum(
@@ -131,6 +174,7 @@ def build_system_prompt(
     context_memory: list[str] | None = None,
     profiling_instructions: str | None = None,
     document_analysis_summary: str | None = None,
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt système avec le profil, la mémoire, le profilage guidé et le contexte document."""
     sections: list[str] = [BASE_PROMPT]
@@ -167,6 +211,11 @@ def build_system_prompt(
     # Injecter le style concis uniquement post-onboarding
     if user_profile and _has_minimum_profile(user_profile):
         sections.append(STYLE_INSTRUCTION)
+
+    # Injecter le contexte de page courante
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        sections.append(page_context)
 
     return "\n\n".join(sections)
 

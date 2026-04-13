@@ -10,6 +10,7 @@ import type {
 } from '~/types/interactive-question'
 import { useAuthStore } from '~/stores/auth'
 import { useCompanyStore } from '~/stores/company'
+import { useUiStore } from '~/stores/ui'
 
 // Sécurité : ce module-level state ne doit jamais s'exécuter côté serveur
 if (import.meta.server) throw new Error('useChat is client-only')
@@ -158,11 +159,13 @@ export function useChat() {
 
     try {
       // Construire la requete : multipart si fichier, sinon Form data
+      const uiStore = useUiStore()
       const formData = new FormData()
       formData.append('content', content || (file ? `Analyse ce document : ${file.name}` : ''))
       if (file) {
         formData.append('file', file)
       }
+      formData.append('current_page', uiStore.currentPage)
 
       const headers: Record<string, string> = {}
       if (authStore.accessToken) {
@@ -515,6 +518,7 @@ export function useChat() {
     const localController = abortController.value
 
     try {
+      const uiStore = useUiStore()
       const formData = new FormData()
       formData.append('content', '')
       formData.append('interactive_question_id', questionId)
@@ -522,6 +526,7 @@ export function useChat() {
       if (answer.justification) {
         formData.append('interactive_question_justification', answer.justification)
       }
+      formData.append('current_page', uiStore.currentPage)
 
       const headers: Record<string, string> = {}
       if (authStore.accessToken) {

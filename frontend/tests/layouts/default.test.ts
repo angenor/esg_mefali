@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { ref, defineComponent, watch } from 'vue'
+import { ref, defineComponent, watch, nextTick } from 'vue'
 
 // Stub des auto-imports Nuxt (useRoute, useRouter, watch)
-const mockRoute = ref({ query: {} })
+const mockRoute = ref({ query: {}, path: '/' })
 vi.stubGlobal('useRoute', () => mockRoute.value)
 vi.stubGlobal('useRouter', () => ({
   replace: vi.fn(),
@@ -29,7 +29,7 @@ describe('Layout default.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mockIsDesktop.value = true
-    mockRoute.value = { query: {} }
+    mockRoute.value = { query: {}, path: '/' }
   })
 
   function mountLayout() {
@@ -78,7 +78,7 @@ describe('Layout default.vue', () => {
     const mockReplace = vi.fn()
     vi.stubGlobal('useRouter', () => ({ replace: mockReplace }))
 
-    mockRoute.value = { query: { openChat: '1' } }
+    mockRoute.value = { query: { openChat: '1' }, path: '/' }
     mountLayout()
 
     // Le watcher immediate devrait avoir declenche l'ouverture
@@ -90,10 +90,37 @@ describe('Layout default.vue', () => {
     const { useUiStore } = await import('~/stores/ui')
     const uiStore = useUiStore()
 
-    mockRoute.value = { query: {} }
+    mockRoute.value = { query: {}, path: '/' }
     mountLayout()
 
     expect(uiStore.chatWidgetOpen).toBe(false)
+  })
+
+  it('met a jour uiStore.currentPage au mount (Story 3.1)', async () => {
+    const { useUiStore } = await import('~/stores/ui')
+    const uiStore = useUiStore()
+
+    mockRoute.value = { query: {}, path: '/dashboard' }
+    mountLayout()
+
+    // Le watcher immediate devrait avoir mis a jour currentPage
+    expect(uiStore.currentPage).toBe('/dashboard')
+  })
+
+  it('met a jour uiStore.currentPage quand la route change (Story 3.1)', async () => {
+    const { useUiStore } = await import('~/stores/ui')
+    const uiStore = useUiStore()
+
+    // Monter avec une route initiale
+    mockRoute.value = { query: {}, path: '/dashboard' }
+    mountLayout()
+    expect(uiStore.currentPage).toBe('/dashboard')
+
+    // Simuler un changement de route — on modifie path sur le meme objet reactif
+    mockRoute.value.path = '/carbon/results'
+    await nextTick()
+
+    expect(uiStore.currentPage).toBe('/carbon/results')
   })
 
   it('masque le widget flottant sur mobile', () => {

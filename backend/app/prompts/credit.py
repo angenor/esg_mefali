@@ -114,12 +114,13 @@ Invite l'utilisateur a consulter la page /credit-score pour le detail complet.
 def build_credit_prompt(
     company_context: str = "Aucun profil disponible.",
     scoring_context: str = "Aucun score genere.",
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt credit avec le contexte entreprise et scoring."""
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         CREDIT_PROMPT.format(
             company_context=company_context,
             scoring_context=scoring_context,
@@ -129,3 +130,9 @@ def build_credit_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

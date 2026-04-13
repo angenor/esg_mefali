@@ -33,3 +33,4 @@ class ConversationState(TypedDict):
     tool_call_count: int
     active_module: str | None
     active_module_data: dict | None
+    current_page: str | None

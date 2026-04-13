@@ -99,6 +99,7 @@ def build_action_plan_prompt(
     financing_context: str = "Aucun matching financement disponible.",
     intermediaries_context: str = "Aucun intermédiaire identifié.",
     timeframe: int = 12,
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt pour la génération du plan d'action.
 
@@ -113,10 +114,10 @@ def build_action_plan_prompt(
     Returns:
         Prompt formaté pour le LLM
     """
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         ACTION_PLAN_PROMPT.format(
             company_context=company_context,
             esg_context=esg_context,
@@ -130,3 +131,9 @@ def build_action_plan_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

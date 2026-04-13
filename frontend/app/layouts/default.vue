@@ -13,6 +13,13 @@ watch(isDesktop, (desktop) => {
   if (!desktop) uiStore.closeChatWidget()
 })
 
+// Tracker la page courante pour le contexte LLM (Story 3.1)
+if (import.meta.client) {
+  watch(() => route.path, (newPath) => {
+    uiStore.currentPage = newPath
+  }, { immediate: true })
+}
+
 // Ouvrir le widget quand on arrive via la redirection /chat
 if (import.meta.client) {
   watch(() => route.query.openChat, (val) => {

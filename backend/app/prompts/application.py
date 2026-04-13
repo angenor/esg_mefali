@@ -98,12 +98,13 @@ graph LR
 def build_application_prompt(
     company_context: str = "Aucun profil disponible.",
     application_context: str = "Aucun dossier en cours.",
+    current_page: str | None = None,
 ) -> str:
     """Construire le prompt application avec le contexte entreprise et dossier."""
-    from app.prompts.system import STYLE_INSTRUCTION
+    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
-    return (
+    prompt = (
         APPLICATION_PROMPT.format(
             company_context=company_context,
             application_context=application_context,
@@ -113,3 +114,9 @@ def build_application_prompt(
         + "\n\n"
         + WIDGET_INSTRUCTION
     )
+
+    page_context = build_page_context_instruction(current_page)
+    if page_context:
+        prompt += "\n\n" + page_context
+
+    return prompt

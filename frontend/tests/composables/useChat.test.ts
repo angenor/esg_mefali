@@ -14,6 +14,11 @@ vi.mock('~/stores/company', () => ({
   }),
 }))
 
+const mockCurrentPage = { value: '/' }
+vi.mock('~/stores/ui', () => ({
+  useUiStore: () => ({ currentPage: mockCurrentPage.value }),
+}))
+
 // Mock useRuntimeConfig (auto-import Nuxt)
 vi.stubGlobal('useRuntimeConfig', () => ({
   public: { apiBase: 'http://localhost:8000/api' },
@@ -252,6 +257,82 @@ describe('useChat — module-level state', () => {
       chat.searchQuery.value = 'xyz'
       expect(chat.filteredConversations.value).toHaveLength(0)
 
+    })
+  })
+
+  // ── Story 3.1 : current_page dans le FormData ──
+  describe('Story 3.1: current_page dans sendMessage', () => {
+    afterEach(() => {
+      mockCurrentPage.value = '/'
+    })
+
+    it('sendMessage inclut current_page dans le FormData', async () => {
+      const { useChat } = await import('~/composables/useChat')
+
+      mockCurrentPage.value = '/carbon/results'
+
+      let capturedBody: FormData | null = null
+      const sseEvents = [
+        { type: 'token', content: 'OK' },
+        { type: 'done', message_id: 'msg-cp-1' },
+      ]
+
+      vi.stubGlobal('fetch', vi.fn(async (_url: string, opts: RequestInit) => {
+        capturedBody = opts.body as FormData
+        return { ok: true, body: createMockSSEStream(sseEvents) }
+      }))
+
+      const chat = useChat()
+      chat.currentConversation.value = {
+        id: 'conv-cp', title: 'Test CP', current_module: 'chat',
+        created_at: '', updated_at: '',
+      }
+
+      await chat.sendMessage('test current page')
+
+      expect(capturedBody).toBeInstanceOf(FormData)
+      expect(capturedBody!.get('current_page')).toBe('/carbon/results')
+    })
+
+    it('submitInteractiveAnswer inclut current_page dans le FormData', async () => {
+      const { useChat } = await import('~/composables/useChat')
+
+      mockCurrentPage.value = '/esg'
+
+      let capturedBody: FormData | null = null
+      const sseEvents = [
+        { type: 'token', content: 'Merci' },
+        { type: 'done', message_id: 'msg-iq-cp' },
+      ]
+
+      vi.stubGlobal('fetch', vi.fn(async (_url: string, opts: RequestInit) => {
+        capturedBody = opts.body as FormData
+        return { ok: true, body: createMockSSEStream(sseEvents) }
+      }))
+
+      const chat = useChat()
+      chat.currentConversation.value = {
+        id: 'conv-iq-cp', title: 'Test IQ CP', current_module: 'esg_scoring',
+        created_at: '', updated_at: '',
+      }
+      chat.currentInteractiveQuestion.value = {
+        id: 'iq-1',
+        conversation_id: 'conv-iq-cp',
+        question_type: 'qcu',
+        prompt: 'Quel secteur ?',
+        options: [{ key: 'agri', label: 'Agriculture' }],
+        min_selections: 1,
+        max_selections: 1,
+        requires_justification: false,
+        justification_prompt: null,
+        module: 'esg_scoring',
+        created_at: new Date().toISOString(),
+      }
+
+      await chat.submitInteractiveAnswer('iq-1', { values: ['agri'] })
+
+      expect(capturedBody).toBeInstanceOf(FormData)
+      expect(capturedBody!.get('current_page')).toBe('/esg')
     })
   })
 })

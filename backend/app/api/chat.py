@@ -89,6 +89,7 @@ async def stream_graph_events(
     document_analysis_summary: str | None = None,
     document_upload: dict | None = None,
     widget_response: dict | None = None,
+    current_page: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Streamer les événements du graphe LangGraph via astream_events().
 
@@ -128,6 +129,7 @@ async def stream_graph_events(
         "action_plan_data": None,
         "_route_action_plan": False,
         "tool_call_count": 0,
+        "current_page": current_page,
     }
 
     config = {
@@ -619,6 +621,7 @@ async def send_message(
     interactive_question_id: str | None = Form(None),
     interactive_question_values: str | None = Form(None),
     interactive_question_justification: str | None = Form(None),
+    current_page: str | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
@@ -629,6 +632,10 @@ async def send_message(
     Si `interactive_question_id` est fourni, la reponse provient d'un widget
     interactif (feature 018).
     """
+    # Sanitisation de current_page : longueur max et caracteres autorises
+    if current_page is not None:
+        current_page = current_page.strip()[:200] or None
+
     conversation = await get_user_conversation(conversation_id, current_user, db)
 
     # Gérer le contenu : multipart (Form) ou JSON fallback
@@ -796,6 +803,7 @@ async def send_message(
                     document_analysis_summary=doc_analysis_summary,
                     document_upload=doc_upload_info,
                     widget_response=widget_response_payload,
+                    current_page=current_page,
                 ):
                     event_type = event.get("type")
 
@@ -927,6 +935,7 @@ async def send_message_json(
         interactive_question_id=None,
         interactive_question_values=None,
         interactive_question_justification=None,
+        current_page=None,
         current_user=current_user,
         db=db,
     )
