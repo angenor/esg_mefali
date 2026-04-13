@@ -137,10 +137,10 @@ def build_page_context_instruction(current_page: str | None) -> str:
         return ""
 
     page_desc = PAGE_DESCRIPTIONS.get(current_page)
-    if page_desc:
-        context_line = f"L'utilisateur consulte actuellement {page_desc} ({current_page})."
-    else:
-        context_line = f"L'utilisateur est actuellement sur la page {current_page}."
+    if not page_desc:
+        return ""
+
+    context_line = f"L'utilisateur consulte actuellement {page_desc} ({current_page})."
 
     instruction = (
         "CONTEXTE DE NAVIGATION :\n"
@@ -211,11 +211,6 @@ def build_system_prompt(
     # Injecter le style concis uniquement post-onboarding
     if user_profile and _has_minimum_profile(user_profile):
         sections.append(STYLE_INSTRUCTION)
-
-    # Injecter le contexte de page courante
-    page_context = build_page_context_instruction(current_page)
-    if page_context:
-        sections.append(page_context)
 
     return "\n\n".join(sections)
 

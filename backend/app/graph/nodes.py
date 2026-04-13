@@ -1138,7 +1138,11 @@ async def chat_node(state: ConversationState) -> ConversationState:
     )
 
     from app.prompts.widget import WIDGET_INSTRUCTION
+    from app.prompts.system import build_page_context_instruction
     full_prompt = system_prompt + tool_instructions + "\n\n" + WIDGET_INSTRUCTION
+    page_context = build_page_context_instruction(state.get("current_page"))
+    if page_context:
+        full_prompt += "\n\n" + page_context
 
     # Ajouter le prompt systeme en tete
     messages = state["messages"]

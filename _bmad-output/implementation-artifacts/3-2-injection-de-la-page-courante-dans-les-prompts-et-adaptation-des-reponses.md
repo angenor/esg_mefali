@@ -1,6 +1,6 @@
 # Story 3.2 : Injection de la page courante dans les prompts et adaptation des reponses
 
-Status: review
+Status: done
 
 ## Story
 
@@ -360,6 +360,16 @@ Aucun debug necessaire — implementation directe sans erreur.
 - 7 appels dans nodes.py modifies pour passer state.get("current_page")
 - 29 nouveaux tests (26 dans test_page_context.py + 3 dans test_current_page.py)
 - 979 tests backend passes, 176 tests frontend passes, zero regression
+
+### Review Findings
+
+- [x] [Review][Defer] Vérifier le comportement du checkpointer LangGraph pour `current_page` — risque d'écrasement entre tours si `MemorySaver` fusionne l'état checkpointé avec le nouvel `initial_state`. Aucun nœud ne retourne `current_page` dans son `return {}`. Risque quasi nul car `current_page` est toujours re-injecté dans `initial_state` et est read-only. [backend/app/graph/nodes.py] — deferred, risque faible
+- [x] [Review][Patch] Prompt injection via `current_page` inconnu — whitelist stricte appliquée : `build_page_context_instruction()` retourne `""` si page absente de `PAGE_DESCRIPTIONS`. [backend/app/prompts/system.py:139-140]
+- [x] [Review][Patch] Ordre `PAGE_CONTEXT`/`WIDGET_INSTRUCTION` corrigé dans `chat_node` — `PAGE_CONTEXT` déplacé de `build_system_prompt()` vers `chat_node` après `WIDGET_INSTRUCTION`. [backend/app/graph/nodes.py:1140-1145]
+- [x] [Review][Defer] `send_message_json` passe toujours `current_page=None` — endpoint de compatibilité, pas utilisé par le frontend actuel. [backend/app/api/chat.py:938] — deferred, pré-existant
+- [x] [Review][Defer] Routes dynamiques (`/financing/123`) tombent sur la branche générique du prompt — nécessite un design de prefix matching. [backend/app/prompts/system.py:138] — deferred, hors scope story 3.2
+- [x] [Review][Defer] Valeur initiale `"/"` envoyée au backend comme page inconnue — scope story 3.1 (frontend). [frontend/app/stores/ui.ts:17] — deferred, scope story 3.1
+- [x] [Review][Defer] Tests ne couvrent pas le chemin complet nœud → prompt pour 5 des 6 spécialistes — couverture via tests prompts directs. [backend/tests/test_graph/test_current_page.py] — deferred, couverture indirecte suffisante
 
 ### Change Log
 

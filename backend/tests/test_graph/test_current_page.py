@@ -116,13 +116,12 @@ class TestStreamGraphEventsCurrentPage:
 class TestNodesPassCurrentPageToPrompts:
     """Story 3.2 — AC1, AC5 : les noeuds passent current_page aux build_*_prompt."""
 
-    def test_chat_node_passes_current_page_to_build_system_prompt(self):
-        """AC1 — chat_node passe current_page a build_system_prompt."""
+    def test_chat_node_build_system_prompt_no_page_context(self):
+        """AC1 — build_system_prompt n'injecte plus PAGE_CONTEXT (deplace dans chat_node apres WIDGET)."""
         from app.prompts.system import build_system_prompt
 
         result = build_system_prompt(current_page="/carbon/results")
-        assert "CONTEXTE DE NAVIGATION" in result
-        assert "/carbon/results" in result
+        assert "CONTEXTE DE NAVIGATION" not in result
 
     def test_esg_node_passes_current_page_to_build_esg_prompt(self):
         """AC5 — esg_scoring_node passe current_page a build_esg_prompt."""

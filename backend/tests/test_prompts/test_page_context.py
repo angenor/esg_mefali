@@ -47,11 +47,10 @@ class TestBuildPageContextInstruction:
         result = build_page_context_instruction("/action-plan")
         assert "accompagner" in result.lower() or "proposer" in result.lower()
 
-    def test_unknown_page_returns_generic_context(self):
-        """AC1 — Une page inconnue retourne un contexte generique."""
+    def test_unknown_page_returns_empty(self):
+        """Securite — Une page inconnue retourne une chaine vide (whitelist stricte)."""
         result = build_page_context_instruction("/unknown-page")
-        assert "/unknown-page" in result
-        assert "CONTEXTE DE NAVIGATION" in result
+        assert result == ""
 
     def test_known_page_no_guidance_for_non_result_pages(self):
         """Les pages non-resultats n'incluent pas la proposition de guidage FR13."""
@@ -67,13 +66,12 @@ class TestBuildPageContextInstruction:
 
 
 class TestBuildSystemPromptWithCurrentPage:
-    """Task 5 — Tests d'integration de current_page dans build_system_prompt."""
+    """Task 5 — build_system_prompt ne gere plus PAGE_CONTEXT (deplace dans chat_node)."""
 
-    def test_current_page_included_in_prompt(self):
-        """AC1 — build_system_prompt avec current_page inclut le contexte de page."""
+    def test_current_page_not_in_system_prompt(self):
+        """Review fix — build_system_prompt n'injecte plus PAGE_CONTEXT (deplace apres WIDGET dans chat_node)."""
         result = build_system_prompt(current_page="/esg")
-        assert "CONTEXTE DE NAVIGATION" in result
-        assert "/esg" in result
+        assert "CONTEXTE DE NAVIGATION" not in result
 
     def test_current_page_none_no_page_context(self):
         """AC3 — build_system_prompt sans current_page n'inclut pas de bloc PAGE_CONTEXT."""
