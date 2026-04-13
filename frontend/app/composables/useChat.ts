@@ -653,6 +653,16 @@ export function useChat() {
     }
   }
 
+  function addSystemMessage(content: string): void {
+    const msg: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content,
+      created_at: new Date().toISOString(),
+    }
+    messages.value = [...messages.value, msg]
+  }
+
   function onInteractiveQuestionAbandoned(questionId: string): void {
     if (currentInteractiveQuestion.value?.id === questionId) {
       currentInteractiveQuestion.value = null
@@ -685,6 +695,7 @@ export function useChat() {
     selectConversation,
     fetchMessages,
     sendMessage,
+    addSystemMessage,
     submitInteractiveAnswer,
     onInteractiveQuestionAbandoned,
     deleteConversation,

@@ -14,6 +14,8 @@ export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
   const conversationDrawerOpen = ref(false)
   const chatWidgetOpen = ref(false)
+  const chatWidgetMinimized = ref(false)
+  const guidedTourActive = ref(false)
   const currentPage = ref<string>('/')
   const chatWidgetWidth = ref(WIDGET_DEFAULT_WIDTH)
   const chatWidgetHeight = ref(WIDGET_DEFAULT_HEIGHT)
@@ -144,6 +146,8 @@ export const useUiStore = defineStore('ui', () => {
     sidebarOpen,
     conversationDrawerOpen,
     chatWidgetOpen,
+    chatWidgetMinimized,
+    guidedTourActive,
     currentPage,
     chatWidgetWidth,
     chatWidgetHeight,

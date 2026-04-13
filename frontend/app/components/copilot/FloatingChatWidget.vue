@@ -5,6 +5,7 @@ import { useUiStore, WIDGET_MIN_WIDTH, WIDGET_MIN_HEIGHT, WIDGET_DEFAULT_WIDTH, 
 import { useChat } from '~/composables/useChat'
 import { useFocusTrap } from '~/composables/useFocusTrap'
 import { prefetchDriverJs } from '~/composables/useDriverLoader'
+import { notifyRetractComplete } from '~/composables/useGuidedTour'
 import { useAuthStore } from '~/stores/auth'
 import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
 
@@ -44,8 +45,9 @@ const isResizing = ref(false)
 // Focus trap (AC2, AC3)
 const { activate: activateFocusTrap, deactivate: deactivateFocusTrap } = useFocusTrap(widgetRef)
 
-// Escape pour fermer le widget (AC3)
+// Escape pour fermer le widget (AC3) — bloque pendant le guidage (fix F3)
 function handleEscape() {
+  if (uiStore.guidedTourActive) return
   if (uiStore.chatWidgetOpen) {
     uiStore.closeChatWidget()
   }
@@ -204,6 +206,49 @@ onMounted(() => {
   // Pre-chargement opportuniste de Driver.js (ADR7)
   prefetchDriverJs()
 })
+
+// ── Retraction/expansion pendant le guidage (Story 5.2) ──
+
+function retractWidget(): Promise<void> {
+  return new Promise((resolve) => {
+    const el = widgetRef.value
+    if (!el) { resolve(); return }
+    gsap.killTweensOf(el)
+    deactivateFocusTrap()
+    const duration = uiStore.prefersReducedMotion ? 0 : 0.25
+    if (duration === 0) {
+      gsap.set(el, { scale: 0.3, opacity: 0.8 })
+      resolve()
+      return
+    }
+    gsap.to(el, {
+      scale: 0.3, opacity: 0.8, duration, ease: 'power2.in',
+      onComplete: resolve,
+    })
+  })
+}
+
+function expandWidget(): Promise<void> {
+  return new Promise((resolve) => {
+    const el = widgetRef.value
+    if (!el) { resolve(); return }
+    gsap.killTweensOf(el)
+    const duration = uiStore.prefersReducedMotion ? 0 : 0.25
+    if (duration === 0) {
+      gsap.set(el, { scale: 1, opacity: 1 })
+      if (uiStore.chatWidgetOpen) activateFocusTrap()
+      resolve()
+      return
+    }
+    gsap.to(el, {
+      scale: 1, opacity: 1, duration, ease: 'power2.out',
+      onComplete: () => {
+        if (uiStore.chatWidgetOpen) activateFocusTrap()
+        resolve()
+      },
+    })
+  })
+}
 
 function animateOpen() {
   const el = widgetRef.value
@@ -401,6 +446,8 @@ function handleScroll() {
 
 onBeforeUnmount(() => {
   if (widgetRef.value) gsap.killTweensOf(widgetRef.value)
+  // Debloquer startTour() si une retraction etait en cours (fix deadlock F2)
+  notifyRetractComplete()
   window.removeEventListener('resize', onWindowResize)
   if (_resizeTimer) clearTimeout(_resizeTimer)
   document.removeEventListener('pointermove', onPointerMove)
@@ -438,6 +485,20 @@ watch(
       currentView.value = 'chat'
       searchQuery.value = ''
       animateClose()
+    }
+  },
+)
+
+// Watcher retraction/expansion pendant le guidage (Story 5.2)
+watch(
+  () => uiStore.chatWidgetMinimized,
+  async (minimized) => {
+    if (!uiStore.chatWidgetOpen) return
+    if (minimized) {
+      await retractWidget()
+      notifyRetractComplete()
+    } else {
+      await expandWidget()
     }
   },
 )

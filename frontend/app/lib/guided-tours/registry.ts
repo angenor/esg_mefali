@@ -19,7 +19,7 @@ export const tourRegistry = {
     id: 'show_esg_results',
     steps: [
       {
-        route: '/esg',
+        route: '/esg/results',
         selector: '[data-guide-target="esg-score-circle"]',
         popover: {
           title: 'Score ESG global',
@@ -51,7 +51,7 @@ export const tourRegistry = {
         description: 'Cliquez ici pour voir votre évaluation ESG détaillée.',
         countdown: DEFAULT_ENTRY_COUNTDOWN,
       },
-      targetRoute: '/esg',
+      targetRoute: '/esg/results',
     },
   },
 

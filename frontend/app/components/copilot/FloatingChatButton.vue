@@ -2,17 +2,26 @@
 import { useUiStore } from '~/stores/ui'
 
 const uiStore = useUiStore()
+
+function handleClick() {
+  if (uiStore.guidedTourActive) return
+  uiStore.toggleChatWidget()
+}
 </script>
 
 <template>
   <button
     type="button"
     data-testid="floating-chat-button"
-    class="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-brand-green text-white shadow-lg dark:shadow-dark-border/20 hover:scale-105 active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-brand-green focus:ring-offset-2 dark:focus:ring-offset-surface-dark-bg"
+    :class="[
+      'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-brand-green text-white shadow-lg dark:shadow-dark-border/20 transition-transform focus:outline-none focus:ring-2 focus:ring-brand-green focus:ring-offset-2 dark:focus:ring-offset-surface-dark-bg',
+      uiStore.guidedTourActive ? 'cursor-not-allowed opacity-60' : 'hover:scale-105 active:scale-95',
+    ]"
     :aria-label="uiStore.chatWidgetOpen ? 'Fermer l\u2019assistant IA' : 'Ouvrir l\u2019assistant IA'"
     :aria-expanded="uiStore.chatWidgetOpen"
+    :aria-disabled="uiStore.guidedTourActive || undefined"
     aria-controls="copilot-widget"
-    @click="uiStore.toggleChatWidget()"
+    @click="handleClick"
   >
     <!-- Icone chat (widget ferme) -->
     <svg
