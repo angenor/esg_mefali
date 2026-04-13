@@ -4,6 +4,7 @@ import { gsap } from 'gsap'
 import { useUiStore, WIDGET_MIN_WIDTH, WIDGET_MIN_HEIGHT, WIDGET_DEFAULT_WIDTH, WIDGET_DEFAULT_HEIGHT, WIDGET_MARGIN } from '~/stores/ui'
 import { useChat } from '~/composables/useChat'
 import { useFocusTrap } from '~/composables/useFocusTrap'
+import { prefetchDriverJs } from '~/composables/useDriverLoader'
 import { useAuthStore } from '~/stores/auth'
 import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
 
@@ -199,6 +200,9 @@ onMounted(() => {
   uiStore.initReducedMotion()
   clampToViewport()
   window.addEventListener('resize', onWindowResize)
+
+  // Pre-chargement opportuniste de Driver.js (ADR7)
+  prefetchDriverJs()
 })
 
 function animateOpen() {

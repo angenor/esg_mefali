@@ -1,3 +1,4 @@
+@import 'driver.js/dist/driver.css';
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -17,4 +18,86 @@
   --color-dark-border: #374151;
   --color-dark-hover: #374151;
   --color-dark-input: #1F2937;
+}
+
+/* === Driver.js overrides === */
+
+/* Mode clair */
+.driver-popover {
+  background-color: #ffffff;
+  color: var(--color-surface-text);
+  border: 1px solid #e5e7eb; /* gray-200 */
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.driver-popover .driver-popover-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.driver-popover .driver-popover-description {
+  color: #4b5563; /* gray-600 */
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Mode sombre */
+.dark .driver-popover {
+  background-color: var(--color-dark-card);
+  color: var(--color-surface-dark-text);
+  border-color: var(--color-dark-border);
+}
+
+.dark .driver-popover .driver-popover-description {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* Boutons de navigation */
+.driver-popover .driver-popover-navigation-btns button {
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.driver-popover .driver-popover-next-btn {
+  background-color: var(--color-brand-green);
+  color: #ffffff;
+}
+
+.driver-popover .driver-popover-next-btn:hover {
+  opacity: 0.9;
+}
+
+.driver-popover .driver-popover-prev-btn {
+  background-color: transparent;
+  color: var(--color-surface-text);
+  border: 1px solid #d1d5db; /* gray-300 */
+}
+
+.dark .driver-popover .driver-popover-prev-btn {
+  color: var(--color-surface-dark-text);
+  border-color: var(--color-dark-border);
+}
+
+.driver-popover .driver-popover-close-btn {
+  color: #6b7280; /* gray-500 */
+}
+
+.dark .driver-popover .driver-popover-close-btn {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* Overlay (fond semi-transparent) */
+.driver-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Reduction de mouvement (NFR14) */
+@media (prefers-reduced-motion: reduce) {
+  .driver-popover,
+  .driver-overlay {
+    transition: none !important;
+    animation: none !important;
+  }
 }
