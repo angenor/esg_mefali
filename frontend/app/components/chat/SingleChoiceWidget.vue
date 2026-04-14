@@ -62,6 +62,7 @@ function submit() {
       :key="option.id"
       type="button"
       role="radio"
+      :data-testid="`interactive-choice-${option.id}`"
       :aria-checked="selected === option.id"
       :disabled="disabled || submitted"
       :class="[

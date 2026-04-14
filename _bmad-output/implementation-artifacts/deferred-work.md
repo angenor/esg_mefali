@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of story-8-1 (2026-04-14)
+
+- Imports `../../../app/types/carbon` sans path alias dans les fixtures E2E — a refactorer globalement avec un alias Vitest/Playwright (hors scope 8.1). [frontend/tests/e2e/fixtures/mock-backend.ts:666]
+- `testMatch` ambiguite : un `.test.ts` sous `tests/e2e/` serait silencieusement skip par Vitest ET ignore par Playwright (qui matche `.spec.ts`). Documenter la convention dans `tests/e2e/README.md`. [frontend/vitest.config.ts:66 ; frontend/playwright.config.ts:97]
+- Pas de header `X-Accel-Buffering: no` sur la reponse SSE fabriquee — inutile tant que la reponse est single-shot, a ajouter si un futur patch active le vrai streaming chunke. [frontend/tests/e2e/fixtures/sse-stream.ts:581]
+- `route.continue()` appele sur les methodes non-POST dans plusieurs endpoints mockes (`:772, 1007, 1028, 1065`) — en environnement e2e full-mock, ceci laisse passer les requetes vers un backend qui n'existe pas. Le catch-all 404 couvre deja le cas ; a nettoyer avec une passe de harmonisation. [frontend/tests/e2e/fixtures/mock-backend.ts:772]
+
 ## Deferred from: code review of story-7-2 (2026-04-14)
 
 - `refreshPromise` module-level dans `useAuth.ts` risque de partage entre requetes SSR — composable client-only en pratique mais pas de guard `import.meta.client` explicite. [frontend/app/composables/useAuth.ts:49]

@@ -514,6 +514,7 @@ watch(
     role="dialog"
     aria-label="Assistant IA ESG"
     aria-modal="true"
+    :aria-hidden="uiStore.chatWidgetMinimized ? 'true' : 'false'"
     :style="widgetStyle"
     :class="[
       'fixed bottom-24 right-6 z-50 rounded-2xl flex flex-col widget-glass',

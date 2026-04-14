@@ -122,6 +122,7 @@ function removeFile() {
 
       <textarea
         v-model="content"
+        data-testid="chat-textarea"
         :disabled="disabled"
         :maxlength="MAX_LENGTH"
         rows="1"
@@ -130,6 +131,7 @@ function removeFile() {
         @keydown="handleKeydown"
       />
       <button
+        data-testid="chat-send-button"
         :disabled="!isValid || disabled"
         class="shrink-0 w-9 h-9 rounded-full bg-brand-green text-white flex items-center justify-center hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         @click="handleSubmit"

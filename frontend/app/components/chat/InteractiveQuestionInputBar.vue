@@ -215,6 +215,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
             :key="option.id"
             type="button"
             role="radio"
+            :data-testid="`interactive-choice-${option.id}`"
             :aria-checked="selectedQcu === option.id"
             :disabled="inputLocked"
             :class="[
@@ -313,6 +314,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
             :key="option.id"
             type="button"
             role="checkbox"
+            :data-testid="`interactive-choice-${option.id}`"
             :aria-checked="isQcmChecked(option.id)"
             :disabled="inputLocked || (!isQcmChecked(option.id) && !canCheckMoreQcm())"
             :class="[

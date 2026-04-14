@@ -23,6 +23,9 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ['tests/setup.ts'],
     include: ['tests/**/*.test.ts'],
+    // Exclure les specs Playwright (extension .spec.ts sous tests/e2e/) —
+    // Vitest et Playwright cohabitent dans le meme dossier tests/ (story 8.1).
+    exclude: ['node_modules/**', 'dist/**', '.nuxt/**', 'tests/e2e/**'],
   },
   resolve: {
     alias: {
