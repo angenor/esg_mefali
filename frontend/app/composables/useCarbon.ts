@@ -7,25 +7,24 @@ import type {
   AddEntriesRequest,
   AddEntriesResponse,
 } from '~/types/carbon'
-import { useAuthStore } from '~/stores/auth'
 import { useCarbonStore } from '~/stores/carbon'
+import { useAuth, SessionExpiredError } from '~/composables/useAuth'
 
 export function useCarbon() {
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
   const carbonStore = useCarbonStore()
-  const apiBase = config.public.apiBase
+  const { apiFetch, handleAuthFailure } = useAuth()
 
   const loading = ref(false)
   const error = ref('')
 
-  function getHeaders(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      ...(authStore.accessToken
-        ? { Authorization: `Bearer ${authStore.accessToken}` }
-        : {}),
+  // Skip error.value sur SessionExpiredError pour eviter un flash d'erreur
+  // juste avant la redirection vers /login (UX NFR9).
+  async function handleError(e: unknown, fallback: string): Promise<void> {
+    if (e instanceof SessionExpiredError) {
+      await handleAuthFailure()
+      return
     }
+    error.value = e instanceof Error ? e.message : fallback
   }
 
   async function createAssessment(year: number, conversationId?: string): Promise<CarbonAssessment | null> {
@@ -34,19 +33,12 @@ export function useCarbon() {
     try {
       const body: Record<string, unknown> = { year }
       if (conversationId) body.conversation_id = conversationId
-
-      const response = await fetch(`${apiBase}/carbon/assessments`, {
+      return await apiFetch<CarbonAssessment>('/carbon/assessments', {
         method: 'POST',
-        headers: getHeaders(),
         body: JSON.stringify(body),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Erreur lors de la creation')
-      }
-      return await response.json()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors de la creation')
       return null
     } finally {
       loading.value = false
@@ -60,16 +52,10 @@ export function useCarbon() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) params.set('status', status)
-
-      const response = await fetch(`${apiBase}/carbon/assessments?${params}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Erreur lors du chargement')
-
-      const data: CarbonAssessmentList = await response.json()
+      const data = await apiFetch<CarbonAssessmentList>(`/carbon/assessments?${params}`)
       carbonStore.setAssessments(data.items, data.total)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement')
       carbonStore.setError(error.value)
     } finally {
       loading.value = false
@@ -81,16 +67,11 @@ export function useCarbon() {
     loading.value = true
     error.value = ''
     try {
-      const response = await fetch(`${apiBase}/carbon/assessments/${id}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Bilan non trouve')
-
-      const data: CarbonAssessment = await response.json()
+      const data = await apiFetch<CarbonAssessment>(`/carbon/assessments/${id}`)
       carbonStore.setCurrentAssessment(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Bilan non trouve')
       return null
     } finally {
       loading.value = false
@@ -101,16 +82,11 @@ export function useCarbon() {
     loading.value = true
     error.value = ''
     try {
-      const response = await fetch(`${apiBase}/carbon/assessments/${id}/summary`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Resume non disponible')
-
-      const data: CarbonSummary = await response.json()
+      const data = await apiFetch<CarbonSummary>(`/carbon/assessments/${id}/summary`)
       carbonStore.setCurrentSummary(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Resume non disponible')
       return null
     } finally {
       loading.value = false
@@ -119,12 +95,11 @@ export function useCarbon() {
 
   async function fetchBenchmark(sector: string): Promise<BenchmarkResponse | null> {
     try {
-      const response = await fetch(`${apiBase}/carbon/benchmarks/${sector}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) return null
-      return await response.json()
-    } catch {
+      return await apiFetch<BenchmarkResponse>(`/carbon/benchmarks/${sector}`)
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+      }
       return null
     }
   }
@@ -133,18 +108,12 @@ export function useCarbon() {
     loading.value = true
     error.value = ''
     try {
-      const response = await fetch(`${apiBase}/carbon/assessments/${assessmentId}/entries`, {
+      return await apiFetch<AddEntriesResponse>(`/carbon/assessments/${assessmentId}/entries`, {
         method: 'POST',
-        headers: getHeaders(),
         body: JSON.stringify(request),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Erreur lors de l\'ajout')
-      }
-      return await response.json()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, "Erreur lors de l'ajout")
       return null
     } finally {
       loading.value = false

@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-14' (Story 7.1 done — code review applied)
+# last_updated: '2026-04-14' (Story 7.3 done — code review)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-14' (Story 7.1 done — code review applied)
-last_story_created: '7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement'
-last_review_completed: '7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement'
+last_updated: '2026-04-14' (Story 7.3 done — code review)
+last_story_created: '7-3-resilience-sse-et-indicateur-de-reconnexion'
+last_review_completed: '7-3-resilience-sse-et-indicateur-de-reconnexion'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -93,8 +93,8 @@ development_status:
   # Epic 7 : Resilience et edge cases
   epic-7: in-progress
   7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement: done
-  7-2-renouvellement-jwt-transparent-pendant-le-guidage: backlog
-  7-3-resilience-sse-et-indicateur-de-reconnexion: backlog
+  7-2-renouvellement-jwt-transparent-pendant-le-guidage: done
+  7-3-resilience-sse-et-indicateur-de-reconnexion: done
   epic-7-retrospective: optional
 
   # Epic 8 : Tests d'integration end-to-end

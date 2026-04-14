@@ -7,6 +7,7 @@ import { useFocusTrap } from '~/composables/useFocusTrap'
 import { prefetchDriverJs } from '~/composables/useDriverLoader'
 import { notifyRetractComplete } from '~/composables/useGuidedTour'
 import { useAuthStore } from '~/stores/auth'
+import ConnectionStatusBadge from '~/components/copilot/ConnectionStatusBadge.vue'
 import type { InteractiveQuestionAnswer } from '~/types/interactive-question'
 
 const uiStore = useUiStore()
@@ -25,6 +26,7 @@ const {
   isStreaming,
   streamingContent,
   error,
+  isConnected,
   documentProgress,
   activeToolCall,
   currentInteractiveQuestion,
@@ -555,6 +557,9 @@ watch(
       @back="currentView = 'chat'"
     />
 
+    <!-- FR33/NFR17 — badge reconnexion visible dans les deux vues (chat + historique) -->
+    <ConnectionStatusBadge :is-connected="isConnected" />
+
     <!-- Vue historique -->
     <ConversationList
       v-if="currentView === 'history'"
@@ -618,12 +623,14 @@ watch(
         v-if="currentInteractiveQuestion?.state === 'pending'"
         :question="currentInteractiveQuestion"
         :loading="isStreaming"
+        :disabled="!isConnected"
         @submit="handleInteractiveSubmit"
         @abandon-and-send="handleAbandonAndSend"
       />
       <ChatInput
         v-else
-        :disabled="isStreaming"
+        :disabled="isStreaming || !isConnected"
+        :hint="!isConnected ? 'Connexion perdue. Les envois reprendront après reconnexion.' : null"
         @send="handleSend"
         @send-with-file="handleSendWithFile"
       />

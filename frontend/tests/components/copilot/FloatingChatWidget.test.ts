@@ -55,6 +55,8 @@ const mockReportSuggestion = ref(null)
 const mockActiveToolCall = ref<{ name: string; args: Record<string, unknown>; callId: string } | null>(null)
 const mockCurrentInteractiveQuestion = ref<InteractiveQuestion | null>(null)
 const mockInteractiveQuestionsByMessage = ref<Record<string, InteractiveQuestion>>({})
+// Story 7.3 — indicateur de connexion SSE exposee par useChat
+const mockIsConnected = ref(true)
 
 vi.mock('~/composables/useChat', () => ({
   useChat: () => ({
@@ -71,6 +73,7 @@ vi.mock('~/composables/useChat', () => ({
     isStreaming: mockIsStreaming,
     streamingContent: mockStreamingContent,
     error: mockError,
+    isConnected: mockIsConnected,
     documentProgress: mockDocumentProgress,
     reportSuggestion: mockReportSuggestion,
     activeToolCall: mockActiveToolCall,
@@ -152,9 +155,19 @@ const InteractiveQuestionInputBarStub = defineComponent({
   props: {
     question: { type: Object, required: true },
     loading: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
   },
   emits: ['submit', 'abandonAndSend'],
   template: '<div class="interactive-input-bar-stub">Question interactive</div>',
+})
+
+// Story 7.3 — stub du badge de connexion (presentationnel, isole dans ses propres tests)
+const ConnectionStatusBadgeStub = defineComponent({
+  name: 'ConnectionStatusBadge',
+  props: {
+    isConnected: { type: Boolean, required: true },
+  },
+  template: '<div v-if="!isConnected" class="connection-status-badge-stub">Reconnexion...</div>',
 })
 
 describe('FloatingChatWidget', () => {
@@ -187,6 +200,7 @@ describe('FloatingChatWidget', () => {
     mockActiveToolCall.value = null
     mockCurrentInteractiveQuestion.value = null
     mockInteractiveQuestionsByMessage.value = {}
+    mockIsConnected.value = true
   })
 
   afterEach(() => {
@@ -206,6 +220,7 @@ describe('FloatingChatWidget', () => {
           ChatInput: ChatInputStub,
           ToolCallIndicator: ToolCallIndicatorStub,
           InteractiveQuestionInputBar: InteractiveQuestionInputBarStub,
+          ConnectionStatusBadge: ConnectionStatusBadgeStub,
         },
       },
     })

@@ -8,11 +8,17 @@ import type {
 interface Props {
   question: InteractiveQuestion
   loading?: boolean
+  // FR33/NFR17 — true quand la connexion SSE/reseau est perdue : verrouille tous les boutons.
+  disabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
+  disabled: false,
 })
+
+// Combinaison utilisee par tous les boutons : desactive pendant un envoi OU en perte de connexion.
+const inputLocked = computed(() => props.loading || props.disabled)
 
 const emit = defineEmits<{
   (e: 'submit', payload: InteractiveQuestionAnswer): void
@@ -54,7 +60,7 @@ watch(
 const selectedCount = computed(() => selectedQcm.value.size)
 
 const canSubmit = computed(() => {
-  if (props.loading) return false
+  if (inputLocked.value) return false
   if (isQcu.value && !selectedQcu.value) return false
   if (isQcm.value) {
     const c = selectedCount.value
@@ -65,7 +71,7 @@ const canSubmit = computed(() => {
 })
 
 function onClickQcu(optionId: string) {
-  if (props.loading) return
+  if (inputLocked.value) return
   selectedQcu.value = optionId
   // QCU sans justification : submit immediat
   if (!requiresJustification.value) {
@@ -74,7 +80,7 @@ function onClickQcu(optionId: string) {
 }
 
 function toggleQcm(optionId: string) {
-  if (props.loading) return
+  if (inputLocked.value) return
   const next = new Set(selectedQcm.value)
   if (next.has(optionId)) {
     next.delete(optionId)
@@ -114,7 +120,7 @@ function cancelFallback() {
 
 function sendFallback() {
   const content = fallbackText.value.trim()
-  if (!content || props.loading) return
+  if (!content || inputLocked.value) return
   emit('abandon-and-send', content)
   fallbackText.value = ''
   showFallback.value = false
@@ -166,7 +172,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
         >
           <textarea
             v-model="fallbackText"
-            :disabled="loading"
+            :disabled="inputLocked"
             rows="3"
             maxlength="2000"
             placeholder="Tapez votre reponse libre ici..."
@@ -177,14 +183,14 @@ function onFallbackKeydown(event: KeyboardEvent) {
             <button
               type="button"
               class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium"
-              :disabled="loading"
+              :disabled="inputLocked"
               @click="cancelFallback"
             >
               ← Revenir aux options
             </button>
             <button
               type="button"
-              :disabled="!fallbackText.trim() || loading"
+              :disabled="!fallbackText.trim() || inputLocked"
               class="px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-indigo-500/30 transition-all"
               @click="sendFallback"
             >
@@ -210,7 +216,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
             type="button"
             role="radio"
             :aria-checked="selectedQcu === option.id"
-            :disabled="loading"
+            :disabled="inputLocked"
             :class="[
               'group relative px-4 py-3 rounded-2xl border-2 text-left transition-all duration-200',
               'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-dark-card',
@@ -269,7 +275,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
           </label>
           <textarea
             v-model="justification"
-            :disabled="loading"
+            :disabled="inputLocked"
             rows="2"
             maxlength="400"
             placeholder="Ta reponse en quelques mots..."
@@ -308,7 +314,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
             type="button"
             role="checkbox"
             :aria-checked="isQcmChecked(option.id)"
-            :disabled="loading || (!isQcmChecked(option.id) && !canCheckMoreQcm())"
+            :disabled="inputLocked || (!isQcmChecked(option.id) && !canCheckMoreQcm())"
             :class="[
               'group relative px-4 py-3 rounded-2xl border-2 text-left transition-all duration-200',
               'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-dark-card',
@@ -378,7 +384,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
           </label>
           <textarea
             v-model="justification"
-            :disabled="loading"
+            :disabled="inputLocked"
             rows="2"
             maxlength="400"
             placeholder="Ta reponse en quelques mots..."
@@ -428,7 +434,7 @@ function onFallbackKeydown(event: KeyboardEvent) {
       >
         <button
           type="button"
-          :disabled="loading"
+          :disabled="inputLocked"
           class="group inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors disabled:opacity-50"
           @click="revealFallback"
         >

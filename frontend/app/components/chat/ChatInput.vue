@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+
 const props = defineProps<{
   disabled?: boolean
+  hint?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -87,6 +90,15 @@ function removeFile() {
         </button>
       </div>
     </div>
+
+    <!-- FR33/NFR17 — hint affiche quand la connexion reseau est perdue -->
+    <p
+      v-if="hint"
+      class="text-xs text-amber-700 dark:text-amber-400 mb-2 px-1"
+      data-testid="chat-input-hint"
+    >
+      {{ hint }}
+    </p>
 
     <div class="flex gap-2 items-end">
       <!-- Bouton trombone -->

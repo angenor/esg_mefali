@@ -51,6 +51,57 @@ const searchQuery = ref('')
 const abortController = ref<AbortController | null>(null)
 const sseReader = ref<ReadableStreamDefaultReader | null>(null)
 
+// FR33/NFR17 — etat de connexion SSE/reseau deduit du dernier fetch + navigator.onLine.
+// true par defaut (optimiste) ; bascule false sur TypeError/Failed to fetch ou event offline.
+const isConnected = ref<boolean>(true)
+
+// Message FR unique de perte de connexion : extrait en constante pour eviter la derive
+// entre les 2 catches (sendMessage / submitInteractiveAnswer) et le clear dans le handler online.
+const CONNECTION_LOST_MESSAGE = 'Connexion perdue. Verifiez votre reseau.'
+
+// FR33 — classification des erreurs de fetch pour distinguer une coupure reseau
+// d'une annulation volontaire (AbortError) ou d'une erreur HTTP serveur (response.ok=false).
+type FetchErrorKind = 'abort' | 'network' | 'http' | 'other'
+function classifyFetchError(e: unknown): FetchErrorKind {
+  // Priorite 1 : annulation volontaire (AbortController)
+  if (e instanceof DOMException && e.name === 'AbortError') return 'abort'
+  // Priorite 2 : TypeError brut = network error (convention fetch API MDN)
+  if (e instanceof TypeError) return 'network'
+  // Priorite 3 : messages browser-specific (Firefox, Safari)
+  if (e instanceof Error && /failed to fetch|network|load failed/i.test(e.message)) return 'network'
+  // Priorite 4 : nos throw explicites apres !response.ok
+  if (e instanceof Error && e.message.toLowerCase().includes('erreur lors de')) return 'http'
+  return 'other'
+}
+
+// Installation des ecouteurs online/offline — robustesse cross-module (HMR, vi.resetModules).
+// Les handlers precedents (d'un ancien import du module) sont stockes sur globalThis et
+// retires avant reinstallation, evitant l'accumulation de listeners orphelins sur window.
+type ConnectionListeners = { online: () => void, offline: () => void }
+const _CONNECTION_LISTENERS_KEY = Symbol.for('esg-mefali:chat-connection-listeners')
+
+if (import.meta.client) {
+  const globalSlot = globalThis as typeof globalThis & {
+    [key: symbol]: ConnectionListeners | undefined
+  }
+  const previous = globalSlot[_CONNECTION_LISTENERS_KEY]
+  if (previous) {
+    window.removeEventListener('online', previous.online)
+    window.removeEventListener('offline', previous.offline)
+  }
+  const onlineHandler = () => {
+    isConnected.value = true
+    if (error.value === CONNECTION_LOST_MESSAGE) error.value = ''
+  }
+  const offlineHandler = () => {
+    isConnected.value = false
+  }
+  isConnected.value = typeof navigator !== 'undefined' ? navigator.onLine : true
+  window.addEventListener('online', onlineHandler)
+  window.addEventListener('offline', offlineHandler)
+  globalSlot[_CONNECTION_LISTENERS_KEY] = { online: onlineHandler, offline: offlineHandler }
+}
+
 /**
  * Normalise un label pour comparaison tolerante (minuscule + trim + compact).
  */
@@ -252,6 +303,8 @@ export function useChat() {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        // FR33/AC5 — premier chunk recu sans erreur = reprise de connexion immediate.
+        if (!isConnected.value) isConnected.value = true
 
         const chunk = decoder.decode(value)
         const lines = chunk.split('\n')
@@ -461,7 +514,17 @@ export function useChat() {
         }
       }
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
+      // FR33/AC3 — classifier l'erreur avant de toucher isConnected / error.value.
+      const kind = classifyFetchError(e)
+      if (kind === 'abort') return
+      if (kind === 'network') {
+        isConnected.value = false
+        const uiStore = useUiStore()
+        if (!uiStore.guidedTourActive) {
+          error.value = CONNECTION_LOST_MESSAGE
+        }
+        return
+      }
       error.value = e instanceof Error ? e.message : 'Erreur inconnue'
     } finally {
       // Reset si c'est le même appel actif OU si aucun nouvel appel n'a pris le relais
@@ -634,6 +697,8 @@ export function useChat() {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        // FR33/AC5 — premier chunk recu sans erreur = reprise de connexion immediate.
+        if (!isConnected.value) isConnected.value = true
         const chunk = decoder.decode(value)
         const lines = chunk.split('\n')
         for (const line of lines) {
@@ -721,7 +786,17 @@ export function useChat() {
         useGuidedTour().incrementGuidanceRefusal()
       }
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
+      // FR33/AC3 — classifier l'erreur avant de toucher isConnected / error.value.
+      const kind = classifyFetchError(e)
+      if (kind === 'abort') return
+      if (kind === 'network') {
+        isConnected.value = false
+        const uiStore = useUiStore()
+        if (!uiStore.guidedTourActive) {
+          error.value = CONNECTION_LOST_MESSAGE
+        }
+        return
+      }
       error.value = e instanceof Error ? e.message : 'Erreur inconnue'
     } finally {
       // Reset si c'est le même appel actif OU si aucun nouvel appel n'a pris le relais
@@ -806,6 +881,7 @@ export function useChat() {
     isStreaming,
     streamingContent,
     error,
+    isConnected,
     searchQuery,
     filteredConversations,
     documentProgress,

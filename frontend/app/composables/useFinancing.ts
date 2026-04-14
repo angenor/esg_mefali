@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { useAuthStore } from '~/stores/auth'
 import { useFinancingStore } from '~/stores/financing'
+import { useAuth, ApiFetchError, SessionExpiredError } from '~/composables/useAuth'
 import type {
   FundListResponse,
   Fund,
@@ -12,19 +12,20 @@ import type {
 } from '~/types/financing'
 
 export function useFinancing() {
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
   const financingStore = useFinancingStore()
-  const apiBase = config.public.apiBase
+  const { apiFetch, apiFetchBlob, handleAuthFailure } = useAuth()
 
   const loading = ref(false)
   const error = ref('')
 
-  function getHeaders(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      ...(authStore.accessToken ? { Authorization: `Bearer ${authStore.accessToken}` } : {}),
+  // Skip error.value sur SessionExpiredError pour eviter un flash d'erreur
+  // juste avant la redirection vers /login (UX NFR9).
+  async function handleError(e: unknown, fallback: string): Promise<void> {
+    if (e instanceof SessionExpiredError) {
+      await handleAuthFailure()
+      return
     }
+    error.value = e instanceof Error ? e.message : fallback
   }
 
   // --- Matches / Recommandations ---
@@ -34,18 +35,23 @@ export function useFinancing() {
     financingStore.setLoading(true)
     financingStore.setError(null)
     try {
-      const response = await fetch(`${apiBase}/financing/matches`, { headers: getHeaders() })
-      if (response.status === 428) {
-        const data = await response.json()
-        financingStore.setError(data.detail?.message || 'Evaluation ESG requise')
-        return
-      }
-      if (!response.ok) throw new Error('Erreur lors du chargement des recommandations')
-      const data: MatchListResponse = await response.json()
+      const data = await apiFetch<MatchListResponse>('/financing/matches')
       financingStore.setMatches(data.items, data.total)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
-      financingStore.setError(error.value)
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+        return
+      }
+      // 428 Precondition Required : signal metier « evaluation ESG requise »,
+      // pas une erreur technique — conserve le comportement historique.
+      if (e instanceof ApiFetchError && e.status === 428) {
+        const detail = (e.body as { detail?: { message?: string } })?.detail
+        financingStore.setError(detail?.message || 'Evaluation ESG requise')
+        return
+      }
+      const msg = e instanceof Error ? e.message : 'Erreur lors du chargement des recommandations'
+      error.value = msg
+      financingStore.setError(msg)
     } finally {
       loading.value = false
       financingStore.setLoading(false)
@@ -56,14 +62,17 @@ export function useFinancing() {
     loading.value = true
     financingStore.setLoading(true)
     try {
-      const response = await fetch(`${apiBase}/financing/matches/${fundId}`, { headers: getHeaders() })
-      if (!response.ok) throw new Error('Erreur lors du chargement du match')
-      const data: FundMatch = await response.json()
+      const data = await apiFetch<FundMatch>(`/financing/matches/${fundId}`)
       financingStore.setCurrentMatch(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
-      financingStore.setError(error.value)
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+        return null
+      }
+      const msg = e instanceof Error ? e.message : 'Erreur lors du chargement du match'
+      error.value = msg
+      financingStore.setError(msg)
       return null
     } finally {
       loading.value = false
@@ -73,36 +82,24 @@ export function useFinancing() {
 
   async function updateMatchStatus(matchId: string, status: string): Promise<FundMatchSummary | null> {
     try {
-      const response = await fetch(`${apiBase}/financing/matches/${matchId}/status`, {
+      return await apiFetch<FundMatchSummary>(`/financing/matches/${matchId}/status`, {
         method: 'PATCH',
-        headers: getHeaders(),
         body: JSON.stringify({ status }),
       })
-      if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.detail || 'Erreur de mise a jour')
-      }
-      return await response.json()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur de mise a jour')
       return null
     }
   }
 
   async function updateMatchIntermediary(matchId: string, intermediaryId: string): Promise<FundMatchSummary | null> {
     try {
-      const response = await fetch(`${apiBase}/financing/matches/${matchId}/intermediary`, {
+      return await apiFetch<FundMatchSummary>(`/financing/matches/${matchId}/intermediary`, {
         method: 'PATCH',
-        headers: getHeaders(),
         body: JSON.stringify({ intermediary_id: intermediaryId }),
       })
-      if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.detail || 'Erreur de mise a jour')
-      }
-      return await response.json()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur de mise a jour')
       return null
     }
   }
@@ -114,12 +111,10 @@ export function useFinancing() {
     financingStore.setLoading(true)
     try {
       const searchParams = new URLSearchParams(params || {})
-      const response = await fetch(`${apiBase}/financing/funds?${searchParams}`, { headers: getHeaders() })
-      if (!response.ok) throw new Error('Erreur lors du chargement des fonds')
-      const data: FundListResponse = await response.json()
+      const data = await apiFetch<FundListResponse>(`/financing/funds?${searchParams}`)
       financingStore.setFunds(data.items, data.total)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement des fonds')
       financingStore.setError(error.value)
     } finally {
       loading.value = false
@@ -131,13 +126,11 @@ export function useFinancing() {
     loading.value = true
     financingStore.setLoading(true)
     try {
-      const response = await fetch(`${apiBase}/financing/funds/${fundId}`, { headers: getHeaders() })
-      if (!response.ok) throw new Error('Erreur lors du chargement du fonds')
-      const data: Fund = await response.json()
+      const data = await apiFetch<Fund>(`/financing/funds/${fundId}`)
       financingStore.setCurrentFund(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement du fonds')
       financingStore.setError(error.value)
       return null
     } finally {
@@ -153,12 +146,12 @@ export function useFinancing() {
     financingStore.setLoading(true)
     try {
       const searchParams = new URLSearchParams(params || {})
-      const response = await fetch(`${apiBase}/financing/intermediaries?${searchParams}`, { headers: getHeaders() })
-      if (!response.ok) throw new Error('Erreur lors du chargement des intermediaires')
-      const data: IntermediaryListResponse = await response.json()
+      const data = await apiFetch<IntermediaryListResponse>(
+        `/financing/intermediaries?${searchParams}`,
+      )
       financingStore.setIntermediaries(data.items, data.total)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement des intermediaires')
       financingStore.setError(error.value)
     } finally {
       loading.value = false
@@ -170,13 +163,13 @@ export function useFinancing() {
     loading.value = true
     financingStore.setLoading(true)
     try {
-      const response = await fetch(`${apiBase}/financing/intermediaries/${intermediaryId}`, { headers: getHeaders() })
-      if (!response.ok) throw new Error('Erreur lors du chargement')
-      const data: Intermediary = await response.json()
+      const data = await apiFetch<Intermediary>(
+        `/financing/intermediaries/${intermediaryId}`,
+      )
       financingStore.setCurrentIntermediary(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement')
       return null
     } finally {
       loading.value = false
@@ -185,16 +178,15 @@ export function useFinancing() {
   }
 
   // --- Fiche de preparation ---
-
   async function fetchPreparationSheet(matchId: string): Promise<Blob | null> {
     try {
-      const response = await fetch(`${apiBase}/financing/matches/${matchId}/preparation-sheet`, {
-        headers: { ...(authStore.accessToken ? { Authorization: `Bearer ${authStore.accessToken}` } : {}) },
-      })
-      if (!response.ok) throw new Error('Erreur lors de la generation de la fiche')
-      return await response.blob()
+      return await apiFetchBlob(`/financing/matches/${matchId}/preparation-sheet`)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+        return null
+      }
+      error.value = e instanceof Error ? e.message : 'Erreur lors de la generation de la fiche'
       return null
     }
   }

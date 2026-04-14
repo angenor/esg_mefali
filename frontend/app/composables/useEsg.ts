@@ -5,25 +5,25 @@ import type {
   ScoreResponse,
   BenchmarkResponse,
 } from '~/types/esg'
-import { useAuthStore } from '~/stores/auth'
 import { useEsgStore } from '~/stores/esg'
+import { useAuth, SessionExpiredError } from '~/composables/useAuth'
 
 export function useEsg() {
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
   const esgStore = useEsgStore()
-  const apiBase = config.public.apiBase
+  const { apiFetch, handleAuthFailure } = useAuth()
 
   const loading = ref(false)
   const error = ref('')
 
-  function getHeaders(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      ...(authStore.accessToken
-        ? { Authorization: `Bearer ${authStore.accessToken}` }
-        : {}),
+  // Propage un message FR et declenche handleAuthFailure si la session a expire.
+  // Skip error.value sur SessionExpiredError pour eviter un flash d'erreur juste
+  // avant la redirection vers /login (UX NFR9).
+  async function handleError(e: unknown, fallback: string): Promise<void> {
+    if (e instanceof SessionExpiredError) {
+      await handleAuthFailure()
+      return
     }
+    error.value = e instanceof Error ? e.message : fallback
   }
 
   async function createAssessment(conversationId?: string): Promise<ESGAssessment | null> {
@@ -31,19 +31,11 @@ export function useEsg() {
     error.value = ''
     try {
       const body = conversationId ? { conversation_id: conversationId } : undefined
-      const response = await fetch(`${apiBase}/esg/assessments`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: body ? JSON.stringify(body) : undefined,
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Erreur lors de la creation')
-      }
-      const data: ESGAssessment = await response.json()
-      return data
+      const options: RequestInit = { method: 'POST' }
+      if (body) options.body = JSON.stringify(body)
+      return await apiFetch<ESGAssessment>('/esg/assessments', options)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors de la creation')
       return null
     } finally {
       loading.value = false
@@ -57,16 +49,10 @@ export function useEsg() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) params.set('status', status)
-
-      const response = await fetch(`${apiBase}/esg/assessments?${params}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Erreur lors du chargement')
-
-      const data: ESGAssessmentList = await response.json()
+      const data = await apiFetch<ESGAssessmentList>(`/esg/assessments?${params}`)
       esgStore.setAssessments(data.data, data.total)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Erreur lors du chargement')
       esgStore.setError(error.value)
     } finally {
       loading.value = false
@@ -78,16 +64,11 @@ export function useEsg() {
     loading.value = true
     error.value = ''
     try {
-      const response = await fetch(`${apiBase}/esg/assessments/${id}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Evaluation non trouvee')
-
-      const data: ESGAssessment = await response.json()
+      const data = await apiFetch<ESGAssessment>(`/esg/assessments/${id}`)
       esgStore.setCurrentAssessment(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Evaluation non trouvee')
       return null
     } finally {
       loading.value = false
@@ -98,16 +79,11 @@ export function useEsg() {
     loading.value = true
     error.value = ''
     try {
-      const response = await fetch(`${apiBase}/esg/assessments/${id}/score`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) throw new Error('Score non disponible')
-
-      const data: ScoreResponse = await response.json()
+      const data = await apiFetch<ScoreResponse>(`/esg/assessments/${id}/score`)
       esgStore.setCurrentScore(data)
       return data
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue'
+      await handleError(e, 'Score non disponible')
       return null
     } finally {
       loading.value = false
@@ -116,12 +92,11 @@ export function useEsg() {
 
   async function fetchBenchmark(sector: string): Promise<BenchmarkResponse | null> {
     try {
-      const response = await fetch(`${apiBase}/esg/benchmarks/${sector}`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) return null
-      return await response.json()
-    } catch {
+      return await apiFetch<BenchmarkResponse>(`/esg/benchmarks/${sector}`)
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+      }
       return null
     }
   }

@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of story-7-2 (2026-04-14)
+
+- `refreshPromise` module-level dans `useAuth.ts` risque de partage entre requetes SSR — composable client-only en pratique mais pas de guard `import.meta.client` explicite. [frontend/app/composables/useAuth.ts:49]
+- `useCarbon.fetchBenchmark` et `useEsg.fetchBenchmark` avalent toutes les erreurs non-session-expirée et retournent `null` — UI ne peut pas distinguer 404 vs 500. Comportement pre-existant, a traiter globalement. [frontend/app/composables/useCarbon.ts:93-98, useEsg.ts:90-96]
+- Tests manquants : cycle 401 sur `apiFetchBlob` (fiche de preparation PDF), `/auth/me` (fetchUser), echec d'import dynamique dans `handleAuthFailure`. Scenarios principaux couverts par les 19 tests existants. [frontend/tests/composables/useAuth.refresh.test.ts]
+- Composables non migres vers `apiFetch` (`useApplications`, `useCreditScore`, `useActionPlan`, `useReports`, `useDocuments`, `useCompanyProfile`, `useChat`) ne beneficient pas de l'intercepteur 401. Dette technique deja documentee dans la story, future story `X-Y-migration-composables-vers-apifetch` proposee.
+
 ## Deferred from: code review of story-3-1 (2026-04-13)
 
 - Pas d'annotation reducer pour `current_page` dans ConversationState — le champ pourrait ne pas se propager si un noeud LangGraph retourne un state partiel. Risque latent pour Story 3.2 quand les noeuds liront activement cette valeur. [backend/app/graph/state.py:36]
@@ -78,3 +85,13 @@
 - Cleanup du catch global a placer dans un `finally` au lieu d'apres le catch — robustesse face a un throw interne au catch (ex. import dynamique qui throw lui-meme). [frontend/app/composables/useGuidedTour.ts:~590-627]
 - `addSystemMessage` peut etre silencieusement drop si aucune conversation active cote `useChat` — limitation pre-existante ; AC4 suppose que l'utilisateur voit toujours le message empathique. A renforcer avec un fallback toast si pas de conversation active. [frontend/app/composables/useGuidedTour.ts:598-600, frontend/app/composables/useChat.ts:739-744]
 - Strings FR hardcodees ("Je n'ai pas pu pointer cet element...", "La page met trop de temps a charger...", "Le guidage a rencontre un probleme...") non extraites en MAP de constantes module-level — conforme aux conventions actuelles du projet mais nuit a une future i18n ou a un edit global. [frontend/app/composables/useGuidedTour.ts:424,504,~418,~509,~600]
+
+## Deferred from: code review of story 7-3-resilience-sse-et-indicateur-de-reconnexion (2026-04-14)
+
+- Classification HTTP par substring francais `'erreur lors de'` : tous les throws actuels matchent mais tout nouveau message en englais ou reformule tombe dans `'other'`. Refactor en sentinel `class HttpError extends Error` ou en drapeau typed recommande a terme. [frontend/app/composables/useChat.ts:70]
+- `throw new Error('Réponse sans body...')` classifie en `'other'` et pollue `error.value` meme pendant un parcours guide. Scenario rare (200 OK sans body). AC3 autorise explicitement ce comportement pour non-network, mais incoherent avec l'intention de masquer les erreurs reseau pendant un tour. [frontend/app/composables/useChat.ts:264, 659]
+- `DOMException` non-Abort mid-stream (`NetworkError`, `InvalidStateError`) classifie en `'other'`. Readers modernes throw `TypeError` donc impact < 1 % du trafic (Safari legacy). Documente en spec Dev Notes. [frontend/app/composables/useChat.ts:62-72]
+- `useUiStore()` appele dans le catch block — risque Pinia-not-ready dans contextes edge. Impossible dans flow UI reel. Refactor optionnel : hoister en haut de `useChat()`. [frontend/app/composables/useChat.ts:504, 776]
+- Test invariant AC8 fragile au cwd : `path.resolve(process.cwd(), 'app/composables/useGuidedTour.ts')` fonctionne si vitest lance depuis `frontend/`. Robustesse : `new URL(..., import.meta.url)`. [frontend/tests/composables/useChat.connection.test.ts:831-838]
+- bfcache : listeners survivent mais `isConnected` stale au `pageshow`. Edge case rare (page cachee offline puis restauree online sans event). Handler `pageshow` a ajouter a terme. [frontend/app/composables/useChat.ts:77-85]
+- Fetches concurrents (`sendMessage` + `submitInteractiveAnswer`) : si l'un succeed et flip a true puis l'autre fail en network, la bascule a false ecrase le signal de reprise. Peu probable dans l'UX normale (serialisation par `abortController`). [frontend/app/composables/useChat.ts:289, 683, 503, 775]

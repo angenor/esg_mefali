@@ -1,38 +1,24 @@
-import { useAuthStore } from '~/stores/auth'
 import { useDashboardStore } from '~/stores/dashboard'
+import { useAuth, SessionExpiredError } from '~/composables/useAuth'
 import type { DashboardSummary } from '~/types/dashboard'
 
 export function useDashboard() {
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
   const store = useDashboardStore()
-  const apiBase = config.public.apiBase
-
-  function getHeaders(): Record<string, string> {
-    return {
-      'Content-Type': 'application/json',
-      ...(authStore.accessToken
-        ? { Authorization: `Bearer ${authStore.accessToken}` }
-        : {}),
-    }
-  }
+  const { apiFetch, handleAuthFailure } = useAuth()
 
   async function fetchSummary(): Promise<DashboardSummary | null> {
     store.setLoading(true)
     store.setError('')
     try {
-      const response = await fetch(`${apiBase}/dashboard/summary`, {
-        headers: getHeaders(),
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || 'Erreur lors du chargement du tableau de bord')
-      }
-      const data: DashboardSummary = await response.json()
+      const data = await apiFetch<DashboardSummary>('/dashboard/summary')
       store.setSummary(data)
       return data
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erreur inconnue'
+      if (e instanceof SessionExpiredError) {
+        await handleAuthFailure()
+        return null
+      }
+      const msg = e instanceof Error ? e.message : 'Erreur lors du chargement du tableau de bord'
       store.setError(msg)
       return null
     } finally {
