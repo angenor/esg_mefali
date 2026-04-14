@@ -257,6 +257,82 @@ class TestCarbonServiceCRUD:
         assert resumable is not None
         assert resumable.year == 2026
 
+    async def test_get_latest_assessment_returns_completed_when_no_in_progress(
+        self, db_session, user_id: uuid.UUID,
+    ) -> None:
+        """Regression BUG-CARBON-LECTURE : trouver le dernier bilan quel que soit son statut.
+
+        Scenario : utilisateur a uniquement un bilan completed.
+        `get_resumable_assessment` (filtre in_progress) retourne None alors que
+        le bilan existe bien en base. `get_latest_assessment` doit le trouver
+        pour permettre la lecture / consultation par le LLM.
+        """
+        from app.modules.carbon.service import (
+            complete_assessment,
+            create_assessment,
+            get_latest_assessment,
+            get_resumable_assessment,
+        )
+
+        assessment = await create_assessment(
+            db=db_session, user_id=user_id, year=2025, sector="agriculture",
+        )
+        await db_session.flush()
+        await complete_assessment(db=db_session, assessment=assessment)
+        await db_session.flush()
+
+        # Aucun bilan "resumable" (in_progress) mais un bilan completed existe
+        resumable = await get_resumable_assessment(db=db_session, user_id=user_id)
+        assert resumable is None
+
+        latest = await get_latest_assessment(db=db_session, user_id=user_id)
+        assert latest is not None
+        assert latest.id == assessment.id
+        assert latest.status.value == "completed"
+        assert latest.year == 2025
+
+    async def test_get_latest_assessment_prefers_most_recent(
+        self, db_session, user_id: uuid.UUID,
+    ) -> None:
+        """Regression BUG-CARBON-LECTURE : tri sur updated_at pour plusieurs bilans."""
+        from datetime import datetime, timedelta, timezone
+
+        from app.modules.carbon.service import (
+            complete_assessment,
+            create_assessment,
+            get_latest_assessment,
+        )
+
+        # Bilan 2024 termine
+        a_2024 = await create_assessment(db=db_session, user_id=user_id, year=2024)
+        await db_session.flush()
+        await complete_assessment(db=db_session, assessment=a_2024)
+        await db_session.flush()
+
+        # Bilan 2025 en cours (plus recent)
+        a_2025 = await create_assessment(db=db_session, user_id=user_id, year=2025)
+        await db_session.flush()
+
+        # Forcer un ordre deterministe independamment de la resolution
+        # temporelle du moteur SQL sous-jacent.
+        now = datetime.now(timezone.utc)
+        a_2024.updated_at = now - timedelta(hours=1)
+        a_2025.updated_at = now
+        await db_session.flush()
+
+        latest = await get_latest_assessment(db=db_session, user_id=user_id)
+        assert latest is not None
+        assert latest.id == a_2025.id
+
+    async def test_get_latest_assessment_none_when_no_assessment(
+        self, db_session, user_id: uuid.UUID,
+    ) -> None:
+        """Regression BUG-CARBON-LECTURE : retourne None si aucun bilan."""
+        from app.modules.carbon.service import get_latest_assessment
+
+        latest = await get_latest_assessment(db=db_session, user_id=user_id)
+        assert latest is None
+
     async def test_get_assessment_summary(self, db_session, user_id: uuid.UUID) -> None:
         """T013-26 : Resume complet d'un bilan."""
         from app.modules.carbon.service import (

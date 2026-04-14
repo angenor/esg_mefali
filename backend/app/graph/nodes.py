@@ -732,41 +732,53 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     if carbon_data is None or carbon_data.get("status") == "completed":
         from app.modules.carbon.service import build_initial_carbon_state
 
-        # Tenter de reprendre un bilan interrompu
+        # Tenter de reprendre un bilan interrompu ; si absent, charger le
+        # dernier bilan (meme completed) pour permettre la consultation.
         resumable = None
+        latest = None
         user_id = state.get("user_id")
         if user_id:
             try:
                 import uuid as uuid_mod
 
                 from app.core.database import async_session_factory
-                from app.modules.carbon.service import get_resumable_assessment
+                from app.modules.carbon.service import (
+                    get_latest_assessment,
+                    get_resumable_assessment,
+                )
 
                 async with async_session_factory() as db:
-                    resumable = await get_resumable_assessment(db, uuid_mod.UUID(str(user_id)))
+                    user_uuid = uuid_mod.UUID(str(user_id))
+                    resumable = await get_resumable_assessment(db, user_uuid)
+                    if resumable is None:
+                        latest = await get_latest_assessment(db, user_uuid)
             except Exception:
                 logger.exception("Erreur lors de la recherche de bilan carbone a reprendre")
 
-        if resumable is not None:
-            applicable_cats = resumable.completed_categories or []
+        existing = resumable or latest
+        if existing is not None:
             from app.modules.carbon.emission_factors import get_applicable_categories
-            all_applicable = get_applicable_categories(resumable.sector)
+            all_applicable = get_applicable_categories(existing.sector)
+            completed_cats = list(existing.completed_categories or [])
+            existing_status = existing.status.value if hasattr(existing.status, "value") else str(existing.status)
+
             # Determiner la categorie en cours (premiere non completee)
             current = all_applicable[0] if all_applicable else "energy"
             for cat in all_applicable:
-                if cat not in applicable_cats:
+                if cat not in completed_cats:
                     current = cat
                     break
 
             carbon_data = {
-                "assessment_id": str(resumable.id),
-                "status": "in_progress",
+                "assessment_id": str(existing.id),
+                "status": existing_status,
                 "current_category": current,
-                "completed_categories": list(applicable_cats),
+                "completed_categories": completed_cats,
                 "applicable_categories": all_applicable,
                 "entries": [],
-                "total_emissions_tco2e": resumable.total_emissions_tco2e or 0.0,
-                "sector": resumable.sector,
+                "total_emissions_tco2e": existing.total_emissions_tco2e or 0.0,
+                "sector": existing.sector,
+                "year": existing.year,
             }
         else:
             sector = user_profile.get("sector", "services")
@@ -789,8 +801,20 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     )
 
     # Injecter l'etat du bilan dans le prompt
+    assessment_id_ctx = carbon_data.get("assessment_id", "pending")
+    status_ctx = carbon_data.get("status", "in_progress")
+    year_ctx = carbon_data.get("year")
+    header = (
+        "ETAT DU BILAN CARBONE EN COURS"
+        if status_ctx != "completed"
+        else "BILAN CARBONE EXISTANT (finalise, disponible en consultation)"
+    )
+    year_line = f"- Annee : {year_ctx}\n" if year_ctx else ""
     carbon_state_context = (
-        f"\n\nETAT DU BILAN CARBONE EN COURS :\n"
+        f"\n\n{header} :\n"
+        f"- Identifiant bilan (assessment_id) : {assessment_id_ctx}\n"
+        f"- Statut : {status_ctx}\n"
+        f"{year_line}"
         f"- Categorie actuelle : {carbon_data.get('current_category', 'energy')}\n"
         f"- Categories completees : {carbon_data.get('completed_categories', [])}\n"
         f"- Categories applicables : {carbon_data.get('applicable_categories', [])}\n"

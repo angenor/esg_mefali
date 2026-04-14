@@ -1,5 +1,20 @@
 # Deferred Work
 
+## Resolved (2026-04-14)
+
+### [BUG] carbon_node — lecture de bilan carbone retourne "Aucun bilan" alors qu'une entree existe
+
+- **Feature d'origine** : 007-carbon-footprint-calculator
+- **Revele par** : test live feature 019 (parcours Fatou) avec `agent-browser` sur compte `fatou1@gmail.com`
+- **Cause racine** : `carbon_node` et le tool `get_carbon_summary` n'utilisaient que `get_resumable_assessment` (filtre `status = in_progress`). Lorsque l'utilisateur n'a que des bilans `completed`, le fallback retournait None et le LLM pensait qu'aucun bilan n'existait. Dans le meme temps, `create_carbon_assessment` detectait bien le bilan existant (contrainte d'unicite user_id + year), d'ou la reponse contradictoire.
+- **Correctif** :
+  1. Ajout de `get_latest_assessment(db, user_id)` dans `backend/app/modules/carbon/service.py` — retourne le bilan le plus recent quel que soit le statut.
+  2. Mise a jour de `get_carbon_summary` dans `backend/app/graph/tools/carbon_tools.py` — fallback sur `get_latest_assessment` quand aucun bilan `in_progress`.
+  3. Mise a jour de `carbon_node` dans `backend/app/graph/nodes.py` — charge egalement les bilans `completed` dans l'etat injecte au prompt (annee, statut, assessment_id reels) + nouvel en-tete de contexte "BILAN CARBONE EXISTANT (finalise, disponible en consultation)".
+- **Tests** : 4 tests ajoutes (3 service + 1 tool). 1072 tests backend verts, zero regression.
+- **Commit** : voir `git log` sur la branche `main` (date 2026-04-14).
+- **Note sur la journalisation `tool_call_logs`** : symptome non lie au bug. Les tools metier (carbon, esg, etc.) n'instrumentent pas actuellement `log_tool_call` ; seuls `interactive_tools` et `guided_tour_tools` le font. Dette d'observabilite a traiter separement.
+
 ## Deferred from: code review of story-8-1 (2026-04-14)
 
 - Imports `../../../app/types/carbon` sans path alias dans les fixtures E2E — a refactorer globalement avec un alias Vitest/Playwright (hors scope 8.1). [frontend/tests/e2e/fixtures/mock-backend.ts:666]

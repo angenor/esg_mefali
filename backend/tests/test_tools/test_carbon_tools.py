@@ -414,10 +414,17 @@ async def test_get_carbon_summary_without_id_uses_resumable(mock_config):
 @pytest.mark.asyncio
 async def test_get_carbon_summary_no_assessment_found(mock_config):
     """Erreur si aucun bilan n'est trouve."""
-    with patch(
-        f"{_CARBON_SVC}.get_resumable_assessment",
-        new_callable=AsyncMock,
-        return_value=None,
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_resumable_assessment",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{_CARBON_SVC}.get_latest_assessment",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         result = await get_carbon_summary.ainvoke(
             {},
@@ -427,3 +434,56 @@ async def test_get_carbon_summary_no_assessment_found(mock_config):
     data = json.loads(result)
     assert data["status"] == "error"
     assert "Aucun bilan" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_get_carbon_summary_falls_back_to_latest_completed(mock_config):
+    """Regression BUG-CARBON-LECTURE : sans ID et sans bilan in_progress,
+    retrouver le dernier bilan completed de l'utilisateur.
+
+    Scenario reproduit : utilisateur Fatou a 1 bilan 2025 completed a 43.041 tCO2e.
+    Avant le fix, `get_carbon_summary()` sans id appelait uniquement
+    `get_resumable_assessment` (qui filtre in_progress) et retournait
+    "Aucun bilan" alors que le bilan completed existe.
+    """
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000003")
+
+    fake_summary = {
+        "assessment_id": "aaaaaaaa-0000-0000-0000-000000000003",
+        "year": 2025,
+        "status": "completed",
+        "total_emissions_tco2e": 43.041,
+        "by_category": {
+            "energy": {"emissions_tco2e": 20.0, "entries_count": 2, "percentage": 46.5},
+        },
+        "equivalences": [],
+        "reduction_plan": None,
+        "sector_benchmark": None,
+    }
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_resumable_assessment",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_resumable,
+        patch(
+            f"{_CARBON_SVC}.get_latest_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ) as mock_latest,
+        patch(
+            f"{_CARBON_SVC}.get_assessment_summary",
+            new_callable=AsyncMock,
+            return_value=fake_summary,
+        ),
+    ):
+        result = await get_carbon_summary.ainvoke({}, config=mock_config)
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["summary"]["total_emissions_tco2e"] == 43.041
+    assert data["summary"]["status"] == "completed"
+    mock_resumable.assert_awaited_once()
+    mock_latest.assert_awaited_once()

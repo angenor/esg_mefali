@@ -109,6 +109,25 @@ async def get_resumable_assessment(
     return result.scalar_one_or_none()
 
 
+async def get_latest_assessment(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> CarbonAssessment | None:
+    """Trouver le bilan le plus recent pour un utilisateur, quel que soit le statut.
+
+    Utile pour la consultation : un utilisateur peut avoir uniquement des bilans
+    `completed` et vouloir les relire. `get_resumable_assessment` ne retourne
+    que `in_progress` et renvoie None dans ce cas.
+    """
+    result = await db.execute(
+        select(CarbonAssessment)
+        .where(CarbonAssessment.user_id == user_id)
+        .order_by(CarbonAssessment.updated_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 # --- Ajout d'entrees ---
 
 

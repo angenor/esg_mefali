@@ -242,6 +242,7 @@ async def get_carbon_summary(
     from app.modules.carbon.service import (
         get_assessment,
         get_assessment_summary,
+        get_latest_assessment,
         get_resumable_assessment,
     )
 
@@ -252,7 +253,12 @@ async def get_carbon_summary(
         if assessment_id:
             assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
         else:
+            # Priorite au bilan in_progress (reprise de questionnaire).
+            # Fallback sur le dernier bilan quel que soit son statut pour
+            # permettre la consultation d'un bilan completed.
             assessment = await get_resumable_assessment(db, user_id)
+            if assessment is None:
+                assessment = await get_latest_assessment(db, user_id)
 
         if assessment is None:
             return json.dumps({
