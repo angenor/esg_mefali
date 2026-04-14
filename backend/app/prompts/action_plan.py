@@ -100,6 +100,7 @@ def build_action_plan_prompt(
     intermediaries_context: str = "Aucun intermédiaire identifié.",
     timeframe: int = 12,
     current_page: str | None = None,
+    guidance_stats: dict | None = None,
 ) -> str:
     """Construire le prompt pour la génération du plan d'action.
 
@@ -114,7 +115,10 @@ def build_action_plan_prompt(
     Returns:
         Prompt formaté pour le LLM
     """
-    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
+    from app.prompts.guided_tour import (
+        GUIDED_TOUR_INSTRUCTION,
+        build_adaptive_frequency_hint,
+    )
     from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
@@ -134,6 +138,11 @@ def build_action_plan_prompt(
         + "\n\n"
         + GUIDED_TOUR_INSTRUCTION
     )
+
+    # Appendix conditionnel — modulation adaptative (FR17)
+    hint = build_adaptive_frequency_hint(guidance_stats)
+    if hint:
+        prompt += "\n\n" + hint
 
     page_context = build_page_context_instruction(current_page)
     if page_context:

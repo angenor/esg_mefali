@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-14' (Story 6.3 done — code review applique, 8 patches, 6 defer)
+# last_updated: '2026-04-14' (Story 6.4 review)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-14' (Story 6.3 done — code review applique)
-last_story_created: '6-3-consentement-via-widget-interactif-et-declenchement-direct'
-last_review_completed: '6-3-consentement-via-widget-interactif-et-declenchement-direct'
+last_updated: '2026-04-14' (Story 6.4 review done)
+last_story_created: '6-4-frequence-adaptative-des-propositions-de-guidage'
+last_review_completed: '6-4-frequence-adaptative-des-propositions-de-guidage'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -87,7 +87,7 @@ development_status:
   6-1-tool-langchain-trigger-guided-tour-et-marker-sse: done
   6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph: done
   6-3-consentement-via-widget-interactif-et-declenchement-direct: done
-  6-4-frequence-adaptative-des-propositions-de-guidage: backlog
+  6-4-frequence-adaptative-des-propositions-de-guidage: done
   epic-6-retrospective: optional
 
   # Epic 7 : Resilience et edge cases

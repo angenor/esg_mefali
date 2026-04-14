@@ -79,6 +79,43 @@ async def _error_sse(message: str) -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'type': 'error', 'content': message})}\n\n"
 
 
+# Story 6.4 review (D1+P8) : plafond partage front/back pour stabiliser le
+# comportement adaptatif (au-dela, le plancher 3s est deja atteint — compter
+# plus loin n'ajoute rien et gonfle la payload / l'attaque DoS).
+MAX_STATS_CAP = 5
+# Review 6.4 P11 : cap longueur brute du Form field avant json.loads (CPU).
+MAX_GUIDANCE_STATS_RAW_LEN = 500
+
+
+def _parse_guidance_stats(raw: str | None) -> dict | None:
+    """Parser le Form field guidance_stats (JSON) avec fallback None.
+
+    Accepte uniquement un objet {refusal_count:int>=0, acceptance_count:int>=0}.
+    Les valeurs sont clampees a MAX_STATS_CAP (defense en profondeur).
+    Toute autre structure → None (pas de crash HTTP 500).
+    """
+    if not raw:
+        return None
+    if len(raw) > MAX_GUIDANCE_STATS_RAW_LEN:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    refusal = parsed.get("refusal_count")
+    acceptance = parsed.get("acceptance_count")
+    if not isinstance(refusal, int) or isinstance(refusal, bool) or refusal < 0:
+        return None
+    if not isinstance(acceptance, int) or isinstance(acceptance, bool) or acceptance < 0:
+        return None
+    return {
+        "refusal_count": min(refusal, MAX_STATS_CAP),
+        "acceptance_count": min(acceptance, MAX_STATS_CAP),
+    }
+
+
 async def stream_graph_events(
     content: str,
     conversation_id: str,
@@ -90,6 +127,7 @@ async def stream_graph_events(
     document_upload: dict | None = None,
     widget_response: dict | None = None,
     current_page: str | None = None,
+    guidance_stats: dict | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Streamer les événements du graphe LangGraph via astream_events().
 
@@ -130,6 +168,7 @@ async def stream_graph_events(
         "_route_action_plan": False,
         "tool_call_count": 0,
         "current_page": current_page,
+        "guidance_stats": guidance_stats,
     }
 
     config = {
@@ -629,6 +668,7 @@ async def send_message(
     interactive_question_values: str | None = Form(None),
     interactive_question_justification: str | None = Form(None),
     current_page: str | None = Form(None),
+    guidance_stats: str | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
@@ -642,6 +682,9 @@ async def send_message(
     # Sanitisation de current_page : longueur max et caracteres autorises
     if current_page is not None:
         current_page = current_page.strip()[:200] or None
+
+    # Parsing du Form field guidance_stats (FR17 — modulation adaptative)
+    parsed_guidance_stats = _parse_guidance_stats(guidance_stats)
 
     conversation = await get_user_conversation(conversation_id, current_user, db)
 
@@ -811,6 +854,7 @@ async def send_message(
                     document_upload=doc_upload_info,
                     widget_response=widget_response_payload,
                     current_page=current_page,
+                    guidance_stats=parsed_guidance_stats,
                 ):
                     event_type = event.get("type")
 
@@ -943,6 +987,7 @@ async def send_message_json(
         interactive_question_values=None,
         interactive_question_justification=None,
         current_page=None,
+        guidance_stats=None,
         current_user=current_user,
         db=db,
     )

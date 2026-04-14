@@ -175,6 +175,7 @@ def build_system_prompt(
     profiling_instructions: str | None = None,
     document_analysis_summary: str | None = None,
     current_page: str | None = None,
+    guidance_stats: dict | None = None,
 ) -> str:
     """Construire le prompt système avec le profil, la mémoire, le profilage guidé et le contexte document."""
     sections: list[str] = [BASE_PROMPT]
@@ -217,8 +218,18 @@ def build_system_prompt(
     # financing, credit, action_plan — voir graph/nodes.py), les regles d'usage
     # (6 tour_id autorises, consentement, NFR10 sur context) doivent toujours
     # accompagner le tool cote LLM — meme pour un profil minimal.
-    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
+    from app.prompts.guided_tour import (
+        GUIDED_TOUR_INSTRUCTION,
+        build_adaptive_frequency_hint,
+    )
     sections.append(GUIDED_TOUR_INSTRUCTION)
+
+    # Appendix conditionnel — modulation de frequence (FR17).
+    # Injecte apres GUIDED_TOUR_INSTRUCTION pour ne pas rompre les 16+17 tests
+    # qui verrouillent la constante. Chaine vide si refusal_count < 3.
+    hint = build_adaptive_frequency_hint(guidance_stats)
+    if hint:
+        sections.append(hint)
 
     return "\n\n".join(sections)
 

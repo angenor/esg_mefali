@@ -34,3 +34,5 @@ class ConversationState(TypedDict):
     active_module: str | None
     active_module_data: dict | None
     current_page: str | None
+    # Compteurs frontend transmis pour moduler la frequence des propositions de guidage (FR17)
+    guidance_stats: dict | None

@@ -11,9 +11,16 @@ import type {
 import { useAuthStore } from '~/stores/auth'
 import { useCompanyStore } from '~/stores/company'
 import { useUiStore } from '~/stores/ui'
+// Review 6.4 P12 — import statique (evite await import(...) en hot-path)
+import { useGuidedTour } from '~/composables/useGuidedTour'
 
 // Sécurité : ce module-level state ne doit jamais s'exécuter côté serveur
 if (import.meta.server) throw new Error('useChat is client-only')
+
+// Review 6.4 P5 — flag : true apres une reponse 'yes' a un consent widget,
+// consume par le prochain evenement SSE `guided_tour` pour distinguer une
+// acceptance-via-consent d'un declenchement direct (verbe d'action visuel).
+let _consentAcceptancePending = false
 
 // ── Module-level state (singleton partagé entre tous les consommateurs) ──
 const conversations = ref<Conversation[]>([])
@@ -43,6 +50,33 @@ const searchQuery = ref('')
 // SSE cross-routes : AbortController et reader module-level
 const abortController = ref<AbortController | null>(null)
 const sseReader = ref<ReadableStreamDefaultReader | null>(null)
+
+/**
+ * Normalise un label pour comparaison tolerante (minuscule + trim + compact).
+ */
+function _normalizeLabel(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Heuristique de detection d'une question de consentement guidage (story 6.4 / FR17).
+ *
+ * Review 6.4 P6 — hybride : module=='chat' + structure (qcu, 2 options positionnelles
+ * id='yes'/'no') + labels canoniques normalises (tolere casse/espaces). Evite de
+ * confondre avec une question ESG/carbone yes/no tout en tolerant la derive minime
+ * du LLM (capitalisation, espaces). Une variation majeure (emoji, traduction) casse
+ * intentionnellement la detection — c'est verrouille backend cote test T-AC1a (6.3).
+ */
+function isGuidanceConsentQuestion(q: InteractiveQuestion | null): boolean {
+  if (!q || q.question_type !== 'qcu') return false
+  if (q.module !== 'chat') return false
+  if (!Array.isArray(q.options) || q.options.length !== 2) return false
+  // Matching positionnel strict : options[0] = yes, options[1] = no.
+  if (q.options[0]?.id !== 'yes' || q.options[1]?.id !== 'no') return false
+  const yesNorm = _normalizeLabel(q.options[0]?.label || '')
+  const noNorm = _normalizeLabel(q.options[1]?.label || '')
+  return yesNorm === 'oui, montre-moi' && noNorm === 'non merci'
+}
 
 const filteredConversations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -166,6 +200,13 @@ export function useChat() {
         formData.append('file', file)
       }
       formData.append('current_page', uiStore.currentPage)
+
+      // FR17 — transmettre les compteurs de modulation au LLM (story 6.4)
+      const _gt = useGuidedTour()
+      formData.append('guidance_stats', JSON.stringify({
+        refusal_count: _gt.guidanceRefusalCount.value,
+        acceptance_count: _gt.guidanceAcceptanceCount.value,
+      }))
 
       const headers: Record<string, string> = {}
       if (authStore.accessToken) {
@@ -479,6 +520,14 @@ export function useChat() {
 
     // Construire la representation textuelle du choix utilisateur
     const question = currentInteractiveQuestion.value
+
+    // Review 6.4 P3+P5 — capture l'intent (refus / acceptance consent) MAIS
+    // ne commit pas encore les compteurs : seul un aller-retour reussi ou
+    // un tour effectivement lance peuvent crediter le bon compteur.
+    const isConsentQ = isGuidanceConsentQuestion(question)
+    const pendingRefusal = isConsentQ && answer.values.includes('no')
+    const pendingAcceptance = isConsentQ && answer.values.includes('yes')
+
     const labels = question
       ? question.options
           .filter(opt => answer.values.includes(opt.id))
@@ -524,12 +573,28 @@ export function useChat() {
       const uiStore = useUiStore()
       const formData = new FormData()
       formData.append('content', '')
+      formData.append('current_page', uiStore.currentPage)
+
+      // Review 6.4 P10 — `guidance_stats` ordonne APRES `current_page` et AVANT
+      // le bloc `interactive_question_*` (cf spec AC2).
+      // FR17 — transmettre les compteurs de modulation au LLM (story 6.4)
+      const _gt = useGuidedTour()
+      formData.append('guidance_stats', JSON.stringify({
+        refusal_count: _gt.guidanceRefusalCount.value,
+        acceptance_count: _gt.guidanceAcceptanceCount.value,
+      }))
+
       formData.append('interactive_question_id', questionId)
       formData.append('interactive_question_values', JSON.stringify(answer.values))
       if (answer.justification) {
         formData.append('interactive_question_justification', answer.justification)
       }
-      formData.append('current_page', uiStore.currentPage)
+
+      // Review 6.4 P5 — armer le flag AVANT l'appel. handleGuidedTourEvent
+      // le consommera lors du SSE `guided_tour` qui va suivre (si LLM declenche).
+      if (pendingAcceptance) {
+        _consentAcceptancePending = true
+      }
 
       const headers: Record<string, string> = {}
       if (authStore.accessToken) {
@@ -647,6 +712,14 @@ export function useChat() {
           }
         }
       }
+
+      // Review 6.4 P3 — le flux SSE a termine normalement : on peut
+      // commit le refus (network round-trip reussi). Si un throw est survenu
+      // avant, on ne l'atteint pas et refus n'est pas credite (comportement
+      // voulu par AC5).
+      if (pendingRefusal) {
+        useGuidedTour().incrementGuidanceRefusal()
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       error.value = e instanceof Error ? e.message : 'Erreur inconnue'
@@ -656,6 +729,10 @@ export function useChat() {
         isStreaming.value = false
         streamingContent.value = ''
       }
+      // Review 6.4 P5 — si un flag consent etait arme mais qu'aucun guided_tour
+      // n'a suivi (LLM n'a pas declenche), on le desarme pour ne pas polluer
+      // un futur tour explicite.
+      _consentAcceptancePending = false
     }
   }
 
@@ -690,10 +767,19 @@ export function useChat() {
       addSystemMessage("Repondez d'abord a la question en attente.")
       return
     }
+    // Review 6.4 P5 — consomme le flag : un declenchement direct
+    // (sans consent widget precedent) n'incrementera PAS acceptance.
+    const fromConsent = _consentAcceptancePending
+    _consentAcceptancePending = false
     try {
-      const { useGuidedTour } = await import('~/composables/useGuidedTour')
-      const { startTour } = useGuidedTour()
-      await startTour(tourId, (event.context as Record<string, unknown>) || {})
+      const guided = useGuidedTour()
+      // Review 6.4 P4 — commit acceptance UNIQUEMENT apres que startTour ait
+      // mene le parcours a completion (pas d'acceptance fantome si tour_id
+      // hors registre, DOM introuvable, ou utilisateur annule).
+      const completed = await guided.startTour(tourId, (event.context as Record<string, unknown>) || {})
+      if (completed && fromConsent) {
+        guided.incrementGuidanceAcceptance()
+      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[useChat] Echec declenchement guided tour', err)

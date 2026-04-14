@@ -121,9 +121,13 @@ def build_carbon_prompt(
     company_context: str = "Aucun profil disponible.",
     applicable_categories: str = "energy, transport, waste",
     current_page: str | None = None,
+    guidance_stats: dict | None = None,
 ) -> str:
     """Construire le prompt carbone avec le contexte entreprise."""
-    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
+    from app.prompts.guided_tour import (
+        GUIDED_TOUR_INSTRUCTION,
+        build_adaptive_frequency_hint,
+    )
     from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
 
@@ -139,6 +143,11 @@ def build_carbon_prompt(
         + "\n\n"
         + GUIDED_TOUR_INSTRUCTION
     )
+
+    # Appendix conditionnel — modulation adaptative (FR17)
+    hint = build_adaptive_frequency_hint(guidance_stats)
+    if hint:
+        prompt += "\n\n" + hint
 
     page_context = build_page_context_instruction(current_page)
     if page_context:

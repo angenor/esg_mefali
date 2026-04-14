@@ -17,13 +17,22 @@ vi.mock('~/stores/ui', () => ({
   useUiStore: () => ({ currentPage: '/' }),
 }))
 
-// Mock useGuidedTour — on capture les appels a startTour
+// Mock useGuidedTour — on capture les appels a startTour + increments adaptatifs
 const mockStartTour = vi.fn()
+const mockIncrementRefusal = vi.fn()
+const mockIncrementAcceptance = vi.fn()
 vi.mock('~/composables/useGuidedTour', () => ({
   useGuidedTour: () => ({
     startTour: mockStartTour,
     cancelTour: vi.fn(),
     tourState: { value: 'idle' },
+    // Story 6.4 — compteurs adaptatifs (FR17)
+    guidanceRefusalCount: { value: 0 },
+    guidanceAcceptanceCount: { value: 0 },
+    incrementGuidanceRefusal: mockIncrementRefusal,
+    incrementGuidanceAcceptance: mockIncrementAcceptance,
+    resetGuidanceStats: vi.fn(),
+    computeEffectiveCountdown: vi.fn((c: number) => c),
   }),
 }))
 
@@ -74,6 +83,8 @@ describe('useChat — consentement widget + declenchement guided_tour (story 6.3
     await resetModuleState()
     vi.restoreAllMocks()
     mockStartTour.mockClear()
+    mockIncrementRefusal.mockClear()
+    mockIncrementAcceptance.mockClear()
   })
 
   afterEach(async () => {
@@ -283,5 +294,81 @@ describe('useChat — consentement widget + declenchement guided_tour (story 6.3
 
     expect(mockStartTour).not.toHaveBeenCalled()
     expect(chat.currentInteractiveQuestion.value).toBeNull()
+    // Review 6.4 P18 — refus consent → increment refusal compteur (post-SSE round-trip)
+    expect(mockIncrementRefusal).toHaveBeenCalledTimes(1)
+    expect(mockIncrementAcceptance).not.toHaveBeenCalled()
+  })
+
+  // ── Review 6.4 P19 — edge case : submitInteractiveAnswer sans currentInteractiveQuestion ──
+  it('submitInteractiveAnswer without currentInteractiveQuestion does NOT increment counters', async () => {
+    const { useChat } = await import('~/composables/useChat')
+    const chat = useChat()
+    chat.currentConversation.value = {
+      id: 'conv-null',
+      title: 'Test',
+      created_at: '',
+      updated_at: '',
+    }
+    chat.currentInteractiveQuestion.value = null // aucune question active
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        body: createMockSSEStream([{ type: 'token', content: 'ok' }]),
+      }),
+    )
+
+    await chat.submitInteractiveAnswer('iq-ghost', { values: ['no'] })
+
+    expect(mockIncrementRefusal).not.toHaveBeenCalled()
+    expect(mockIncrementAcceptance).not.toHaveBeenCalled()
+  })
+
+  // ── Review 6.4 P19 — edge case : question consent a 3 options → heuristique rejette ──
+  it('3-option question is NOT detected as guidance consent (heuristic requires exactly 2 options)', async () => {
+    const { useChat } = await import('~/composables/useChat')
+    const chat = useChat()
+    chat.currentConversation.value = {
+      id: 'conv-3opt',
+      title: 'Test',
+      created_at: '',
+      updated_at: '',
+    }
+    chat.currentInteractiveQuestion.value = {
+      id: 'iq-3opt',
+      conversation_id: 'conv-3opt',
+      question_type: 'qcu',
+      prompt: 'Que veux-tu voir ?',
+      options: [
+        { id: 'yes', label: 'Oui, montre-moi' },
+        { id: 'no', label: 'Non merci' },
+        { id: 'maybe', label: 'Plus tard' },
+      ],
+      min_selections: 1,
+      max_selections: 1,
+      requires_justification: false,
+      justification_prompt: null,
+      module: 'chat',
+      created_at: new Date().toISOString(),
+      state: 'pending',
+      response_values: null,
+      response_justification: null,
+      answered_at: null,
+    }
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        body: createMockSSEStream([{ type: 'token', content: 'ok' }]),
+      }),
+    )
+
+    await chat.submitInteractiveAnswer('iq-3opt', { values: ['no'] })
+
+    // 3 options → pas une question consent → ni refus ni acceptance
+    expect(mockIncrementRefusal).not.toHaveBeenCalled()
+    expect(mockIncrementAcceptance).not.toHaveBeenCalled()
   })
 })

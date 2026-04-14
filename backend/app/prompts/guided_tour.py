@@ -135,3 +135,37 @@ trigger_guided_tour(
 )
 ```
 """
+
+
+_ADAPTIVE_FREQUENCY_HINT = """## Modulation de frequence (adaptation comportementale)
+
+L'utilisateur a refuse plusieurs fois consecutives tes propositions de guidage.
+- Ne propose PLUS spontanement de guidage via `ask_interactive_question` avec les options « Oui, montre-moi » / « Non merci ».
+- Ne declenche un guidage via `trigger_guided_tour` QUE sur demande explicite de l'utilisateur (verbes d'action visuels : `montre`, `guide`, `visualise`, `fais-moi visiter`, `où sont`).
+- Ne relance pas et ne suggere pas en boucle — respecte son choix et ne plus proposer tant que l'intent reste implicite.
+- Cette restriction se leve automatiquement quand l'utilisateur acceptera a nouveau un guidage (compteur reinitialise cote client).
+"""
+
+
+def build_adaptive_frequency_hint(guidance_stats: dict | None) -> str:
+    """Construire un bloc d'instruction adaptative selon les stats client (FR17).
+
+    Quand l'utilisateur a refuse >= 3 fois consecutives, retourne un bloc
+    normatif demandant au LLM de ne plus proposer de guidage spontanement.
+    Sinon, retourne une chaine vide (appendix conditionnel pur).
+
+    Args:
+        guidance_stats: dict {refusal_count:int, acceptance_count:int} ou None.
+
+    Returns:
+        Bloc texte FR si seuil atteint, chaine vide sinon. Pure, deterministe,
+        sans PII (NFR10 : aucune valeur numerique exposee dans la chaine).
+    """
+    if guidance_stats is None:
+        return ""
+    refusal_count = guidance_stats.get("refusal_count")
+    if not isinstance(refusal_count, int) or isinstance(refusal_count, bool):
+        return ""
+    if refusal_count < 3:
+        return ""
+    return _ADAPTIVE_FREQUENCY_HINT

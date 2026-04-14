@@ -24,6 +24,13 @@ vi.mock('~/composables/useGuidedTour', () => ({
     startTour: mockStartTour,
     cancelTour: vi.fn(),
     tourState: { value: 'idle' },
+    // Story 6.4 — compteurs adaptatifs (FR17)
+    guidanceRefusalCount: { value: 0 },
+    guidanceAcceptanceCount: { value: 0 },
+    incrementGuidanceRefusal: vi.fn(),
+    incrementGuidanceAcceptance: vi.fn(),
+    resetGuidanceStats: vi.fn(),
+    computeEffectiveCountdown: vi.fn((c: number) => c),
   }),
 }))
 

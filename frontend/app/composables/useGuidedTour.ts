@@ -12,6 +12,111 @@ const tourState = ref<TourState>('idle')
 const currentTourId = ref<string | null>(null)
 const currentStepIndex = ref(0)
 
+// ── Compteurs de modulation de frequence (FR17 — story 6.4) ──
+const GUIDANCE_STATS_KEY = 'esg_mefali_guidance_stats'
+// TODO(module 7 — multi-user) : prefixer la cle par user_id quand le systeme
+// de sessions sera implemente (cf. deferred-work.md / review 6.4 D3).
+// Plancher du countdown multi-pages (FR17) — partage avec la formule adaptative.
+const COUNTDOWN_FLOOR = 3
+// Plafond des compteurs — au-dela, plancher 3s deja atteint, aucun gain a compter.
+const MAX_STATS_CAP = 5
+const guidanceRefusalCount = ref<number>(0)
+const guidanceAcceptanceCount = ref<number>(0)
+
+interface GuidanceStats {
+  refusal_count: number
+  acceptance_count: number
+}
+
+function loadGuidanceStats(): GuidanceStats {
+  if (typeof window === 'undefined') {
+    return { refusal_count: 0, acceptance_count: 0 }
+  }
+  try {
+    const raw = window.localStorage.getItem(GUIDANCE_STATS_KEY)
+    if (!raw) return { refusal_count: 0, acceptance_count: 0 }
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') {
+      return { refusal_count: 0, acceptance_count: 0 }
+    }
+    const r = (parsed as Record<string, unknown>).refusal_count
+    const a = (parsed as Record<string, unknown>).acceptance_count
+    if (typeof r !== 'number' || !Number.isInteger(r) || r < 0) {
+      return { refusal_count: 0, acceptance_count: 0 }
+    }
+    if (typeof a !== 'number' || !Number.isInteger(a) || a < 0) {
+      return { refusal_count: 0, acceptance_count: 0 }
+    }
+    // Defense en profondeur : clamp meme si le JSON contient des valeurs gonflees.
+    return {
+      refusal_count: Math.min(r, MAX_STATS_CAP),
+      acceptance_count: Math.min(a, MAX_STATS_CAP),
+    }
+  } catch {
+    return { refusal_count: 0, acceptance_count: 0 }
+  }
+}
+
+function persistGuidanceStats(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      GUIDANCE_STATS_KEY,
+      JSON.stringify({
+        refusal_count: guidanceRefusalCount.value,
+        acceptance_count: guidanceAcceptanceCount.value,
+      }),
+    )
+  } catch (err) {
+    // localStorage peut throw en mode privacy Safari ou quota depasse —
+    // on log sans bloquer le flux.
+    // eslint-disable-next-line no-console
+    console.warn('[useGuidedTour] persist guidance_stats failed', err)
+  }
+}
+
+// Initialisation module-level : lecture localStorage une seule fois au chargement
+const _initialStats = loadGuidanceStats()
+guidanceRefusalCount.value = _initialStats.refusal_count
+guidanceAcceptanceCount.value = _initialStats.acceptance_count
+
+// Review 6.4 P9 — synchronisation multi-onglets via `storage` event.
+// Quand un autre onglet modifie la cle, on relit pour eviter les lost-updates.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key !== GUIDANCE_STATS_KEY) return
+    const fresh = loadGuidanceStats()
+    guidanceRefusalCount.value = fresh.refusal_count
+    guidanceAcceptanceCount.value = fresh.acceptance_count
+  })
+}
+
+function incrementGuidanceRefusal(): void {
+  guidanceRefusalCount.value = Math.min(guidanceRefusalCount.value + 1, MAX_STATS_CAP)
+  persistGuidanceStats()
+}
+
+function incrementGuidanceAcceptance(): void {
+  // Acceptation : +1 acceptance (plafonne) ET reset refusal a 0.
+  guidanceAcceptanceCount.value = Math.min(guidanceAcceptanceCount.value + 1, MAX_STATS_CAP)
+  guidanceRefusalCount.value = 0
+  persistGuidanceStats()
+}
+
+function resetGuidanceStats(): void {
+  guidanceRefusalCount.value = 0
+  guidanceAcceptanceCount.value = 0
+  persistGuidanceStats()
+}
+
+/**
+ * Calcule le countdown effectif en reduisant le countdown original
+ * par le nombre d'acceptations, avec un plancher COUNTDOWN_FLOOR (FR17).
+ */
+function computeEffectiveCountdown(originalCountdown: number): number {
+  return Math.max(COUNTDOWN_FLOOR, originalCountdown - guidanceAcceptanceCount.value)
+}
+
 let driverInstance: ReturnType<typeof import('driver.js').driver> | null = null
 let cancelled = false
 let cachedUiStore: ReturnType<typeof import('~/stores/ui').useUiStore> | null = null
@@ -129,9 +234,15 @@ function interruptTour(uiStore: ReturnType<typeof import('~/stores/ui').useUiSto
 
 
 export function useGuidedTour() {
-  async function startTour(tourId: string, context?: TourContext): Promise<void> {
+  /**
+   * @returns true si le parcours s'est deroule jusqu'a la completion,
+   *          false s'il a ete annule, interrompu, ou si tour_id est inconnu.
+   *          Review 6.4 P4 : permet au caller de ne crediter une acceptance
+   *          qu'en cas de succes reel (pas d'acceptance fantome).
+   */
+  async function startTour(tourId: string, context?: TourContext): Promise<boolean> {
     // Ignorer si un parcours est deja en cours
-    if (tourState.value !== 'idle') return
+    if (tourState.value !== 'idle') return false
 
     // Valider tour_id dans le registre
     const definition: GuidedTourDefinition | undefined = tourRegistry[tourId as keyof typeof tourRegistry]
@@ -139,19 +250,23 @@ export function useGuidedTour() {
       const { useChat } = await import('~/composables/useChat')
       const { addSystemMessage } = useChat()
       addSystemMessage(`Parcours « ${tourId} » introuvable.`)
-      return
+      return false
     }
 
     tourState.value = 'loading'
     currentTourId.value = tourId
     cancelled = false
 
+    // Capture acceptance_count au demarrage (FR17 — une seule evaluation,
+    // pas de recalcul pendant que l'utilisateur navigue entre etapes)
+    const acceptanceSnapshot = guidanceAcceptanceCount.value
+
     try {
       // Charger Driver.js via le loader lazy (ADR7)
       const driverModule = await loadDriver()
 
       // Verifier annulation apres chaque await
-      if (cancelled) return
+      if (cancelled) return false
 
       // Interpoler les textes des popovers de toutes les etapes
       const interpolatedSteps = definition.steps.map((step) => ({
@@ -169,7 +284,7 @@ export function useGuidedTour() {
       if (interpolatedSteps.length === 0) {
         tourState.value = 'idle'
         currentTourId.value = null
-        return
+        return false
       }
 
       // Gerer prefers-reduced-motion (NFR14) + retraction widget (Story 5.2)
@@ -183,7 +298,7 @@ export function useGuidedTour() {
 
       if (uiStore.chatWidgetOpen) {
         await new Promise<void>((resolve) => { onRetractComplete = resolve })
-        if (cancelled) return
+        if (cancelled) return false
       }
 
       // Creer l'instance Driver.js avec popoverRender custom et interruption (Story 5.4)
@@ -218,7 +333,9 @@ export function useGuidedTour() {
         tourState.value = 'navigating'
 
         // Highlight du lien sidebar avec popover contenant le decompteur
-        const countdownDuration = clampCountdown(entryStep.popover.countdown ?? DEFAULT_ENTRY_COUNTDOWN)
+        // FR17 : reduction adaptative (plancher COUNTDOWN_FLOOR) selon les acceptations anterieures
+        const baseCountdown = clampCountdown(entryStep.popover.countdown ?? DEFAULT_ENTRY_COUNTDOWN)
+        const countdownDuration = Math.max(COUNTDOWN_FLOOR, baseCountdown - acceptanceSnapshot)
 
         await new Promise<void>((resolve) => {
           resolveCurrentStep = resolve
@@ -253,7 +370,7 @@ export function useGuidedTour() {
         })
         resolveCurrentStep = null
 
-        if (cancelled) return
+        if (cancelled) return false
 
         // Effectuer la navigation
         unmountAllPopoverApps()
@@ -267,20 +384,20 @@ export function useGuidedTour() {
         await nextTick()
         currentRoute = entryStep.targetRoute
 
-        if (cancelled) return
+        if (cancelled) return false
 
         // Attente DOM : element de la premiere etape (5s puis retry, 10s max)
         const firstStepSelector = interpolatedSteps[0]?.selector
         if (firstStepSelector) {
           const el = await waitForElementExtended(firstStepSelector, 10000)
-          if (cancelled) return
+          if (cancelled) return false
 
           if (!el) {
             const { useChat } = await import('~/composables/useChat')
             const { addSystemMessage } = useChat()
             addSystemMessage('La page n\'a pas pu se charger correctement. Le guidage est interrompu.')
             interruptTour(uiStore)
-            return
+            return false
           }
         }
       }
@@ -291,7 +408,7 @@ export function useGuidedTour() {
 
       // ── Execution sequentielle des etapes (multi-routes — Story 5.3) ──
       for (let i = 0; i < interpolatedSteps.length; i++) {
-        if (cancelled) return
+        if (cancelled) return false
 
         const step = interpolatedSteps[i]!
         currentStepIndex.value = i
@@ -301,7 +418,9 @@ export function useGuidedTour() {
           tourState.value = 'navigating'
 
           // Navigation vers la route de l'etape
-          const navCountdown = clampCountdown(step.popover.countdown ?? DEFAULT_ENTRY_COUNTDOWN)
+          // FR17 : reduction adaptative (plancher COUNTDOWN_FLOOR) selon les acceptations anterieures
+          const baseNavCountdown = clampCountdown(step.popover.countdown ?? DEFAULT_ENTRY_COUNTDOWN)
+          const navCountdown = Math.max(COUNTDOWN_FLOOR, baseNavCountdown - acceptanceSnapshot)
 
           // Highlight du lien sidebar s'il existe, sinon naviguer directement
           const sidebarSelector = `[data-guide-target="sidebar-${step.route.replace(/\//g, '-').replace(/^-/, '')}-link"]`
@@ -341,7 +460,7 @@ export function useGuidedTour() {
             })
             resolveCurrentStep = null
 
-            if (cancelled) return
+            if (cancelled) return false
           }
 
           // Naviguer
@@ -350,7 +469,7 @@ export function useGuidedTour() {
           await nextTick()
           currentRoute = step.route
 
-          if (cancelled) return
+          if (cancelled) return false
 
           // Recrer l'instance Driver.js apres navigation
           unmountAllPopoverApps()
@@ -362,14 +481,14 @@ export function useGuidedTour() {
           // Attente DOM post-navigation
           const el = await waitForElementExtended(step.selector, 10000)
 
-          if (cancelled) return
+          if (cancelled) return false
 
           if (!el) {
             const { useChat } = await import('~/composables/useChat')
             const { addSystemMessage } = useChat()
             addSystemMessage('La page n\'a pas pu se charger correctement. Le guidage est interrompu.')
             interruptTour(uiStore)
-            return
+            return false
           }
 
           tourState.value = 'highlighting'
@@ -377,7 +496,7 @@ export function useGuidedTour() {
           // Pas de navigation — attendre l'element DOM (retry 3x standard)
           const element = await waitForElement(step.selector)
 
-          if (cancelled) return
+          if (cancelled) return false
 
           if (!element) {
             const { useChat } = await import('~/composables/useChat')
@@ -447,6 +566,7 @@ export function useGuidedTour() {
           tourState.value = 'idle'
         }
       }, 1000)
+      return true
     } catch {
       // Reset d'etat en cas d'erreur (loadDriver rejection, highlight throw, etc.)
       clearCountdownTimer()
@@ -469,6 +589,7 @@ export function useGuidedTour() {
       tourState.value = 'idle'
       currentTourId.value = null
       currentStepIndex.value = 0
+      return false
     }
   }
 
@@ -511,5 +632,12 @@ export function useGuidedTour() {
     startTour,
     cancelTour,
     tourState: readonly(tourState),
+    // Compteurs adaptatifs (FR17 — story 6.4)
+    guidanceRefusalCount: readonly(guidanceRefusalCount),
+    guidanceAcceptanceCount: readonly(guidanceAcceptanceCount),
+    incrementGuidanceRefusal,
+    incrementGuidanceAcceptance,
+    resetGuidanceStats,
+    computeEffectiveCountdown,
   }
 }

@@ -631,6 +631,7 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
         company_context=company_context,
         document_context=doc_context,
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Instructions tool calling pour le LLM
@@ -784,6 +785,7 @@ async def carbon_node(state: ConversationState) -> ConversationState:
         company_context=company_context,
         applicable_categories=applicable_text,
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Injecter l'etat du bilan dans le prompt
@@ -900,6 +902,7 @@ async def financing_node(state: ConversationState) -> ConversationState:
         company_context=company_context,
         rag_context=rag_context or "Aucune information supplementaire disponible.",
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Instructions tool calling
@@ -1066,6 +1069,7 @@ async def credit_node(state: ConversationState) -> ConversationState:
         company_context=company_context,
         scoring_context=scoring_context,
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Ajouter le contexte historique si disponible
@@ -1127,6 +1131,7 @@ async def chat_node(state: ConversationState) -> ConversationState:
         user_profile, context_memory, profiling_instructions,
         document_analysis_summary=document_summary,
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Instructions consultation base temps reel
@@ -1367,6 +1372,7 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
         intermediaries_context=intermediaries_context,
         timeframe=12,
         current_page=state.get("current_page"),
+        guidance_stats=state.get("guidance_stats"),
     )
 
     # Les instructions tool calling sont dans le template prompt
