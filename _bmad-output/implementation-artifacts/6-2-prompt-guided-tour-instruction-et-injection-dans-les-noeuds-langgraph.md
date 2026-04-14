@@ -1,6 +1,6 @@
 # Story 6.2 : Prompt GUIDED_TOUR_INSTRUCTION et injection dans les noeuds LangGraph
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -93,55 +93,55 @@ afin de recevoir des suggestions de guidage pertinentes au bon moment.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 : Creer `backend/app/prompts/guided_tour.py` (AC: #1)
-  - [ ] 1.1 Ajouter la docstring de fichier (pattern identique a `widget.py` lignes 1-6)
-  - [ ] 1.2 Definir `GUIDED_TOUR_INSTRUCTION` comme triple-quoted string en majuscules avec sections Markdown
-  - [ ] 1.3 Section `## OUTIL GUIDAGE VISUEL — trigger_guided_tour` : description du tool
-  - [ ] 1.4 Section `### Parcours disponibles` : liste des 6 `tour_id` + une ligne de description pour chaque
-  - [ ] 1.5 Section `### Quand proposer un guidage` : apres completion d'un module OU sur demande explicite
-  - [ ] 1.6 Section `### Regles de declenchement obligatoires` :
+- [x] Task 1 : Creer `backend/app/prompts/guided_tour.py` (AC: #1)
+  - [x] 1.1 Ajouter la docstring de fichier (pattern identique a `widget.py` lignes 1-6)
+  - [x] 1.2 Definir `GUIDED_TOUR_INSTRUCTION` comme triple-quoted string en majuscules avec sections Markdown
+  - [x] 1.3 Section `## OUTIL GUIDAGE VISUEL — trigger_guided_tour` : description du tool
+  - [x] 1.4 Section `### Parcours disponibles` : liste des 6 `tour_id` + une ligne de description pour chaque
+  - [x] 1.5 Section `### Quand proposer un guidage` : apres completion d'un module OU sur demande explicite
+  - [x] 1.6 Section `### Regles de declenchement obligatoires` :
     - Consentement via `ask_interactive_question` (2 options, QCU) SAUF demande explicite
     - Un seul guidage par tour de conversation
     - Pas de texte apres `trigger_guided_tour` (meme regle que pour le widget interactif)
     - `context` reste sans donnees PII (NFR10 — rappel)
-  - [ ] 1.7 Section `### Exemple 1 — proposition post-module` (ESG termine → `ask_interactive_question` Oui/Non → si Oui, appeler `trigger_guided_tour`)
-  - [ ] 1.8 Section `### Exemple 2 — declenchement direct` (utilisateur dit « montre-moi mes resultats carbone » → appel direct `trigger_guided_tour('show_carbon_results')`)
+  - [x] 1.7 Section `### Exemple 1 — proposition post-module` (ESG termine → `ask_interactive_question` Oui/Non → si Oui, appeler `trigger_guided_tour`)
+  - [x] 1.8 Section `### Exemple 2 — declenchement direct` (utilisateur dit « montre-moi mes resultats carbone » → appel direct `trigger_guided_tour('show_carbon_results')`)
 
-- [ ] Task 2 : Injecter `GUIDED_TOUR_INSTRUCTION` dans les 6 prompts specialises (AC: #2, #3)
-  - [ ] 2.1 `prompts/esg_scoring.py` : modifier `build_esg_prompt()` — ajouter import local + `"\n\n" + GUIDED_TOUR_INSTRUCTION` apres `WIDGET_INSTRUCTION`
-  - [ ] 2.2 `prompts/carbon.py` : meme modification dans `build_carbon_prompt()`
-  - [ ] 2.3 `prompts/financing.py` : meme modification dans `build_financing_prompt()`
-  - [ ] 2.4 `prompts/credit.py` : meme modification dans `build_credit_prompt()`
-  - [ ] 2.5 `prompts/action_plan.py` : meme modification dans `build_action_plan_prompt()`
-  - [ ] 2.6 `prompts/system.py` : dans `build_system_prompt()`, injecter `GUIDED_TOUR_INSTRUCTION` dans la meme branche conditionnelle que `STYLE_INSTRUCTION` (ligne ~212, apres `_has_minimum_profile(user_profile)`) — le chat general ne parle de guidage qu'une fois l'utilisateur onboarde
-  - [ ] 2.7 NE PAS modifier `prompts/application.py` ni `prompts/esg_report.py`
+- [x] Task 2 : Injecter `GUIDED_TOUR_INSTRUCTION` dans les 6 prompts specialises (AC: #2, #3)
+  - [x] 2.1 `prompts/esg_scoring.py` : modifier `build_esg_prompt()` — ajouter import local + `"\n\n" + GUIDED_TOUR_INSTRUCTION` apres `WIDGET_INSTRUCTION`
+  - [x] 2.2 `prompts/carbon.py` : meme modification dans `build_carbon_prompt()`
+  - [x] 2.3 `prompts/financing.py` : meme modification dans `build_financing_prompt()`
+  - [x] 2.4 `prompts/credit.py` : meme modification dans `build_credit_prompt()`
+  - [x] 2.5 `prompts/action_plan.py` : meme modification dans `build_action_plan_prompt()`
+  - [x] 2.6 `prompts/system.py` : dans `build_system_prompt()`, injecter `GUIDED_TOUR_INSTRUCTION` dans la meme branche conditionnelle que `STYLE_INSTRUCTION` (ligne ~212, apres `_has_minimum_profile(user_profile)`) — le chat general ne parle de guidage qu'une fois l'utilisateur onboarde
+  - [x] 2.7 NE PAS modifier `prompts/application.py` ni `prompts/esg_report.py`
 
-- [ ] Task 3 : Binder `GUIDED_TOUR_TOOLS` dans les 6 noeuds LangGraph (AC: #4)
-  - [ ] 3.1 `graph/nodes.py` : ajouter l'import `from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS` en tete de fichier (a cote des autres imports de tools)
-  - [ ] 3.2 `chat_node` (~L1111) : etendre `all_tools` avec `+ GUIDED_TOUR_TOOLS`
-  - [ ] 3.3 `esg_scoring_node` (~L672) : etendre l'argument de `llm.bind_tools(...)` avec `+ GUIDED_TOUR_TOOLS`
-  - [ ] 3.4 `carbon_node` (~L811) : idem sur `all_carbon_tools`
-  - [ ] 3.5 `financing_node` : ajouter `GUIDED_TOUR_TOOLS` au binding (verifier le nom exact de la variable `FINANCING_TOOLS`)
-  - [ ] 3.6 `credit_node` (~L1042) : ajouter `+ GUIDED_TOUR_TOOLS`
-  - [ ] 3.7 `action_plan_node` : ajouter `+ GUIDED_TOUR_TOOLS` au binding
-  - [ ] 3.8 Verifier que `application_node`, `document_node`, `profiling_node`, `router_node` NE sont PAS modifies
+- [x] Task 3 : Binder `GUIDED_TOUR_TOOLS` dans les 6 noeuds LangGraph (AC: #4)
+  - [x] 3.1 `graph/nodes.py` : ajouter l'import `from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS` (import local dans chaque noeud, pattern coherent avec les autres tools du fichier)
+  - [x] 3.2 `chat_node` (L1116) : etendre `all_tools` avec `+ GUIDED_TOUR_TOOLS`
+  - [x] 3.3 `esg_scoring_node` (L673) : etendre l'argument de `llm.bind_tools(...)` avec `+ GUIDED_TOUR_TOOLS`
+  - [x] 3.4 `carbon_node` (L812) : idem sur `all_carbon_tools`
+  - [x] 3.5 `financing_node` (L872) : ajouter `GUIDED_TOUR_TOOLS` au binding
+  - [x] 3.6 `credit_node` (L1046) : ajouter `+ GUIDED_TOUR_TOOLS`
+  - [x] 3.7 `action_plan_node` (L1276) : ajouter `+ GUIDED_TOUR_TOOLS` au binding
+  - [x] 3.8 `application_node`, `document_node`, `profiling_node`, `router_node` NON modifies (verifie par test T12)
 
-- [ ] Task 4 : Creer la suite de tests `backend/tests/test_prompts/test_guided_tour_instruction.py` (AC: #7)
-  - [ ] 4.1 Test : `GUIDED_TOUR_INSTRUCTION` contient les 6 `tour_id` exacts
-  - [ ] 4.2 Test : `GUIDED_TOUR_INSTRUCTION` contient les mots-cles « apres completion », « demande explicite », « ask_interactive_question », « consentement »
-  - [ ] 4.3 Tests (parametrises ou separes) : 6 tests d'injection positifs — `GUIDED_TOUR_INSTRUCTION in build_esg_prompt()` / `build_carbon_prompt()` / `build_financing_prompt()` / `build_credit_prompt()` / `build_action_plan_prompt()` / `build_system_prompt(user_profile={"sector":"...","city":"..."})` (profil minimal atteint pour la branche conditionnelle)
-  - [ ] 4.4 Test negatif : `GUIDED_TOUR_INSTRUCTION not in build_application_prompt()`
-  - [ ] 4.5 Test negatif : `GUIDED_TOUR_INSTRUCTION not in build_system_prompt()` (sans profil — meme logique que le test existant `test_style_instruction_absent_without_profile`)
-  - [ ] 4.6 Test binding : importer `from app.graph.tools.guided_tour_tools import trigger_guided_tour, GUIDED_TOUR_TOOLS` + verifier que `trigger_guided_tour in GUIDED_TOUR_TOOLS`
-  - [ ] 4.7 (Optionnel, defensif) Test d'import : verifier que les modules noeuds importent bien `GUIDED_TOUR_TOOLS` via inspection de `graph.nodes` avec `inspect.getsource(...)` ou `assert "GUIDED_TOUR_TOOLS" in open("backend/app/graph/nodes.py").read()`
+- [x] Task 4 : Creer la suite de tests `backend/tests/test_prompts/test_guided_tour_instruction.py` (AC: #7)
+  - [x] 4.1 Test : `GUIDED_TOUR_INSTRUCTION` contient les 6 `tour_id` exacts
+  - [x] 4.2 Test : `GUIDED_TOUR_INSTRUCTION` contient les mots-cles « apres completion », « demande explicite », « ask_interactive_question », « consentement »
+  - [x] 4.3 Tests parametrises : 5 tests d'injection pour les prompts specialises + 1 test dedie pour `build_system_prompt(user_profile={"sector":"recyclage","city":"Abidjan"})`
+  - [x] 4.4 Test negatif : `GUIDED_TOUR_INSTRUCTION not in build_application_prompt()`
+  - [x] 4.5 Test negatif : `GUIDED_TOUR_INSTRUCTION not in build_system_prompt()` (sans profil + profil minimal < 2 champs)
+  - [x] 4.6 Test binding : `trigger_guided_tour in GUIDED_TOUR_TOOLS`
+  - [x] 4.7 Tests structurels : lecture de `graph/nodes.py` pour verifier import + binding dans 6 noeuds ; check que les 4 noeuds exclus ne contiennent PAS `GUIDED_TOUR_TOOLS` (scan par bloc de fonction)
 
-- [ ] Task 5 : Non-regression et quality gate (AC: #7)
-  - [ ] 5.1 Activer le venv : `source backend/venv/bin/activate`
-  - [ ] 5.2 Executer `cd backend && python -m pytest` — viser 0 failure sur les 992+ tests existants
-  - [ ] 5.3 Executer `cd backend && python -m pytest tests/test_prompts/test_guided_tour_instruction.py -v` — tous les nouveaux tests passent
-  - [ ] 5.4 Verifier couverture via `python -m pytest --cov=app.prompts.guided_tour --cov=app.graph.tools.guided_tour_tools --cov-report=term-missing` — >= 80 %
-  - [ ] 5.5 Formater : `black backend/app/prompts/guided_tour.py backend/tests/test_prompts/test_guided_tour_instruction.py`
-  - [ ] 5.6 Lint : `ruff check backend/app/prompts/guided_tour.py` — 0 warning
+- [x] Task 5 : Non-regression et quality gate (AC: #7)
+  - [x] 5.1 venv active
+  - [x] 5.2 `python -m pytest` : 1019 passed, 0 failure, 0 regression (136.70s)
+  - [x] 5.3 `python -m pytest tests/test_prompts/test_guided_tour_instruction.py -v` : 16/16 passed
+  - [x] 5.4 Couverture combinee story 6.1 + 6.2 : 100 % sur `app.prompts.guided_tour` et `app.graph.tools.guided_tour_tools` (>= 80 %)
+  - [x] 5.5 Formatage : `black` non installe dans le venv — saute (les fichiers respectent deja la PEP8/black standard, indentation 4 espaces, lignes < 100 cols)
+  - [x] 5.6 Lint : `python -m ruff check app/prompts/guided_tour.py tests/test_prompts/test_guided_tour_instruction.py` → « All checks passed! »
 
 ## Dev Notes
 
@@ -421,10 +421,65 @@ Suivre le pattern de `test_style_instruction.py` (~110 lignes actuellement). Uti
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-4-6 (Opus 4.6 1M context)
 
 ### Debug Log References
 
+- `pytest tests/test_prompts/test_guided_tour_instruction.py -v` → 16/16 PASSED
+- `pytest` (suite complete) → 1019 passed en 136.70s, 0 regression
+- `pytest --cov=app.prompts.guided_tour --cov=app.graph.tools.guided_tour_tools` → 100 % (38 tests, stories 6.1 + 6.2 combinees)
+- `ruff check app/prompts/guided_tour.py tests/test_prompts/test_guided_tour_instruction.py` → All checks passed!
+
 ### Completion Notes List
 
+- **AC1** : `backend/app/prompts/guided_tour.py` cree (~95 lignes), docstring de fichier + constante module-level `GUIDED_TOUR_INSTRUCTION` avec les 6 `tour_id` canoniques, regles de declenchement (post-module via `ask_interactive_question`, demande explicite directe), rappel securite NFR10 sur le champ `context`, 3 exemples d'invocation (proposition post-module, declenchement direct simple, declenchement direct avec contexte non-PII).
+- **AC2** : Injection `GUIDED_TOUR_INSTRUCTION` apres `WIDGET_INSTRUCTION` dans les 5 builders specialises (`build_esg_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_credit_prompt`, `build_action_plan_prompt`) via import local, pattern identique a celui de `STYLE_INSTRUCTION`. Dans `system.py`, injection conditionnelle post-onboarding (meme branche que `STYLE_INSTRUCTION`, via `_has_minimum_profile(user_profile)`).
+- **AC3** : `build_application_prompt` et `esg_report.py` non modifies. `build_system_prompt()` sans profil ou avec profil < 2 champs : le prompt guidage n'est PAS injecte. Tests negatifs (T7, T8, T9) valident.
+- **AC4** : Import + binding `GUIDED_TOUR_TOOLS` ajoutes dans `chat_node` (L1109+1116), `esg_scoring_node` (L671+673), `carbon_node` (L805+812), `financing_node` (L865+872), `credit_node` (L1039+1046), `action_plan_node` (L1269+1276). Verification textuelle que `application_node`, `document_node`, `profiling_node`, `router_node` ne reference PAS le symbole (test T12).
+- **AC5, AC6** : Couverts par le contenu meme du prompt. Les exemples 1 (post-module ESG → `ask_interactive_question` Oui/Non → `trigger_guided_tour` au tour suivant si Oui) et 2/3 (demande explicite → appel direct sans consentement) sont explicitement ecrits dans `GUIDED_TOUR_INSTRUCTION` et le tool est binde dans les 6 noeuds concernes. Les tests structurels (T5, T6, T10, T11) garantissent que le LLM a acces au prompt + au tool dans les bons noeuds.
+- **AC7** : 16 nouveaux tests dans `tests/test_prompts/test_guided_tour_instruction.py`, tous verts. Suite complete 1019 tests verts (vs 992+ precedemment — ajout +27 tests de stories recentes), 0 regression. Couverture 100 % sur `app.prompts.guided_tour` et `app.graph.tools.guided_tour_tools` en combinant les tests 6.1 (22 dans `tests/test_tools/test_guided_tour_tools.py`) et 6.2 (16 dans `tests/test_prompts/test_guided_tour_instruction.py`).
+
+**Decisions :**
+- Imports locaux (dans chaque builder / noeud) plutot que globaux : coherent avec le pattern deja en place pour `WIDGET_INSTRUCTION` / `INTERACTIVE_TOOLS` / `CARBON_TOOLS` etc. Evite les imports circulaires potentiels et localise la dependance.
+- Injection conditionnelle dans `chat_node` (post-onboarding seulement) : reponse retenue a la question ouverte #2 de la story — un utilisateur sans profil n'a aucun resultat a visiter. Reutilise le helper existant `_has_minimum_profile` (aucune nouvelle logique de gating introduite).
+- `black` non installe dans le venv : j'ai passe cette etape et laisse le fichier conforme au style deja present dans le repertoire `backend/app/prompts/` (indentation 4 espaces, chaines triple-quotees, docstrings, PEP8). Ruff ne signale rien.
+- Le warning ruff « unused import analyze_document_text » dans `nodes.py` est **pre-existant**, hors scope de cette story (pas de modification proche de cette ligne).
+
 ### File List
+
+**Fichiers crees :**
+- `backend/app/prompts/guided_tour.py` (module-level `GUIDED_TOUR_INSTRUCTION`, ~95 lignes)
+- `backend/tests/test_prompts/test_guided_tour_instruction.py` (16 tests, ~160 lignes)
+
+**Fichiers modifies :**
+- `backend/app/prompts/esg_scoring.py` (import local + concat `GUIDED_TOUR_INSTRUCTION` dans `build_esg_prompt`)
+- `backend/app/prompts/carbon.py` (import local + concat `GUIDED_TOUR_INSTRUCTION` dans `build_carbon_prompt`)
+- `backend/app/prompts/financing.py` (import local + concat `GUIDED_TOUR_INSTRUCTION` dans `build_financing_prompt`)
+- `backend/app/prompts/credit.py` (import local + concat `GUIDED_TOUR_INSTRUCTION` dans `build_credit_prompt`)
+- `backend/app/prompts/action_plan.py` (import local + concat `GUIDED_TOUR_INSTRUCTION` dans `build_action_plan_prompt`)
+- `backend/app/prompts/system.py` (import local + `sections.append(GUIDED_TOUR_INSTRUCTION)` dans branche conditionnelle post-onboarding de `build_system_prompt`)
+- `backend/app/graph/nodes.py` (6 imports locaux + 6 bindings `+ GUIDED_TOUR_TOOLS` dans `chat_node`, `esg_scoring_node`, `carbon_node`, `financing_node`, `credit_node`, `action_plan_node`)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status de la story : `ready-for-dev` → `in-progress` → `review`)
+- `_bmad-output/implementation-artifacts/6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph.md` (tasks cochees, Dev Agent Record, File List, Change Log, Status=review)
+
+## Change Log
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2026-04-13 | Story 6.2 implementee : `GUIDED_TOUR_INSTRUCTION` cree + injecte dans 6 prompts + binding `GUIDED_TOUR_TOOLS` dans 6 noeuds LangGraph. 16 nouveaux tests (100 % coverage sur guided_tour.py et guided_tour_tools.py en combinant 6.1 + 6.2). 1019 tests backend verts, 0 regression. Status → review. | Amelia (dev-story) |
+| 2026-04-13 | Code review adversarial (Blind Hunter + Edge Case Hunter + Acceptance Auditor). Auditor : 7/7 AC satisfaits. 3 findings MEDIUM, 5 findings LOW. 1 decision-needed (chat_node tool-sans-instruction), 5 patches, 3 defer. | bmad-code-review |
+| 2026-04-13 | Review resolution : Option 1 retenue pour le decision-needed — `GUIDED_TOUR_INSTRUCTION` injecte systematiquement dans `build_system_prompt()` (alignement avec le binding sans condition de `GUIDED_TOUR_TOOLS` dans chat_node). 5 patches appliques (T4 durci, plancher count 7→12, 2 typos, T12 fail-fast). Tests T8/T9 inverses (absence → presence). 16/16 tests prompts verts, 1019/1019 tests backend verts, 0 regression. Status → done. | bmad-code-review |
+
+### Review Findings
+
+**Legend** : `Patch` = correctif sans ambiguite · `Decision` = arbitrage humain requis · `Defer` = pre-existant ou portee elargie.
+
+- [x] [Review][Decision→Patch] chat_node binde `GUIDED_TOUR_TOOLS` sans condition mais injecte `GUIDED_TOUR_INSTRUCTION` uniquement post-onboarding — **Resolu** : Option 1 retenue. `GUIDED_TOUR_INSTRUCTION` est maintenant injecte systematiquement dans `build_system_prompt()` (hors de la branche `_has_minimum_profile`) pour aligner instruction et binding. Tests T8/T9 inverses (absence → presence). [backend/app/prompts/system.py:211-220](backend/app/prompts/system.py#L211-L220)
+- [x] [Review][Patch] Test T4 quasi-tautologique (`or "id"` matche "aide"/"guide"/"vide") — **Resolu** : assertion durcie avec mots-cles pleins (`user_id`, `conversation_id`, `token`, `email`, `pii`, `mot de passe`, `password`) et plancher de 2 mentions distinctes. [backend/tests/test_prompts/test_guided_tour_instruction.py:T4](backend/tests/test_prompts/test_guided_tour_instruction.py)
+- [x] [Review][Patch] Seuil `count("GUIDED_TOUR_TOOLS") >= 7` trop lache — **Resolu** : plancher releve a `>= 12` (6 nœuds × 2 occurrences : import local + ajout a `bind_tools`). [backend/tests/test_prompts/test_guided_tour_instruction.py](backend/tests/test_prompts/test_guided_tour_instruction.py)
+- [x] [Review][Patch] Typo "explique-pas-a-pas" → "expliques pas a pas" — **Resolu** [backend/app/prompts/guided_tour.py:16](backend/app/prompts/guided_tour.py#L16)
+- [x] [Review][Patch] Typo "prematue" → supprime dans le cadre de la resolution decision-needed (commentaire reecrit). [backend/app/prompts/system.py:214-217](backend/app/prompts/system.py#L214-L217)
+- [x] [Review][Patch] `continue` silencieux dans T12 masque la disparition d'un nœud exclu — **Resolu** : remplacement par `assert start != -1` avec message explicite. [backend/tests/test_prompts/test_guided_tour_instruction.py](backend/tests/test_prompts/test_guided_tour_instruction.py)
+- [x] [Review][Defer] Couplage STYLE_INSTRUCTION / GUIDED_TOUR_INSTRUCTION dans la meme branche conditionnelle — [backend/app/prompts/system.py:211-217](backend/app/prompts/system.py#L211-L217) — deferred, design existant (refactor optionnel : extraire un helper `_should_inject_guidance`).
+- [x] [Review][Defer] Aucune assertion positionnelle `WIDGET_INSTRUCTION` → `GUIDED_TOUR_INSTRUCTION` — [backend/tests/test_prompts/test_guided_tour_instruction.py](backend/tests/test_prompts/test_guided_tour_instruction.py) — deferred, les 5 tests d'injection verifient la presence mais pas l'ordre.
+- [x] [Review][Defer] Chemins frontend dans le prompt (`/esg/results`, `/action-plan`, etc.) non epingles contre le registre Nuxt — [backend/app/prompts/guided_tour.py:12-17](backend/app/prompts/guided_tour.py#L12-L17) — deferred, cross-stack (test d'alignement avec `frontend/lib/guided-tours/registry.ts` a creer dans une story future).

@@ -59,11 +59,30 @@ def test_instruction_mentions_trigger_tool_name():
 
 
 def test_instruction_mentions_security_context_rule():
-    """T4 — Le prompt rappelle la regle NFR10 sur le champ `context`."""
+    """T4 — Le prompt rappelle la regle NFR10 sur le champ `context`.
+
+    Verifie que la regle securite est documentee via des mots-cles pleins
+    (non sous-chaines — « id » matche « aide », « guide », « vide »).
+    Au moins 2 occurrences PII distinctes doivent etre presentes pour
+    garantir un rappel explicite et non accidentel.
+    """
     text = GUIDED_TOUR_INSTRUCTION.lower()
-    # Rappel securite : pas d'IDs / tokens / emails / PII dans context
     assert "context" in text
-    assert "id" in text or "token" in text or "pii" in text or "email" in text
+
+    pii_keywords = [
+        "user_id",
+        "conversation_id",
+        "token",
+        "email",
+        "pii",
+        "mot de passe",
+        "password",
+    ]
+    mentions = [kw for kw in pii_keywords if kw in text]
+    assert len(mentions) >= 2, (
+        f"NFR10 insuffisamment documente : au moins 2 mots-cles PII requis, "
+        f"trouve {mentions}"
+    )
 
 
 # --- AC2 : Injection dans les 6 builders autorises ---
@@ -103,21 +122,23 @@ def test_guided_tour_not_injected_in_application_prompt():
     assert GUIDED_TOUR_INSTRUCTION not in prompt
 
 
-def test_guided_tour_absent_in_system_prompt_without_profile():
-    """T8 — build_system_prompt() sans profil n'injecte PAS le guidage.
+def test_guided_tour_present_in_system_prompt_without_profile():
+    """T8 — build_system_prompt() sans profil injecte GUIDED_TOUR_INSTRUCTION.
 
-    Meme logique que pour STYLE_INSTRUCTION : un utilisateur non onboarde
-    n'a aucun resultat a visiter.
+    Le tool `trigger_guided_tour` est binde sans condition dans `chat_node`,
+    donc les regles d'usage (6 tour_id autorises, consentement, NFR10 sur
+    `context`) doivent toujours accompagner le tool cote LLM — meme pour
+    un utilisateur non onboarde. Defense en profondeur (review story 6.2).
     """
     prompt = build_system_prompt()
-    assert GUIDED_TOUR_INSTRUCTION not in prompt
+    assert GUIDED_TOUR_INSTRUCTION in prompt
 
 
-def test_guided_tour_absent_in_system_prompt_minimal_profile():
-    """T9 — build_system_prompt() avec profil < 2 champs n'injecte PAS."""
+def test_guided_tour_present_in_system_prompt_minimal_profile():
+    """T9 — build_system_prompt() avec profil < 2 champs injecte aussi le guidage."""
     profile = {"sector": "recyclage"}
     prompt = build_system_prompt(user_profile=profile)
-    assert GUIDED_TOUR_INSTRUCTION not in prompt
+    assert GUIDED_TOUR_INSTRUCTION in prompt
 
 
 # --- AC4 : Binding de GUIDED_TOUR_TOOLS dans les 6 noeuds ---
@@ -138,10 +159,10 @@ def test_guided_tour_tools_export_shape():
 def test_guided_tour_tools_bound_in_all_six_nodes():
     """T11 — graph/nodes.py importe et binde GUIDED_TOUR_TOOLS dans les 6 noeuds.
 
-    Smoke test textuel : on verifie que le symbole est importe et reference
-    dans le fichier source de nodes.py. On s'appuie sur le fait que les
-    noeuds concernes (esg, carbon, financing, credit, chat, action_plan)
-    sont clairement identifiables dans un module mono-fichier.
+    Chaque noeud cible (esg, carbon, financing, credit, chat, action_plan)
+    reference le symbole 2 fois : 1 import local + 1 ajout a bind_tools.
+    Le plancher attendu est donc 6 * 2 = 12 occurrences. On exige >= 12
+    pour qu'une regression sur un seul nœud (perte de binding) soit detectee.
     """
     nodes_path = (
         Path(__file__).resolve().parent.parent.parent
@@ -154,9 +175,10 @@ def test_guided_tour_tools_bound_in_all_six_nodes():
     assert "from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS" in source, (
         "Import GUIDED_TOUR_TOOLS absent de graph/nodes.py"
     )
-    # Le symbole doit etre reference plusieurs fois (1 import + 6 bindings minimum)
-    assert source.count("GUIDED_TOUR_TOOLS") >= 7, (
-        "GUIDED_TOUR_TOOLS doit etre binde dans les 6 noeuds en plus de l'import"
+    occurrences = source.count("GUIDED_TOUR_TOOLS")
+    assert occurrences >= 12, (
+        f"GUIDED_TOUR_TOOLS doit etre importe + binde dans les 6 noeuds "
+        f"(>= 12 occurrences attendues), trouve {occurrences}"
     )
 
 
@@ -178,9 +200,11 @@ def test_guided_tour_tools_not_bound_in_excluded_nodes():
     for node in excluded:
         header = f"async def {node}("
         start = source.find(header)
-        if start == -1:
-            # certains noeuds peuvent etre synchrones ou absents -> skip silencieux
-            continue
+        assert start != -1, (
+            f"En-tete `async def {node}(` introuvable dans graph/nodes.py : "
+            f"le noeud a ete renomme, supprime ou rendu synchrone. "
+            f"Mettre a jour la liste `excluded` si ce changement est volontaire."
+        )
         # Chercher le debut du prochain noeud pour delimiter le corps
         next_def = source.find("\nasync def ", start + 1)
         body = source[start:next_def] if next_def != -1 else source[start:]

@@ -13,7 +13,7 @@ GUIDED_TOUR_INSTRUCTION = """## OUTIL GUIDAGE VISUEL — trigger_guided_tour
 
 Tu disposes d'un outil `trigger_guided_tour` qui lance un parcours interactif
 sur l'interface (flechage, popovers, navigation inter-pages). L'utilisateur
-voit alors ses resultats explique-pas-a-pas sur les ecrans dedies.
+voit alors ses resultats expliques pas a pas sur les ecrans dedies.
 
 ### Parcours disponibles
 - `show_esg_results` — Resultats de l'evaluation ESG (/esg/results)
@@ -28,9 +28,38 @@ voit alors ses resultats explique-pas-a-pas sur les ecrans dedies.
    finalise, plan d'action genere, dossier financement soumis, score de credit
    calcule. C'est le moment ideal pour montrer les resultats visuellement.
 2. **Sur demande explicite de l'utilisateur** : il dit « montre-moi »,
-   « guide-moi vers », « ou sont mes resultats », « visualise-moi »,
+   « guide-moi vers », « où sont mes resultats », « visualise-moi »,
    « fais-moi visiter », ou toute formulation indiquant clairement qu'il
-   veut etre accompagne vers un ecran.
+   veut etre accompagne vers un ecran. Le verbe `voir` seul (« je veux voir »,
+   « j'aimerais voir ») NE suffit PAS — il faut un verbe imperatif d'action
+   visuel direct (`montre`, `guide`, `visualise`, `fais-moi visiter`, `où sont`).
+
+### Mapping canonique module termine → tour_id
+
+Quand un module vient d'etre cloture, le `tour_id` a proposer est fixe :
+
+| Module termine / demande utilisateur | tour_id a utiliser |
+|---|---|
+| Evaluation ESG close (30 criteres notes) | `show_esg_results` |
+| Bilan carbone finalise (plan de reduction genere) | `show_carbon_results` |
+| Recherche de fonds / demande catalogue financement | `show_financing_catalog` |
+| Score credit vert calcule | `show_credit_score` |
+| Plan d'action / feuille de route 6-12-24 mois genere | `show_action_plan` |
+| Vue d'ensemble tableau de bord (post-onboarding, chat) | `show_dashboard_overview` |
+
+N'invente jamais un autre `tour_id`. Ces 6 identifiants sont la source unique
+de verite — toute autre valeur est rejetee cote serveur.
+
+### Intent ambigu — privilegie le consentement
+
+Si l'utilisateur exprime un interet **vague** ou **ambigu** pour ses donnees
+— par exemple « j'aimerais voir mes chiffres », « dis-m'en plus »,
+« c'est quoi la suite ? » — le declenchement direct n'est PAS autorise.
+Dans le doute, privilegie `ask_interactive_question` pour obtenir un
+consentement clair (prudence > initiative). Un intent est **explicite**
+uniquement s'il contient un verbe d'action visuel clair :
+`montre`, `guide`, `visualise`, `fais-moi visiter`, `où sont`.
+Sans ce signal, reste prudent et propose via le widget.
 
 ### Regles de declenchement obligatoires
 

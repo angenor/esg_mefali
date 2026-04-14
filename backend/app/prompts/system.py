@@ -211,11 +211,14 @@ def build_system_prompt(
     # Injecter le style concis uniquement post-onboarding
     if user_profile and _has_minimum_profile(user_profile):
         sections.append(STYLE_INSTRUCTION)
-        # Story 6.2 : activer les propositions de guidage visuel uniquement
-        # post-onboarding — un utilisateur sans profil n'a aucun resultat a
-        # visiter, proposer un tour guide serait prematue.
-        from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
-        sections.append(GUIDED_TOUR_INSTRUCTION)
+
+    # Injecter les regles d'emploi du tool trigger_guided_tour systematiquement.
+    # Le tool est binde sans condition dans 6 noeuds (chat, esg_scoring, carbon,
+    # financing, credit, action_plan — voir graph/nodes.py), les regles d'usage
+    # (6 tour_id autorises, consentement, NFR10 sur context) doivent toujours
+    # accompagner le tool cote LLM — meme pour un profil minimal.
+    from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
+    sections.append(GUIDED_TOUR_INSTRUCTION)
 
     return "\n\n".join(sections)
 

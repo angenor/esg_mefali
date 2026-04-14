@@ -42,3 +42,18 @@
 - `context` dict sans limite de taille/profondeur — un LLM pourrait envoyer un context enorme. Pre-existant aux autres tools qui acceptent des dicts LLM-controlled. [backend/app/graph/tools/guided_tour_tools.py:24]
 - Marker SSE split entre chunks de streaming — parser actuel dans `stream_graph_events` suppose un `on_tool_end` avec output complet. Limitation partagee avec les markers `__sse_profile__` et `__sse_interactive_question__`. [backend/app/api/chat.py:212-239]
 - Plusieurs markers SSE dans un seul output ne sont pas tous parses — `index()` ne trouve que le premier `-->`, les markers suivants sont ignores. Pre-existant. [backend/app/api/chat.py:213-217]
+
+## Deferred from: code review of story-6-2 (2026-04-13)
+
+- Couplage STYLE_INSTRUCTION / GUIDED_TOUR_INSTRUCTION : meme branche conditionnelle `_has_minimum_profile` dans `build_system_prompt`. Un futur changement de seuil du style concis deplacera silencieusement le guidage. Extraire un helper dedie ou ajouter un test d'independance. [backend/app/prompts/system.py:211-217]
+- Aucune assertion positionnelle sur l'ordre `WIDGET_INSTRUCTION` → `GUIDED_TOUR_INSTRUCTION` dans les 5 prompts specialises — les tests verifient la presence (`in`) mais pas l'ordre. Un swap futur ne declencherait aucune erreur. [backend/tests/test_prompts/test_guided_tour_instruction.py]
+- Chemins frontend listes dans la docstring `GUIDED_TOUR_INSTRUCTION` (`/esg/results`, `/action-plan`, etc.) non epingles contre le registre Nuxt reel (`frontend/app/lib/guided-tours/registry.ts`). Divergence silencieuse possible (cosmetique, le tool_call utilise le `tour_id` qui lui est valide). Test cross-stack a creer. [backend/app/prompts/guided_tour.py:12-17]
+
+## Deferred from: code review of story-6-3 (2026-04-14)
+
+- T-AC2 / T-AC6 court-circuitent `useGuidedTour` via mock statique — le test ne valide pas que `handleGuidedTourEvent` emprunte le code path runtime reel. Couverture d'integration plus realiste a prevoir en epic 8 (e2e). [frontend/tests/composables/useChat.guided-tour-consent.test.ts]
+- Plancher `count("GUIDED_TOUR_TOOLS") >= 12` dans T11 conflate shape et correctness. Un refactor legitime (liste partagee, spread) casse le test. Herite 6.2. [backend/tests/test_prompts/test_guided_tour_instruction.py]
+- T-AC3 (refus consent) ne prouve pas le respect du refus — test passe car backend n'emet pas `guided_tour`, pas parce que `no` est honore. Si le backend emettait a tort un guided_tour apres refus, le frontend n'a pas de guard `yes`-only. Test d'alignement backend/frontend a ajouter (hors scope prompt-only). [frontend/tests/composables/useChat.guided-tour-consent.test.ts]
+- `GUIDED_TOUR_INSTRUCTION` injecte inconditionnellement (y compris pour sessions anonymes / sans profil) — bloat tokens par requete. Decision architecturale a valider globalement ou gated. [backend/app/prompts/system.py:213-220]
+- Aucun test cross-file alignant les 6 `tour_id` entre `guided_tour.py` (prompt), `registry.ts` (frontend), `guided_tour_tools.py` (backend tool enum). Renommage silencieux possible. Test de contrat pour story 7.x ou 8.x. [multi-file]
+- Validation serveur `tour_id` (tool-level) et validation `context` dans `handleGuidedTourEvent` — hors scope story 6.3 (story 6.1 pour le tool, `useChat.ts` NE PAS TOUCHER pour le handler). [backend/app/graph/tools/guided_tour_tools.py, frontend/app/composables/useChat.ts:682-700]

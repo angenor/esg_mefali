@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-13' (Story 6.2 in-progress)
+# last_updated: '2026-04-14' (Story 6.3 done — code review applique, 8 patches, 6 defer)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-13' (Story 6.2 in-progress)
-last_story_created: '6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph'
-last_review_completed: '6-1-tool-langchain-trigger-guided-tour-et-marker-sse'
+last_updated: '2026-04-14' (Story 6.3 done — code review applique)
+last_story_created: '6-3-consentement-via-widget-interactif-et-declenchement-direct'
+last_review_completed: '6-3-consentement-via-widget-interactif-et-declenchement-direct'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -85,8 +85,8 @@ development_status:
   # Epic 6 : Declenchement intelligent par le LLM et consentement
   epic-6: in-progress
   6-1-tool-langchain-trigger-guided-tour-et-marker-sse: done
-  6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph: in-progress
-  6-3-consentement-via-widget-interactif-et-declenchement-direct: backlog
+  6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph: done
+  6-3-consentement-via-widget-interactif-et-declenchement-direct: done
   6-4-frequence-adaptative-des-propositions-de-guidage: backlog
   epic-6-retrospective: optional
 
