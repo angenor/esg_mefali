@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-14' (Story 6.4 review)
+# last_updated: '2026-04-14' (Story 7.1 done — code review applied)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-14' (Story 6.4 review done)
-last_story_created: '6-4-frequence-adaptative-des-propositions-de-guidage'
-last_review_completed: '6-4-frequence-adaptative-des-propositions-de-guidage'
+last_updated: '2026-04-14' (Story 7.1 done — code review applied)
+last_story_created: '7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement'
+last_review_completed: '7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -91,8 +91,8 @@ development_status:
   epic-6-retrospective: optional
 
   # Epic 7 : Resilience et edge cases
-  epic-7: backlog
-  7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement: backlog
+  epic-7: in-progress
+  7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement: done
   7-2-renouvellement-jwt-transparent-pendant-le-guidage: backlog
   7-3-resilience-sse-et-indicateur-de-reconnexion: backlog
   epic-7-retrospective: optional

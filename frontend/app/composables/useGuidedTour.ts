@@ -20,6 +20,13 @@ const GUIDANCE_STATS_KEY = 'esg_mefali_guidance_stats'
 const COUNTDOWN_FLOOR = 3
 // Plafond des compteurs — au-dela, plancher 3s deja atteint, aucun gain a compter.
 const MAX_STATS_CAP = 5
+// FR31/NFR18 — retry DOM absent (etape mono-page)
+const DOM_RETRY_COUNT = 3
+const DOM_RETRY_INTERVAL_MS = 500
+// NFR16 — timeouts pour navigation multi-pages
+const PAGE_LOAD_SOFT_RETRY_MS = 5000 // fenetre de retry silencieux avec log debug
+const PAGE_LOAD_HARD_TIMEOUT_MS = 10000 // timeout dur → interruption + message
+const PAGE_LOAD_POLL_INTERVAL_MS = 500 // cadence de polling pendant le chargement de page (decouplee de DOM_RETRY_INTERVAL_MS)
 const guidanceRefusalCount = ref<number>(0)
 const guidanceAcceptanceCount = ref<number>(0)
 
@@ -146,16 +153,21 @@ function clampCountdown(value: unknown): number {
   return num
 }
 
-/** Attend qu'un element DOM apparaisse — 3 tentatives, 500ms d'intervalle */
+/** Attend qu'un element DOM apparaisse — 3 tentatives, 500ms d'intervalle (FR31/NFR18) */
 async function waitForElement(selector: string): Promise<Element | null> {
+  // Garde d'entree : parite avec waitForElementExtended (AC5)
+  if (cancelled) return null
   // Premier essai apres nextTick
   await new Promise(r => setTimeout(r, 0))
+  if (cancelled) return null
   const el = document.querySelector(selector)
   if (el) return el
 
-  // 3 retries avec 500ms d'intervalle
-  for (let i = 0; i < 3; i++) {
-    await new Promise(r => setTimeout(r, 500))
+  // Retries avec intervalle, cancelled-aware (AC1, AC5)
+  for (let i = 0; i < DOM_RETRY_COUNT; i++) {
+    if (cancelled) return null
+    await new Promise(r => setTimeout(r, DOM_RETRY_INTERVAL_MS))
+    if (cancelled) return null
     const found = document.querySelector(selector)
     if (found) return found
   }
@@ -163,16 +175,25 @@ async function waitForElement(selector: string): Promise<Element | null> {
   return null
 }
 
-/** Attend qu'un element DOM apparaisse — polling 500ms, timeout configurable */
+/** Attend qu'un element DOM apparaisse — polling PAGE_LOAD_POLL_INTERVAL_MS, timeout configurable (NFR16) */
 async function waitForElementExtended(selector: string, timeoutMs: number): Promise<Element | null> {
   const start = Date.now()
+  let softLogged = false
   await nextTick()
 
   while (Date.now() - start < timeoutMs) {
     if (cancelled) return null
     const el = document.querySelector(selector)
     if (el) return el
-    await new Promise(r => setTimeout(r, 500))
+
+    // NFR16 — marqueur de soft retry (une seule fois, si on depasse la fenetre soft)
+    if (!softLogged && Date.now() - start >= PAGE_LOAD_SOFT_RETRY_MS) {
+      // eslint-disable-next-line no-console
+      console.debug('[useGuidedTour] soft retry page load', { selector, elapsedMs: Date.now() - start })
+      softLogged = true
+    }
+
+    await new Promise(r => setTimeout(r, PAGE_LOAD_POLL_INTERVAL_MS))
   }
 
   return null
@@ -262,6 +283,13 @@ export function useGuidedTour() {
     const acceptanceSnapshot = guidanceAcceptanceCount.value
 
     try {
+      // Resoudre uiStore AVANT loadDriver : en cas de rejet du loader, le catch global
+      // doit disposer d'une reference a jour pour restaurer les flags widget
+      // (sinon risque d'ecrire dans un cachedUiStore stale d'un parcours precedent).
+      const { useUiStore } = await import('~/stores/ui')
+      const uiStore = useUiStore()
+      cachedUiStore = uiStore
+
       // Charger Driver.js via le loader lazy (ADR7)
       const driverModule = await loadDriver()
 
@@ -286,11 +314,6 @@ export function useGuidedTour() {
         currentTourId.value = null
         return false
       }
-
-      // Gerer prefers-reduced-motion (NFR14) + retraction widget (Story 5.2)
-      const { useUiStore } = await import('~/stores/ui')
-      const uiStore = useUiStore()
-      cachedUiStore = uiStore
 
       // Retraction du widget avant Driver.js (ADR6)
       uiStore.guidedTourActive = true
@@ -389,13 +412,13 @@ export function useGuidedTour() {
         // Attente DOM : element de la premiere etape (5s puis retry, 10s max)
         const firstStepSelector = interpolatedSteps[0]?.selector
         if (firstStepSelector) {
-          const el = await waitForElementExtended(firstStepSelector, 10000)
+          const el = await waitForElementExtended(firstStepSelector, PAGE_LOAD_HARD_TIMEOUT_MS)
           if (cancelled) return false
 
           if (!el) {
             const { useChat } = await import('~/composables/useChat')
             const { addSystemMessage } = useChat()
-            addSystemMessage('La page n\'a pas pu se charger correctement. Le guidage est interrompu.')
+            addSystemMessage('La page met trop de temps à charger. Réessayez plus tard.')
             interruptTour(uiStore)
             return false
           }
@@ -479,14 +502,14 @@ export function useGuidedTour() {
           driverInstance = createDriverInstance()
 
           // Attente DOM post-navigation
-          const el = await waitForElementExtended(step.selector, 10000)
+          const el = await waitForElementExtended(step.selector, PAGE_LOAD_HARD_TIMEOUT_MS)
 
           if (cancelled) return false
 
           if (!el) {
             const { useChat } = await import('~/composables/useChat')
             const { addSystemMessage } = useChat()
-            addSystemMessage('La page n\'a pas pu se charger correctement. Le guidage est interrompu.')
+            addSystemMessage('La page met trop de temps à charger. Réessayez plus tard.')
             interruptTour(uiStore)
             return false
           }
@@ -567,7 +590,31 @@ export function useGuidedTour() {
         }
       }, 1000)
       return true
-    } catch {
+    } catch (err) {
+      // FR31 — log explicite du crash (coherent avec review 6.4 P15, pas de catch muet)
+      // eslint-disable-next-line no-console
+      console.warn('[useGuidedTour] tour crashed', err)
+
+      // AC4 — message empathique SAUF si l'erreur provient d'un cancelTour user.
+      // Snapshot synchrone du flag pour eviter toute race entre check et await import.
+      const wasCancelledAtThrow = cancelled
+      if (!wasCancelledAtThrow) {
+        try {
+          const { useChat } = await import('~/composables/useChat')
+          // Re-verification post-await : un cancel survenu pendant l'import dynamique
+          // doit aussi supprimer le message (AC4 : ne pas spammer apres ESC).
+          if (!cancelled) {
+            const { addSystemMessage } = useChat()
+            addSystemMessage('Le guidage a rencontré un problème. Le chat est toujours disponible.')
+          }
+        } catch (innerErr) {
+          // Si meme l'import de useChat echoue (rare), fallback silencieux —
+          // l'utilisateur verra au moins le widget reapparaitre via le cleanup ci-dessous.
+          // eslint-disable-next-line no-console
+          console.warn('[useGuidedTour] failed to emit crash message', innerErr)
+        }
+      }
+
       // Reset d'etat en cas d'erreur (loadDriver rejection, highlight throw, etc.)
       clearCountdownTimer()
       unmountAllPopoverApps()

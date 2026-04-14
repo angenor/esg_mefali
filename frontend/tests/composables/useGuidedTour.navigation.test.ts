@@ -337,7 +337,7 @@ describe('useGuidedTour — navigation multi-pages', () => {
     await vi.advanceTimersByTimeAsync(12000)
 
     expect(mockAddSystemMessage).toHaveBeenCalledWith(
-      expect.stringContaining('charger correctement')
+      expect.stringContaining('La page met trop de temps à charger')
     )
   })
 
