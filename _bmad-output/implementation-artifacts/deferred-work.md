@@ -1,5 +1,22 @@
 # Deferred Work
 
+## Deferred from: 019-guided-tour-post-fix-debts validation live (2026-04-15)
+
+- **BUG-1 resolu partiellement** — mon fix du prompt (commit 8c71101) permet
+  desormais au LLM d'appeler `trigger_guided_tour(tour_id, context={sector, total_tco2, top_category, top_category_pct})`
+  avec les 4 bonnes cles (validation live `tool_call_logs` 2026-04-15 02:14:51+).
+  MAIS les valeurs numeriques restent `None` (seul `sector` est resolu depuis
+  le profil entreprise). Cause : le chat_node ne recoit ni les stats carbone
+  ni le resume du bilan dans son prompt, et le router garde le message
+  « Montre-moi mes resultats carbone » dans chat_node au lieu de transitionner
+  vers carbon_node (qui lui aurait acces a `get_carbon_summary`). Consequence :
+  popovers affichent « Votre empreinte est de  tCO2e. [...] represente % du total. »
+  (placeholders vides au lieu de valeurs). Fix avale : soit router vers
+  carbon_node sur intent « resultats/bilan/empreinte + page /carbon/results »,
+  soit injecter un resume carbon dans le system_prompt chat_node quand
+  `current_page == '/carbon/results'`. Deterministique, hors scope du fix
+  surface du 2026-04-15.
+
 ## Resolved (2026-04-15)
 
 ### [BUG] feature 019 — event SSE `guided_tour` silencieusement drop par la whitelist de `send_message`
