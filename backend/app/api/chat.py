@@ -866,6 +866,7 @@ async def send_message(
                         "tool_call_start", "tool_call_end", "tool_call_error",
                         "interactive_question", "interactive_question_resolved",
                         "guided_tour",
+                        "profile_update", "profile_completion",
                     ):
                         yield f"data: {json.dumps(event)}\n\n"
 

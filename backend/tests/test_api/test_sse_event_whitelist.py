@@ -1,15 +1,26 @@
 """Anti-regression : la whitelist d'events SSE de `send_message` doit
-forwarder `guided_tour`.
+forwarder tous les types emis par `stream_graph_events`.
 
-Contexte (bug 2026-04-15) : `stream_graph_events` emettait bien un event
-`{type: "guided_tour", ...}` quand le tool `trigger_guided_tour` etait
-appele, mais le filtre elif dans `generate_sse` (fonction interne a
-`send_message` dans `app/api/chat.py`) ne contenait que `token`,
-`tool_call_*`, `interactive_question*` et `error`. L'event `guided_tour`
-etait silencieusement drop, jamais forwarde au frontend — driver.js ne
-se lancait pas alors que les tool_call_logs montraient un status success.
+Contexte (bug 2026-04-15, correction initiale) : `stream_graph_events`
+emettait bien un event `{type: "guided_tour", ...}` quand le tool
+`trigger_guided_tour` etait appele, mais le filtre elif dans
+`generate_sse` (fonction interne a `send_message` dans `app/api/chat.py`)
+ne contenait que `token`, `tool_call_*`, `interactive_question*` et
+`error`. L'event `guided_tour` etait silencieusement drop, jamais
+forwarde au frontend — driver.js ne se lancait pas alors que les
+tool_call_logs montraient un status success.
 
-Ce test verrouille la presence de `guided_tour` dans la whitelist.
+Extension BUG-2 post-fix (2026-04-15) : meme classe de bug pour
+`profile_update` et `profile_completion`, yielded par `stream_graph_events`
+lignes 258-262 quand le tool `update_company_profile` est appele, mais
+absents de la whitelist. Consequence : les mises a jour de profil via le
+chat ne propageaient pas d'event au frontend (cote client, `useChat.ts`
+ecoute pourtant ces 2 types lignes 407 et 416 pour mettre a jour le
+companyStore). Ajoutes a la whitelist + verrouilles ici.
+
+Ce test verrouille la presence de tous les types critiques dans la
+whitelist pour couper court a la re-apparition silencieuse de cette
+classe de bug.
 """
 
 from pathlib import Path
@@ -29,6 +40,8 @@ _REQUIRED_EVENT_TYPES = (
     "interactive_question",
     "interactive_question_resolved",
     "guided_tour",
+    "profile_update",
+    "profile_completion",
     "error",
 )
 
