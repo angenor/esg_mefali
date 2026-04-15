@@ -17,6 +17,12 @@ npm run test:e2e -- 8-1-parcours-fatou
 # Mode visuel (voir le navigateur)
 npm run test:e2e -- --headed
 
+# Mode visuel RALENTI (observation temps reel, animations completes)
+# SLOWMO en ms par action ; FULL_MOTION=1 desactive reducedMotion pour voir les
+# transitions GSAP (retraction widget, entry popover, glassmorphism).
+PLAYWRIGHT_SLOWMO=800 PLAYWRIGHT_FULL_MOTION=1 \
+  npm run test:e2e -- --headed 8-2-parcours-moussa
+
 # Mode debug pas-a-pas (DevTools ouvert, pause automatique)
 npm run test:e2e -- --debug
 
@@ -52,8 +58,21 @@ Avantages :
 
 Exemples :
 - `8-1-parcours-fatou.spec.ts` — guidage propose et accepte (multi-pages)
-- `8-2-parcours-moussa.spec.ts` — guidage refuse (a venir)
+- `8-2-parcours-moussa.spec.ts` — guidage refuse + chat contextuel /financing + glassmorphism
 - `8-3-parcours-aminata.spec.ts` — declenchement direct (a venir)
+
+## Convention fixtures par parcours
+
+Chaque story 8.x ajoute ses donnees utilisateur au fichier `fixtures/users.ts`
+commun, **sans modifier** les fixtures des parcours precedents. Pattern :
+
+- `FATOU*` → story 8.1 (PME agro, dashboard → carbon)
+- `MOUSSA*` → story 8.2 (cooperative cacao, /financing)
+- `AMINATA*`, `IBRAHIM*`, `AISSATOU*` → stories 8.3-8.5 (a venir)
+
+Les types TypeScript (`TestUser`, `FundMatchListFixture`, etc.) sont partages.
+Toute evolution d'un type existant doit etre ajoutee sans casser les specs
+deja vertes (zero regression verifiee via `npm run test:e2e` complet).
 
 ## Structure des fixtures
 

@@ -3,12 +3,19 @@ import type { CompanyProfile } from '../../../app/types/company'
 import type { DashboardSummary } from '../../../app/types/dashboard'
 import type { CarbonAssessment, CarbonSummary } from '../../../app/types/carbon'
 import { FATOU, FATOU_COMPANY, FATOU_DASHBOARD_SUMMARY } from './users'
-import type { CarbonSummaryFixture, TestUser } from './users'
+import type {
+  CarbonSummaryFixture,
+  FundListFixture,
+  FundMatchListFixture,
+  TestUser,
+} from './users'
 import {
   createSSEResponse,
   FIXTURE_FROZEN_DATE,
   sseAssistantMessageWithConsent,
+  sseAssistantMessageWithConsentOnFinancing,
   sseGuidedTourAcceptanceResponse,
+  sseRefusalAcknowledgement,
 } from './sse-stream'
 
 /**
@@ -17,12 +24,21 @@ import {
  */
 export type ChatScenario =
   | 'propose_guided_tour_after_carbon'
+  | 'propose_guided_tour_after_financing_question'
   | 'idle'
 
 export interface MockBackendOptions {
   user?: TestUser
   companyProfile?: CompanyProfile
   carbonData?: CarbonSummaryFixture
+  /**
+   * Donnees financement injectees dans les routes `/api/financing/*`.
+   * Story 8.2 — permet au parcours Moussa de rendre la liste de fonds verts.
+   */
+  financingData?: {
+    matches: FundMatchListFixture
+    funds: FundListFixture
+  }
   dashboardSummary?: DashboardSummary
   chatScenario?: ChatScenario
   /**
@@ -38,6 +54,7 @@ export interface MockBackendOptions {
 const CONVERSATION_ID = 'conv-fatou-001'
 const ASSESSMENT_ID = 'assessment-fatou-carbon-2025'
 const INTERACTIVE_QUESTION_ID = 'iq-tour-consent-001'
+const FINANCING_INTERACTIVE_QUESTION_ID = 'iq-moussa-tour-001'
 
 /**
  * Helper : construit une reponse JSON via route.fulfill.
@@ -321,6 +338,40 @@ export async function installMockBackend(
     })
   })
 
+  // ── FINANCING (story 8.2) ────────────────────────────────────────────
+  // Matches / recommandations — consomme par useFinancing.fetchMatches()
+  const financingMatches: FundMatchListFixture
+    = options.financingData?.matches ?? { items: [], total: 0 }
+  const financingFunds: FundListFixture
+    = options.financingData?.funds ?? { items: [], total: 0, page: 1, limit: 50 }
+
+  await page.route(/.*\/api\/financing\/matches(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue()
+      return
+    }
+    await jsonResponse(route, financingMatches)
+  })
+
+  // Catalogue fonds — tolerant aux query params (filtres secteur/type/etc.)
+  await page.route(/.*\/api\/financing\/funds(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue()
+      return
+    }
+    await jsonResponse(route, financingFunds)
+  })
+
+  // Intermediaires — stub vide (onglet non consulte dans 8.2 mais routes
+  // chargees par onMounted de /financing/index.vue, donc doit etre mocke).
+  await page.route(/.*\/api\/financing\/intermediaries(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue()
+      return
+    }
+    await jsonResponse(route, { items: [], total: 0, page: 1, limit: 50 })
+  })
+
   // ── CHAT ─────────────────────────────────────────────────────────────
   // Liste des conversations
   await page.route(/.*\/api\/chat\/conversations(\?.*)?$/, async (route) => {
@@ -370,7 +421,7 @@ export async function installMockBackend(
         return
       }
       if (method === 'POST') {
-        await handleChatPost(route, chatScenario, carbonData)
+        await handleChatPost(route, chatScenario, carbonData, financingMatches)
         return
       }
       await route.continue()
@@ -491,6 +542,7 @@ async function handleChatPost(
   route: Route,
   scenario: ChatScenario,
   carbonData: CarbonSummaryFixture,
+  financingMatches: FundMatchListFixture,
 ): Promise<void> {
   const postData = route.request().postData() ?? ''
   const contentType = route.request().headers()['content-type'] ?? null
@@ -530,6 +582,62 @@ async function handleChatPost(
         questionId: INTERACTIVE_QUESTION_ID,
         conversationId: CONVERSATION_ID,
         messageId: `msg-propose-${Date.now()}`,
+      }),
+    )
+    return
+  }
+
+  // ── SCENARIO 8.2 : propose guidage sur /financing ───────────────────
+  if (scenario === 'propose_guided_tour_after_financing_question') {
+    if (isInteractiveAnswer) {
+      if (values.includes('yes')) {
+        // Moussa accepte (non-chemin principal mais garde-fou : renvoie un
+        // marker guided_tour sur le tour `show_financing_catalog`).
+        await sseResponse(
+          route,
+          sseGuidedTourAcceptanceResponse({
+            tourId: 'show_financing_catalog',
+            context: {
+              matches_count: financingMatches.total,
+              top_fund: financingMatches.items[0]?.fund.name ?? '',
+            },
+            messageId: `msg-tour-trigger-${Date.now()}`,
+            assistantText: 'Parfait, je vous guide dans le catalogue des fonds verts.',
+          }),
+        )
+        return
+      }
+      if (values.includes('no')) {
+        // Moussa refuse — accuse reception SANS aucun marker guided_tour.
+        await sseResponse(
+          route,
+          sseRefusalAcknowledgement({
+            messageId: `msg-refuse-${Date.now()}`,
+          }),
+        )
+        return
+      }
+      // Toute autre valeur est une regression — echouer explicitement.
+      const unsupportedMessage = `[mock-backend] answerValue non supporte: ${JSON.stringify(values)}`
+      // eslint-disable-next-line no-console
+      console.error(unsupportedMessage)
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: unsupportedMessage }),
+      })
+      return
+    }
+    // Envoi initial (question contextuelle posee sur /financing)
+    const topFundNames = financingMatches.items.slice(0, 3).map(m => m.fund.name)
+    await sseResponse(
+      route,
+      sseAssistantMessageWithConsentOnFinancing({
+        questionId: FINANCING_INTERACTIVE_QUESTION_ID,
+        conversationId: CONVERSATION_ID,
+        messageId: `msg-propose-financing-${Date.now()}`,
+        matchesCount: financingMatches.total,
+        topFundNames,
       }),
     )
     return

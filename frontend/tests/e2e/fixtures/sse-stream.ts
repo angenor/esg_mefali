@@ -141,3 +141,74 @@ export function sseGuidedTourAcceptanceResponse(params: {
     { type: 'done', message_id: params.messageId },
   ]
 }
+
+// ── Helpers story 8.2 — parcours Moussa (/financing) ──────────────────
+
+/**
+ * Scenario : assistant repond a une question contextuelle posee sur `/financing`
+ * puis propose un guidage via widget QCU de consentement.
+ *
+ * Le contenu du token cite volontairement **4 fonds** (count) et les noms des
+ * 3 premiers (GCF, BOAD, SUNREF) — les assertions AC3 sont des regex qui
+ * tolerent l'une ou l'autre formulation. Si ce helper est renomme ou que le
+ * contenu est modifie, **mettre a jour** les regex de `8-2-parcours-moussa.spec.ts`.
+ */
+export function sseAssistantMessageWithConsentOnFinancing(params: {
+  questionId: string
+  conversationId: string
+  messageId: string
+  matchesCount?: number
+  topFundNames?: string[]
+  consentPrompt?: string
+}): SSEEventPayload[] {
+  const matchesCount = params.matchesCount ?? 4
+  const topFunds = params.topFundNames ?? ['GCF Agriculture Resilient', 'BOAD Ligne PME Verte', 'SUNREF Cacao Durable']
+  const consentPrompt = params.consentPrompt
+    ?? 'Voulez-vous que je vous guide dans le catalogue des fonds ?'
+  const assistantText
+    = `J'ai identifie ${matchesCount} fonds verts compatibles avec votre cooperative cacao en Cote d'Ivoire : `
+      + `${topFunds.join(', ')} et d'autres options complementaires. `
+      + 'Vous pouvez consulter le catalogue complet sur cette page /financing.'
+
+  return [
+    { type: 'token', content: assistantText },
+    {
+      type: 'interactive_question',
+      id: params.questionId,
+      conversation_id: params.conversationId,
+      question_type: 'qcu',
+      prompt: consentPrompt,
+      options: [
+        { id: 'yes', label: 'Oui, montre-moi' },
+        { id: 'no', label: 'Non merci' },
+      ],
+      min_selections: 1,
+      max_selections: 1,
+      requires_justification: false,
+      justification_prompt: null,
+      module: 'financing',
+      created_at: FIXTURE_FROZEN_DATE,
+    },
+    { type: 'done', message_id: params.messageId },
+  ]
+}
+
+/**
+ * Scenario : utilisateur REFUSE le guidage — le serveur emet UN seul token
+ * d'accuse de reception, SANS marker `guided_tour` ni `interactive_question`.
+ *
+ * L'absence de relance automatique est volontaire : AC4 de la story 8.2
+ * verifie que le chat reste fonctionnel et qu'aucun Driver.js ne demarre.
+ */
+export function sseRefusalAcknowledgement(params: {
+  messageId: string
+  assistantText?: string
+}): SSEEventPayload[] {
+  const assistantText = params.assistantText
+    ?? 'Pas de souci, je reste a votre disposition. Si vous avez d\'autres questions, n\'hesitez pas.'
+
+  return [
+    { type: 'token', content: assistantText },
+    { type: 'done', message_id: params.messageId },
+  ]
+}
