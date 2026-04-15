@@ -165,4 +165,94 @@ test.describe('Parcours Fatou — guidage propose et accepte (multi-pages)', () 
     // L'input texte est disponible pour saisir un nouveau message
     await expect(page.getByTestId('chat-textarea')).toBeEnabled()
   })
+
+  /**
+   * BUG-3 (post-fix guided_tour 2026-04-15) — page avec donnees partielles.
+   *
+   * Quand le bilan carbone n'a ni `reduction_plan` ni `sector_benchmark`,
+   * les blocs correspondants (carbon-reduction-plan, carbon-benchmark) sont
+   * absents du DOM (v-if). Le tour doit :
+   *   1. Ne PAS afficher de bulle assistant vide (skipped_empty cote backend).
+   *   2. Emettre UN SEUL message systeme consolide apres la boucle, et non
+   *      N messages « Je n'ai pas pu pointer cet element ».
+   */
+  test('Fatou — page /carbon/results avec donnees partielles : pas de bulle vide, un seul message consolide', async ({ page }) => {
+    // Override le summary pour retirer reduction_plan et sector_benchmark —
+    // ajoute APRES installMockBackend (beforeEach), donc prioritaire.
+    await page.route(/.*\/api\/carbon\/assessments\/[^/]+\/summary$/, async (route) => {
+      const minimalSummary = {
+        assessment_id: 'b00b00b0-0000-0000-0000-000000000001',
+        year: 2025,
+        status: 'completed',
+        total_emissions_tco2e: 47.2,
+        by_category: {
+          transport: { emissions_tco2e: 29.3, percentage: 62, entries_count: 4 },
+          energy: { emissions_tco2e: 10.4, percentage: 22, entries_count: 3 },
+          waste: { emissions_tco2e: 5.1, percentage: 11, entries_count: 2 },
+          industrial: { emissions_tco2e: 2.4, percentage: 5, entries_count: 1 },
+          agriculture: { emissions_tco2e: 0, percentage: 0, entries_count: 0 },
+        },
+        equivalences: [{ label: 'vols Paris-Dakar', value: 12 }],
+        reduction_plan: null,
+        sector_benchmark: null,
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(minimalSummary),
+      })
+    })
+
+    // Parcours : reprise abregee du scenario principal jusqu'au declenchement.
+    await page.getByTestId('floating-chat-button').click()
+    await page.getByTestId('chat-textarea').fill('Montre-moi mes resultats carbone')
+    await page.getByTestId('chat-send-button').click()
+
+    await expect(
+      page.getByText(/Voulez-vous voir vos resultats carbone/i),
+    ).toBeVisible({ timeout: 10_000 })
+    await page.getByTestId('interactive-choice-yes').click()
+
+    await page
+      .locator('[data-guide-target="sidebar-carbon-link"]')
+      .click({ force: true })
+    await page.waitForURL('**/carbon/results', { timeout: 10_000 })
+
+    // Etape 1 (donut) existe toujours → popover doit apparaitre
+    await expect(
+      page.locator('[data-guide-target="carbon-donut-chart"]'),
+    ).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.driver-popover').first()).toContainText(
+      /47[.,]2\s*tCO2e/i,
+      { timeout: 10_000 },
+    )
+
+    // Les 2 blocs suivants sont absents (v-if false) → tour passe en consolidation
+    await expect(
+      page.locator('[data-guide-target="carbon-benchmark"]'),
+    ).toHaveCount(0)
+    await expect(
+      page.locator('[data-guide-target="carbon-reduction-plan"]'),
+    ).toHaveCount(0)
+
+    // Avancer → skip etapes 2 et 3
+    await page.getByTestId('popover-next-btn').click()
+
+    // Fin du parcours : driver popover disparait
+    await expect(page.locator('.driver-popover')).toHaveCount(0, {
+      timeout: 15_000,
+    })
+
+    // Widget visible + 1 seul message consolide (AC BUG-3)
+    await expect(page.locator('#copilot-widget')).toBeVisible()
+    await expect(
+      page.getByText(
+        /Certaines sections ne sont pas encore disponibles sur cette page/i,
+      ),
+    ).toHaveCount(1, { timeout: 10_000 })
+    // Le message fallback individuel (singulier) NE doit PAS apparaitre
+    await expect(
+      page.getByText(/Je n'ai pas pu pointer cet élément/i),
+    ).toHaveCount(0)
+  })
 })

@@ -317,7 +317,8 @@ export function useChat() {
             const event = JSON.parse(jsonStr) as {
               type: string
               content?: string
-              message_id?: string
+              message_id?: string | null
+              skipped_empty?: boolean
               field?: string
               value?: string | number | boolean
               label?: string
@@ -363,6 +364,19 @@ export function useChat() {
                   ? { ...msg, content: streamingContent.value }
                   : msg,
               )
+            } else if (event.type === 'done' && event.skipped_empty) {
+              // BUG-3 : le backend a saute la persistance car la reponse
+              // assistant est vide (guided_tour emis). Retirer le placeholder
+              // vide cree ligne 295-301 pour eviter une bulle muette dans l'UI.
+              const lastIdx = messages.value.length - 1
+              if (
+                lastIdx >= 0 &&
+                messages.value[lastIdx]?.role === 'assistant' &&
+                !messages.value[lastIdx]?.content
+              ) {
+                messages.value = messages.value.slice(0, lastIdx)
+              }
+              documentProgress.value = null
             } else if (event.type === 'done' && event.message_id) {
               // Mettre a jour l'ID du message avec l'ID persiste
               const lastIdx = messages.value.length - 1
@@ -708,7 +722,8 @@ export function useChat() {
             const evt = JSON.parse(jsonStr) as {
               type: string
               content?: string
-              message_id?: string
+              message_id?: string | null
+              skipped_empty?: boolean
               id?: string
               conversation_id?: string
               question_type?: InteractiveQuestionType
@@ -727,6 +742,16 @@ export function useChat() {
               messages.value = messages.value.map((msg, idx) =>
                 idx === lastIdx ? { ...msg, content: streamingContent.value } : msg,
               )
+            } else if (evt.type === 'done' && evt.skipped_empty) {
+              // BUG-3 : retirer le placeholder vide (voir sendMessage pour le rationale).
+              const lastIdx = messages.value.length - 1
+              if (
+                lastIdx >= 0 &&
+                messages.value[lastIdx]?.role === 'assistant' &&
+                !messages.value[lastIdx]?.content
+              ) {
+                messages.value = messages.value.slice(0, lastIdx)
+              }
             } else if (evt.type === 'done' && evt.message_id) {
               const lastIdx = messages.value.length - 1
               const oldId = messages.value[lastIdx]?.id

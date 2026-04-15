@@ -332,6 +332,11 @@ export function useGuidedTour() {
       let resolveCurrentStep: (() => void) | null = null
       const totalSteps = interpolatedSteps.length
 
+      // BUG-3 (post-fix guided_tour 2026-04-15) : accumuler silencieusement
+      // les etapes sautees pour elements absents et emettre un seul message
+      // consolide apres la boucle, au lieu d'un message par etape.
+      let skippedSteps = 0
+
       /** Fabrique une instance Driver.js avec la config partagee */
       function createDriverInstance() {
         return driverModule.driver({
@@ -526,9 +531,8 @@ export function useGuidedTour() {
           if (cancelled) return false
 
           if (!element) {
-            const { useChat } = await import('~/composables/useChat')
-            const { addSystemMessage } = useChat()
-            addSystemMessage('Je n\'ai pas pu pointer cet élément. Passons à la suite.')
+            // BUG-3 : accumule silencieusement — message consolide en fin de boucle.
+            skippedSteps += 1
             continue
           }
         }
@@ -567,6 +571,19 @@ export function useGuidedTour() {
           })
         })
         resolveCurrentStep = null
+      }
+
+      // BUG-3 : message consolide unique pour les etapes sautees (elements
+      // absents dans des blocs v-if). Emis apres la boucle pour eviter la
+      // duplication visible (avant : 1 message par etape sautee).
+      if (skippedSteps > 0) {
+        const { useChat } = await import('~/composables/useChat')
+        const { addSystemMessage } = useChat()
+        if (skippedSteps === 1) {
+          addSystemMessage('Je n\'ai pas pu pointer cet élément. Passons à la suite.')
+        } else {
+          addSystemMessage('Certaines sections ne sont pas encore disponibles sur cette page — les autres ont été montrées.')
+        }
       }
 
       // Finalisation du parcours

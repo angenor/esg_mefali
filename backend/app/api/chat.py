@@ -843,6 +843,7 @@ async def send_message(
 
                 # Streamer via le graphe LangGraph avec tool calling
                 full_response = ""
+                guided_tour_emitted = False
                 async for event in stream_graph_events(
                     content=user_content,
                     conversation_id=str(conv_id),
@@ -868,41 +869,52 @@ async def send_message(
                         "guided_tour",
                         "profile_update", "profile_completion",
                     ):
+                        if event_type == "guided_tour":
+                            guided_tour_emitted = True
                         yield f"data: {json.dumps(event)}\n\n"
 
                     elif event_type == "error":
                         yield f"data: {json.dumps(event)}\n\n"
 
-                # Sauvegarder la réponse complète
-                assistant_message = Message(
-                    conversation_id=conv_id,
-                    role="assistant",
-                    content=full_response,
-                )
-                sse_db.add(assistant_message)
-                await sse_db.flush()
-                await sse_db.refresh(assistant_message)
-
-                # Lier la question interactive pending creee dans ce tour au
-                # message assistant qui vient d'etre persiste (feature 018).
-                try:
-                    from app.models.interactive_question import (
-                        InteractiveQuestion as IQ,
-                        InteractiveQuestionState as IQState,
+                # BUG-3 (post-fix guided_tour 2026-04-15) : ne pas persister un
+                # message assistant vide quand un guided_tour a ete emis.
+                # Le prompt GUIDED_TOUR_INSTRUCTION interdit au LLM d'ajouter
+                # du texte apres l'appel `trigger_guided_tour` — la reponse
+                # est donc intentionnellement vide. Persister cette bulle vide
+                # en base produit un artefact visible dans l'UI (historique).
+                if not full_response.strip() and guided_tour_emitted:
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': None, 'skipped_empty': True})}\n\n"
+                else:
+                    # Sauvegarder la réponse complète
+                    assistant_message = Message(
+                        conversation_id=conv_id,
+                        role="assistant",
+                        content=full_response,
                     )
-                    await sse_db.execute(
-                        update(IQ)
-                        .where(
-                            IQ.conversation_id == conv_id,
-                            IQ.state == IQState.PENDING.value,
-                            IQ.assistant_message_id.is_(None),
+                    sse_db.add(assistant_message)
+                    await sse_db.flush()
+                    await sse_db.refresh(assistant_message)
+
+                    # Lier la question interactive pending creee dans ce tour au
+                    # message assistant qui vient d'etre persiste (feature 018).
+                    try:
+                        from app.models.interactive_question import (
+                            InteractiveQuestion as IQ,
+                            InteractiveQuestionState as IQState,
                         )
-                        .values(assistant_message_id=assistant_message.id)
-                    )
-                except Exception:  # pragma: no cover
-                    logger.debug("Liaison assistant_message_id echouee", exc_info=True)
+                        await sse_db.execute(
+                            update(IQ)
+                            .where(
+                                IQ.conversation_id == conv_id,
+                                IQ.state == IQState.PENDING.value,
+                                IQ.assistant_message_id.is_(None),
+                            )
+                            .values(assistant_message_id=assistant_message.id)
+                        )
+                    except Exception:  # pragma: no cover
+                        logger.debug("Liaison assistant_message_id echouee", exc_info=True)
 
-                yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': str(assistant_message.id)})}\n\n"
 
                 # Notification rapport : si une evaluation ESG vient d'etre completee
                 try:
