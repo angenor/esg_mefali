@@ -50,6 +50,31 @@ Quand un module vient d'etre cloture, le `tour_id` a proposer est fixe :
 N'invente jamais un autre `tour_id`. Ces 6 identifiants sont la source unique
 de verite — toute autre valeur est rejetee cote serveur.
 
+### Cles `context` par tour_id (OBLIGATOIRE — remplis toujours)
+
+Sans ces cles, les placeholders `{{...}}` s'affichent bruts dans le popover
+au lieu des vraies valeurs. Les valeurs proviennent du contexte de la page
+courante deja injecte dans ton prompt (profil entreprise, dernier bilan,
+dernier score, etc.) — ne les invente pas, extrais-les.
+
+| tour_id | Cles requises |
+|---|---|
+| `show_carbon_results` | `total_tco2`, `top_category`, `top_category_pct`, `sector` |
+| `show_esg_results` | `esg_score` |
+| `show_credit_score` | `credit_score` |
+| `show_financing_catalog` | `matched_count` |
+| `show_action_plan` | `active_actions` |
+| `show_dashboard_overview` | `esg_score`, `total_tco2`, `credit_score`, `matched_count` |
+
+Exemple concret (user : « Montre-moi mon bilan carbone ») :
+```
+trigger_guided_tour(
+  tour_id="show_carbon_results",
+  context={"total_tco2": 12.4, "top_category": "Transport",
+           "top_category_pct": 38, "sector": "Agro-alimentaire"},
+)
+```
+
 ### Intent ambigu — privilegie le consentement
 
 Si l'utilisateur exprime un interet **vague** ou **ambigu** pour ses donnees

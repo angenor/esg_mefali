@@ -58,6 +58,37 @@ def test_instruction_mentions_trigger_tool_name():
     assert "trigger_guided_tour" in GUIDED_TOUR_INSTRUCTION
 
 
+EXPECTED_CONTEXT_KEYS = [
+    "total_tco2",
+    "top_category",
+    "top_category_pct",
+    "sector",
+    "esg_score",
+    "credit_score",
+    "matched_count",
+    "active_actions",
+]
+
+
+def test_instruction_documents_context_keys_per_tour():
+    """T4bis — GUIDED_TOUR_INSTRUCTION enumere les 8 cles context requises.
+
+    Anti-regression BUG-1 (post-fix guided_tour 2026-04-15) : sans mapping
+    explicite des cles context par tour_id dans le prompt, le LLM appelait
+    `trigger_guided_tour(tour_id, context=None)` et les popovers affichaient
+    les placeholders bruts (« Votre empreinte est de tCO2e. ») au lieu des
+    vraies valeurs. Le prompt doit lister les 8 cles attendues par le registre
+    frontend `lib/guided-tours/registry.ts`.
+    """
+    for key in EXPECTED_CONTEXT_KEYS:
+        assert key in GUIDED_TOUR_INSTRUCTION, (
+            f"Cle context `{key}` absente de GUIDED_TOUR_INSTRUCTION — sans "
+            f"elle le LLM peut omettre cette cle et les placeholders `{{{{{key}}}}}` "
+            f"s'afficheront bruts dans le popover. Cf. "
+            f"frontend/app/lib/guided-tours/registry.ts."
+        )
+
+
 def test_instruction_mentions_security_context_rule():
     """T4 — Le prompt rappelle la regle NFR10 sur le champ `context`.
 
