@@ -1,5 +1,38 @@
 # Deferred Work
 
+## Resolved (2026-04-15)
+
+### [BUG] feature 019 — event SSE `guided_tour` silencieusement drop par la whitelist de `send_message`
+
+- **Feature d'origine** : 019-floating-copilot-guided-nav (story 6.1)
+- **Revele par** : test live `agent-browser --headed` sur `fatou1@gmail.com` page `/carbon/results`, message « Montre-moi mes resultats carbone ». Backend logue `trigger_guided_tour` avec `status=success` dans `tool_call_logs`, mais driver.js ne lance jamais le parcours cote front : `document.querySelector('.driver-popover')` retourne null, UI figee, aucun message systeme. Instrumentation temporaire (`[GT-TRACE]`) dans `handleGuidedTourEvent` et `startTour` revele que le handler n'est JAMAIS appele — le SSE `guided_tour` n'arrive pas au frontend.
+- **Cause racine** : la fonction `generate_sse` (closure interne a `send_message` dans `backend/app/api/chat.py`) filtre les events yielded par `stream_graph_events` via un elif explicite. La whitelist contenait `token`, `tool_call_start/end/error`, `interactive_question`, `interactive_question_resolved`, `error` — mais **PAS `guided_tour`**. Consequence : `stream_graph_events` extrait correctement le marker `<!--SSE:{"__sse_guided_tour__":true,...}-->` du `on_tool_end` et yield `{type: "guided_tour", tour_id, context}` (lignes 270-276 apres story 6.1), mais `generate_sse` (ligne 865) ne le forward pas. Event silencieusement drop. Aucun log, aucune erreur — bug tres difficile a diagnostiquer sans instrumentation ciblee.
+- **Correctif** (1 ligne) : ajouter `"guided_tour"` dans la whitelist du elif a `backend/app/api/chat.py:865-868`.
+- **Validation live** : reproduction initiale + fix confirme via `agent-browser --headed` sur `fatou1@gmail.com` page `/carbon/results`. Apres fix : `popoverCount=1`, `overlayCount=1`, `highlightedSelector="carbon-donut-chart"`, popover « Etape 1/3 — Repartition de vos emissions » visible.
+- **Tests** : nouveau test anti-regression `backend/tests/test_api/test_sse_event_whitelist.py` qui verrouille la whitelist par inspection de source (tous les types emis par `stream_graph_events` doivent etre presents dans `send_message`). Bug de cette classe difficile a attraper en integration (filtrage muet), test statique defensif plus pragmatique. 15 tests existants (`test_sse_tool_events.py`, `test_guided_tour_toolnode_registration.py`) toujours verts.
+- **Dettes secondaires** (hors scope) :
+  - `context` passe a `null` cote backend dans l'appel LLM actuel → placeholders `{{total_tco2}}`, `{{top_category}}`, `{{top_category_pct}}` non interpoles dans le popover (« Votre empreinte est de tCO2e »). A corriger dans une story dediee (enrichir le prompt `GUIDED_TOUR_INSTRUCTION` pour que le LLM remplisse le dict `context` avec les valeurs de la page courante).
+  - `profile_update` et `profile_completion` sont emis par `stream_graph_events` (lignes 258-262) mais eux aussi absents de la whitelist `generate_sse`. Meme classe de bug, non investiguee : si la fonctionnalite marche aujourd'hui c'est via une autre voie ; sinon, verifier si elle est cassee depuis la migration tool-calling (feature 012).
+- **Note sur le bug precedent (LLM hallucine "outil indisponible")** : deja resolu ce matin (cf. plus bas dans cette section « Resolved 2026-04-15 »). Le present bug etait la *couche suivante* cachee sous celui-la : backend-cote-tool OK → backend-cote-endpoint drop.
+
+### [BUG] feature 019 — LLM hallucine « trigger_guided_tour temporairement inaccessible »
+
+- **Feature d'origine** : 019-floating-copilot-guided-nav (stories 6.1 et suivantes)
+- **Revele par** : test live `agent-browser --headed` sur compte `fatou1@gmail.com`, message « Montre-moi mes resultats carbone sur l'ecran ». Le LLM repondait « Le guidage visuel interactif n'est pas disponible pour le moment — l'outil de navigation vers la page /carbon/results n'est pas accessible dans cette session ». Cette phrase n'existe nulle part dans le code : hallucination pure.
+- **Cause racine** (trouvee via logs instrumentes dans chat_node) :
+  1. `GUIDED_TOUR_TOOLS` etait bien binde cote LLM dans 6 noeuds (chat, esg_scoring, carbon, financing, credit, action_plan) via `llm.bind_tools(...)`.
+  2. MAIS `GUIDED_TOUR_TOOLS` etait **absent de la liste `tools=` passee a `create_tool_loop(...)` dans `app/graph/graph.py`** (lignes 132-138). Les ToolNodes ne contenaient pas le tool.
+  3. Consequence : le LLM emettait `tool_calls=['trigger_guided_tour']` au 1er tour, mais le ToolNode ne trouvait pas le tool a executer et ne produisait pas de ToolMessage exploitable. Au 2e tour LLM, le modele generait un texte hallucinant l'indisponibilite de l'outil — aggrave par l'historique polue (les conversations precedentes contenaient deja des hallucinations similaires, perpetuees via `context_memory` et les summaries).
+- **Correctif** (3 volets, diff minimal) :
+  1. **Fix principal** [backend/app/graph/graph.py] — ajouter `GUIDED_TOUR_TOOLS` dans les 6 appels `create_tool_loop` des noeuds qui le bindent cote LLM (exclusion : `application_node` qui ne le bind pas). Import du module ajoute dans la section des imports paresseux.
+  2. **Defense en profondeur contre la recidive** [backend/app/chains/summarization.py] — renforcement de `SUMMARY_PROMPT` : interdiction explicite de persister dans les resumes des formulations comme « outil indisponible », « hors service », « pas accessible dans cette session ». Les hallucinations qui passent le tool-calling ne doivent plus contaminer les sessions futures.
+  3. **Nettoyage des summaries legacy** [backend/app/prompts/system.py `_format_memory_section`] — ajout d'un paragraphe neutralisant : toute affirmation d'indisponibilite d'outil dans les resumes injectes via `context_memory` est declaree INVALIDE et a IGNORER (protege contre les summaries deja en base chez d'autres users, non nettoyes).
+- **Nettoyage BDD** : 9 `conversations.summary` contamines (tous users confondus) remis a NULL via script one-shot (seront regeneres au prochain summarization avec le nouveau prompt durci).
+- **Tests** : 8 tests anti-regression ajoutes dans `tests/test_graph/test_guided_tour_toolnode_registration.py` qui verrouillent la coherence `bind_tools` ↔ `ToolNode` pour `trigger_guided_tour` dans les 7 modules (6 avec + 1 sans). 241 tests suites (prompts + graph + chat) verts, zero regression.
+- **Validation live** : reproduction initiale + fix confirme via `agent-browser --headed` sur `fatou1@gmail.com` page /carbon/results. Avant : assistant generait le texte hallucine. Apres : `tool_call_logs` contient `trigger_guided_tour` avec `status=success` et la reponse assistant est vide (conforme a `GUIDED_TOUR_INSTRUCTION` « pas de texte apres l'appel »).
+- **Note sur le declenchement front du tour** : l'event SSE `guided_tour` est emis correctement, mais le driver.js n'a pas lance visuellement le parcours lors du test (aucun `.driver-popover` dans le DOM). Probablement lie au guard `currentInteractiveQuestion` residuel dans `useChat.ts` (cf. dette 6-4 : edge case orphan-state). Symptome secondaire, hors scope du bug LLM. A investiguer dans une story de suivi.
+- **Commit** : voir `git log` sur la branche `main` (date 2026-04-15).
+
 ## Resolved (2026-04-14)
 
 ### [BUG] carbon_node — lecture de bilan carbone retourne "Aucun bilan" alors qu'une entree existe

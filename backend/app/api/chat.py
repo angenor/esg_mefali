@@ -865,6 +865,7 @@ async def send_message(
                     elif event_type in (
                         "tool_call_start", "tool_call_end", "tool_call_error",
                         "interactive_question", "interactive_question_resolved",
+                        "guided_tour",
                     ):
                         yield f"data: {json.dumps(event)}\n\n"
 

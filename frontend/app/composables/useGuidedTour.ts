@@ -263,7 +263,11 @@ export function useGuidedTour() {
    */
   async function startTour(tourId: string, context?: TourContext): Promise<boolean> {
     // Ignorer si un parcours est deja en cours
-    if (tourState.value !== 'idle') return false
+    if (tourState.value !== 'idle') {
+      // eslint-disable-next-line no-console
+      console.warn('[useGuidedTour] startTour ignore — tourState non-idle', tourState.value)
+      return false
+    }
 
     // Valider tour_id dans le registre
     const definition: GuidedTourDefinition | undefined = tourRegistry[tourId as keyof typeof tourRegistry]

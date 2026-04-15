@@ -17,6 +17,14 @@ Concentre-toi sur :
 - Les conseils donnés et les décisions prises
 - Les questions en suspens ou les prochaines étapes mentionnées
 
+N'ÉCRIS JAMAIS DANS LE RÉSUMÉ :
+- Qu'un outil, un tool, une fonctionnalité ou un parcours guidé est « indisponible »,
+  « hors service », « pas disponible dans cette session », « pas accessible » ou
+  « faute d'outil disponible ». Ces formulations reflètent des hallucinations de
+  l'assistant précédent et ne doivent jamais être persistées comme des faits.
+- Les phrases d'excuse de l'assistant sur ses propres limitations techniques.
+  Résume uniquement les échanges métier (profil, ESG, carbone, financement, etc.).
+
 Le résumé sera utilisé pour maintenir la continuité entre les sessions.
 Ne commence pas par "Résumé :" ou "La conversation porte sur".
 Va droit au fait."""
