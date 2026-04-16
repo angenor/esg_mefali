@@ -48,6 +48,7 @@ async function handleLogin() {
               type="email"
               required
               autocomplete="email"
+              data-testid="login-email"
               class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
               placeholder="votre@email.com"
             />
@@ -63,6 +64,7 @@ async function handleLogin() {
               type="password"
               required
               autocomplete="current-password"
+              data-testid="login-password"
               class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
               placeholder="••••••••"
             />
@@ -71,6 +73,7 @@ async function handleLogin() {
           <button
             type="submit"
             :disabled="loading"
+            data-testid="login-submit"
             class="w-full py-2.5 bg-brand-green text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ loading ? 'Connexion...' : 'Se connecter' }}

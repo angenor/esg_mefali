@@ -1,6 +1,26 @@
 # Story 8.2 : Tests E2E — Parcours Moussa (guidage refuse, chat contextuel)
 
-Status: review
+Status: done
+
+## Validation live (2026-04-15 — agent-browser)
+
+Parcours reel execute contre backend FastAPI + LLM Claude via `agent-browser --headed`
+avec le compte `moussa1@gmail.com`. Resultats confirmes :
+
+- AC3 : reponse contextuelle + widget interactif QCU affiche avec `interactive-choice-yes` / `interactive-choice-no`.
+- AC4 : clic « Non merci » -> 0 popover Driver.js, 0 overlay, widget reste visible, input chat reste enable, boutons Yes/No `disabled=true`.
+- AC5 : `widget-glass` + `backdrop-filter: blur(24px)` + `z-index: 50`, fonds /financing visibles derriere (GCF, SUNREF, BOAD cites).
+
+### Correctifs backend appliques pour alignement mock ↔ prod
+
+1. **`backend/app/prompts/financing.py`** — ajout de la section `## OUTILS DISPONIBLES` + nouvelle `REGLE ABSOLUE — QUESTION FERMEE = WIDGET INTERACTIF` qui interdit au LLM de poser une question fermee en texte libre.
+2. **`backend/app/prompts/guided_tour.py`** — durcissement de la regle 1 : toute proposition de guidage (post-module OU en cours d'echange) doit emettre `ask_interactive_question` avec **exactement 2 options** aux `id` `yes`/`no` (contrat UI). Ajout regle 5 : separation guidage vs segmentation metier.
+
+Avant correctifs : le LLM proposait le guidage en texte libre (pas de widget) ou avec 5 options metier (carbon/boad/giz/gef/all). Apres correctifs : le LLM emet bien le pattern Oui/Non attendu par la spec.
+
+### Dette technique residuelle
+
+- **Dette 8.2-4 (Smoke test live)** — differee au backlog (`8-2-dette-smoke-test-live`). Les 3 specs Playwright sont 100% mockees ; un smoke test CI nightly via `agent-browser` contre un backend reel garantirait la non-regression du pattern Yes/No (detecte cette fois uniquement par test manuel).
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

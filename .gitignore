@@ -53,3 +53,7 @@ _bmad/.cache/
 _bmad/*.log
 _bmad-output/**/.cache/
 _bmad-output/**/*.tmp
+
+# E2E live (agent-browser) — captures de runs locaux (story 8.3+)
+frontend/tests/e2e-live/screenshots/*
+!frontend/tests/e2e-live/screenshots/.gitkeep

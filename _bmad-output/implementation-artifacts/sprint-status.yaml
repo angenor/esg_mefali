@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-14' (Story 7.3 done — code review)
+# last_updated: '2026-04-15' (Story 8.3 in-progress — implementation demarree)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,8 +35,8 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-15' (Story 8.2 implementee : parcours Moussa — 3/3 E2E verts, 9/9 anti-flake, status `review`)
-last_story_created: '8-2-tests-e2e-parcours-moussa'
+last_updated: '2026-04-15' (Story 8.3 in-progress : implementation parcours Aminata demarree — agent-browser --headed)
+last_story_created: '8-3-tests-e2e-parcours-aminata'
 last_review_completed: '7-3-resilience-sse-et-indicateur-de-reconnexion'
 project: esg_mefali
 project_key: NOKEY
@@ -100,8 +100,8 @@ development_status:
   # Epic 8 : Tests d'integration end-to-end
   epic-8: in-progress
   8-1-tests-e2e-parcours-fatou: done
-  8-2-tests-e2e-parcours-moussa: review
-  8-3-tests-e2e-parcours-aminata: backlog
+  8-2-tests-e2e-parcours-moussa: done
+  8-3-tests-e2e-parcours-aminata: in-progress
   8-4-tests-e2e-parcours-ibrahim: backlog
   8-5-tests-e2e-parcours-aissatou: backlog
   8-6-tests-de-non-regression-globaux: backlog
