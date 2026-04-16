@@ -1,50 +1,52 @@
 {
   "workflow_version": "1.2.0",
   "timestamps": {
-    "started": "2026-04-11T23:55:00Z",
-    "last_updated": "2026-04-12T00:15:00Z",
-    "completed": "2026-04-12T00:15:00Z"
+    "started": "2026-04-16T16:20:00Z",
+    "last_updated": "2026-04-16T17:05:00Z",
+    "completed": "2026-04-16T17:05:00Z"
   },
-  "mode": "initial_scan",
+  "mode": "full_rescan",
   "scan_level": "deep",
   "project_root": "/Users/mac/Documents/projets/2025/esg_mefali",
   "project_knowledge": "/Users/mac/Documents/projets/2025/esg_mefali/docs",
   "repository_type": "monorepo",
   "project_parts": [
-    {
-      "part_id": "frontend",
-      "root_path": "frontend",
-      "project_type_id": "web",
-      "display_name": "Frontend Nuxt 4"
-    },
-    {
-      "part_id": "backend",
-      "root_path": "backend",
-      "project_type_id": "backend",
-      "display_name": "Backend FastAPI"
-    }
+    {"part_id": "frontend", "root_path": "frontend", "project_type_id": "web", "display_name": "Frontend Nuxt 4"},
+    {"part_id": "backend", "root_path": "backend", "project_type_id": "backend", "display_name": "Backend FastAPI"}
   ],
   "completed_steps": [
-    {"step": "step_0.5", "status": "completed", "timestamp": "2026-04-11T23:55:00Z", "summary": "Documentation requirements loaded for web + backend project types"},
-    {"step": "step_1", "status": "completed", "timestamp": "2026-04-11T23:55:00Z", "summary": "Classified as monorepo with 2 parts: frontend (web / Nuxt 4) + backend (backend / FastAPI)"},
-    {"step": "step_2", "status": "completed", "timestamp": "2026-04-12T00:00:00Z", "summary": "Inventoried existing docs: README.md, CLAUDE.md, .env.example, Makefile, specs/ (18 features), documents_et_brouillons/. No prior docs/ content."},
-    {"step": "step_3", "status": "completed", "timestamp": "2026-04-12T00:05:00Z", "summary": "Tech stacks: frontend Nuxt 4.4 + Vue 3 + Pinia 3 + Tailwind 4 + Chart.js/Mermaid/GSAP ; backend FastAPI ≥0.115 + SQLAlchemy async 2 + asyncpg + LangGraph ≥0.2 + LangChain ≥0.3 + Alembic + Pydantic v2 + WeasyPrint + PyMuPDF + OpenRouter Claude Sonnet 4"},
-    {"step": "step_4", "status": "completed", "timestamp": "2026-04-12T00:10:00Z", "summary": "Conditional analysis via 2 parallel Explore subagents: 73 endpoints REST, 16 SQLAlchemy models, 13 Alembic migrations, 10 LangGraph nodes, 12 tool files (~100 tools), 9 prompts, 18 pages, 56 components, 14 composables, 11 Pinia stores, 11 type files"},
-    {"step": "step_5", "status": "completed", "timestamp": "2026-04-12T00:12:00Z", "summary": "Source tree analysis written to source-tree-analysis.md"},
-    {"step": "step_6", "status": "completed", "timestamp": "2026-04-12T00:12:00Z", "summary": "Development and deployment guides extracted from README/Makefile/docker-compose.yml/.env.example and written to development-guide.md + deployment-guide.md"},
-    {"step": "step_7", "status": "completed", "timestamp": "2026-04-12T00:12:00Z", "summary": "Integration architecture documented: REST JSON + SSE streaming + multipart upload, JWT auth, CORS, observability via tool_call_logs"},
-    {"step": "step_8", "status": "completed", "timestamp": "2026-04-12T00:13:00Z", "summary": "Architecture docs written for 2 parts: architecture-frontend.md + architecture-backend.md"},
-    {"step": "step_9", "status": "completed", "timestamp": "2026-04-12T00:14:00Z", "summary": "Supporting docs written: project-overview.md, data-models-backend.md, api-contracts-backend.md, component-inventory-frontend.md, project-parts.json"},
-    {"step": "step_10", "status": "completed", "timestamp": "2026-04-12T00:15:00Z", "summary": "Master index.md generated with full navigation, no incomplete markers"},
-    {"step": "step_11", "status": "completed", "timestamp": "2026-04-12T00:15:00Z", "summary": "Validation: zero `_(To be generated)_` markers, all 12 files present"},
-    {"step": "step_12", "status": "completed", "timestamp": "2026-04-12T00:15:00Z", "summary": "Workflow complete"}
+    {"step": "step_0.5", "status": "completed", "timestamp": "2026-04-16T16:20:00Z", "summary": "Documentation requirements loaded for web + backend project types. Previous state archived."},
+    {"step": "step_1", "status": "completed", "timestamp": "2026-04-16T16:20:00Z", "summary": "Classified as monorepo with 2 parts: frontend (web / Nuxt 4) + backend (backend / FastAPI)."},
+    {"step": "step_2", "status": "completed", "timestamp": "2026-04-16T16:25:00Z", "summary": "Inventoried existing docs (README, CLAUDE, Makefile, .env.example, specs/001-018, prior docs/ files — preserved technical-debt-backlog.md)."},
+    {"step": "step_3", "status": "completed", "timestamp": "2026-04-16T16:30:00Z", "summary": "Tech stacks deep-scanned via 3 parallel Explore agents: frontend Nuxt 4.4 + Vue 3 + Pinia 3 + Tailwind 4 + driver.js 1.4 + GSAP + Chart.js/Mermaid + Vitest 3 + Playwright 1.49; backend FastAPI 0.115 + SQLAlchemy 2 async + asyncpg + pgvector 0.3.6 + LangGraph 0.2 + LangChain 0.3 + OpenRouter Claude Sonnet 4 + WeasyPrint + PyMuPDF + pytesseract; infra Docker Compose + nginx UAfricas."},
+    {"step": "step_4", "status": "completed", "timestamp": "2026-04-16T16:35:00Z", "summary": "Deep analysis: 73 REST endpoints on 13 routers, 22 SQLAlchemy models in 14 files (incl. new InteractiveQuestion + ToolCallLog), 13 Alembic migrations, 9 LangGraph nodes with active_module multi-turn routing (spec 013), 12 tool files with ~36 LangChain tools (incl. ask_interactive_question spec 018 + trigger_guided_tour spec 019 + batch_save_esg_criteria spec 015 + create_fund_application spec 015), 11 prompt modules with STYLE/WIDGET/GUIDED_TOUR helpers, 17 frontend pages, 60 components (incl. 5 copilot/ widget spec 019 + 5 interactive chat widgets spec 018 + 8 richblocks + GuidedTourPopover), 18 composables with 3 module-level state (useChat + useAuth + useGuidedTour), 11 Pinia stores, 12 type files, 6 guided tours with 14 data-guide-target markers."},
+    {"step": "step_5", "status": "completed", "timestamp": "2026-04-16T16:49:00Z", "summary": "source-tree-analysis.md rewritten with full annotated monorepo tree (frontend + backend + root + docs)."},
+    {"step": "step_6", "status": "completed", "timestamp": "2026-04-16T16:51:00Z", "summary": "development-guide.md + deployment-guide.md rewritten from Makefile/docker-compose/deploy.sh/nginx template."},
+    {"step": "step_7", "status": "completed", "timestamp": "2026-04-16T16:53:00Z", "summary": "integration-architecture.md written: REST JWT flow, SSE fetch-streaming contract with 10+ event types, multipart upload, active_module multi-turn routing (spec 013), current_page injection (spec 3), guided tours lifecycle (spec 019), interactive widgets (spec 018), observability via tool_call_logs."},
+    {"step": "step_8", "status": "completed", "timestamp": "2026-04-16T16:57:00Z", "summary": "architecture-frontend.md + architecture-backend.md rewritten per part with detailed sections (stack, patterns, dark mode, tours, widgets, tests, deployment, ADRs)."},
+    {"step": "step_9", "status": "completed", "timestamp": "2026-04-16T17:02:00Z", "summary": "Supporting docs written/updated: project-overview.md (mission + stack + journal 001-019), data-models-backend.md (22 models + 13 migrations), api-contracts-backend.md (73 endpoints + SSE), component-inventory-frontend.md (60 components + 18 composables + 11 stores + types + tours registry), project-parts.json metadata."},
+    {"step": "step_10", "status": "completed", "timestamp": "2026-04-16T17:03:00Z", "summary": "Master index.md generated with multi-part navigation, quick reference tables, integration map, key entry points for IDE, no incomplete markers."},
+    {"step": "step_11", "status": "completed", "timestamp": "2026-04-16T17:05:00Z", "summary": "Validation: 0 `_(To be generated)_` markers, 13 generated files + 1 preserved (technical-debt-backlog.md), all sizes reasonable (4.6KB to 23KB)."},
+    {"step": "step_12", "status": "completed", "timestamp": "2026-04-16T17:05:00Z", "summary": "Workflow complete."}
   ],
   "current_step": "completed",
   "findings": {
-    "project_classification": "monorepo, 2 parts, Nuxt 4 + FastAPI",
-    "frontend_summary": "SPA Nuxt 4 + Vue 3 Composition API + Pinia 3 + TailwindCSS 4 + Chart.js/Mermaid/GSAP. 18 pages, 56 composants, 14 composables, 11 stores Pinia, dark mode obligatoire.",
-    "backend_summary": "FastAPI monolithe + SQLAlchemy async 2 + LangGraph (10 nœuds) + ~100 tools LangChain + OpenRouter Claude Sonnet 4. ~73 endpoints REST, 16 modèles, 13 migrations Alembic, ~935 tests pytest.",
-    "integration_summary": "REST JSON + SSE streaming (POST /api/chat/{id}/messages) + multipart upload. Auth JWT HS256. CORS en dur localhost:3000. Pas de rate limiting."
+    "project_classification": "monorepo, 2 parts (frontend Nuxt 4 + backend FastAPI)",
+    "frontend_summary": "SPA/SSR Nuxt 4.4 + Vue 3 Composition API + Pinia 3 + TailwindCSS 4 + driver.js + GSAP + Chart.js/Mermaid. 17 pages, 60 composants (widget chat flottant spec 019, 5 widgets interactifs spec 018, 8 richblocks, popover tour guidé), 18 composables dont 3 à state module-level (useChat, useAuth, useGuidedTour), 11 stores Pinia. Dark mode obligatoire via @theme. Tests: Vitest unit + Playwright E2E (mockés, Fatou/Moussa) + bash E2E live (Aminata).",
+    "backend_summary": "FastAPI 0.115 async + SQLAlchemy 2 async + asyncpg + PostgreSQL 16 + pgvector. 73 endpoints REST sur 13 routers, 22 modèles ORM, 13 migrations Alembic. Graphe LangGraph 9 nœuds avec active_module multi-turn routing (spec 013), ~36 tools LangChain dans 12 fichiers (incl. ask_interactive_question spec 018, trigger_guided_tour spec 019, batch_save_esg_criteria + create_fund_application spec 015). 11 modules prompts avec STYLE/WIDGET/GUIDED_TOUR helpers. JWT HS256 + refresh single-flight (spec 7-2). Observabilité via tool_call_logs.",
+    "integration_summary": "REST JSON + SSE streaming (POST /api/chat/.../messages avec 10+ types d'events : token, tool_call_*, interactive_question*, guided_tour, profile_*, done, error) + multipart upload. Auth JWT HS256 Bearer + refresh single-flight. CORS codé en dur localhost:3000. Pas de rate limiting. Tours guidés via marker SSE consenti par widget QCU yes/no.",
+    "major_changes_since_2026_04_12": [
+      "Chat refactored from standalone page to floating widget (spec 019) — pages/chat.vue removed, chat-redirect.global.ts middleware added",
+      "Guided tour system added (specs 4-7) — driver.js lazy-loaded, 6 tours, 14 data-guide-target markers, popover Vue custom, machine à états useGuidedTour, countdown adaptatif, multi-tab sync",
+      "Interactive widgets in chat (spec 018) — table interactive_questions, 4 variantes qcu/qcm/*justification, InteractiveQuestionHost + 4 composants, invariant 1 question pending/conversation",
+      "Tool calling LangGraph migration (spec 012) — 36 tools LangChain, ToolNode boucle max 5 iter, table tool_call_logs",
+      "Active module routing (spec 013) — ConversationState.active_module + active_module_data, router binary classification continuation/changement, défaut sécuritaire",
+      "Concise chat style (spec 014) — STYLE_INSTRUCTION injectée conditionnellement",
+      "Tool-calling fixes (spec 015) — create_fund_application + batch_save_esg_criteria, request_timeout=60s, prompts durcis",
+      "SSE resilience (spec 7-3) — AbortController, navigator.onLine, ConnectionStatusBadge",
+      "JWT renewal transparent (spec 7-2) — single-flight refreshPromise, SessionExpiredError, cancel tour on session expiry",
+      "Page context injection (spec 3) — uiStore.currentPage → FormData → ConversationState.current_page → prompts spécialistes"
+    ]
   },
   "outputs_generated": [
     "project-scan-report.json",
@@ -60,6 +62,9 @@
     "development-guide.md",
     "deployment-guide.md",
     "project-parts.json"
+  ],
+  "preserved_outputs": [
+    "technical-debt-backlog.md"
   ],
   "resume_instructions": "Workflow complete. To re-run documentation or deep-dive a specific area, invoke bmad-document-project again."
 }

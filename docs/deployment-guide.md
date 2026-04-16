@@ -2,202 +2,212 @@
 
 ## 1. Architecture de déploiement
 
-Production orchestrée par Docker Compose avec :
+Deux environnements officiels :
 
-- Un fichier dédié `docker-compose.prod.yml`
-- Dockerfiles production : `backend/Dockerfile.prod`, `frontend/Dockerfile.prod`
-- Un reverse proxy **Nginx** (dossier `nginx/`) en amont
-- Un script de déploiement `deploy.sh` (~20 Ko) pour l'orchestration complète
+| Environnement | Orchestration | Accès | Reverse proxy |
+|---|---|---|---|
+| **Dev local** | `docker-compose.yml` | `http://localhost:{3000,8000}` | Aucun |
+| **Prod VPS** | `docker-compose.prod.yml` + `deploy.sh` | `https://esg.mefali.com` | nginx UAfricas (multi-tenant) |
+
+### Prod — Vue d'ensemble
 
 ```
-        Internet
-           │
+┌─────────────────────────┐
+│  Internet (443)         │
+└──────────┬──────────────┘
+           │ HTTPS (TLS 1.2+, HSTS)
            ▼
-    ┌──────────────┐
-    │    Nginx     │  ← TLS, rate limiting, reverse proxy
-    └──────┬───────┘
+┌─────────────────────────┐
+│  nginx (UAfricas)       │ /opt/uafricas/nginx
+│  - SSL termination      │ esg-mefali-vhost.conf
+│  - reverse proxy /api/  │
+│  - reverse proxy /      │
+└──────────┬──────────────┘
+           │  uafricas_net (docker network externe, partagé)
            │
-    ┌──────┴─────────────┐
-    │                    │
-    ▼                    ▼
-┌─────────┐         ┌─────────┐
-│Frontend │         │ Backend │
-│Nuxt 4   │         │FastAPI  │
-│  :3000  │         │  :8000  │
-└─────────┘         └────┬────┘
-                         │
-                         ▼
-                 ┌───────────────┐
-                 │ PostgreSQL 16 │
-                 │   pgvector    │
-                 │     :5432     │
-                 └───────────────┘
+┌──────────┴──────────────────────────────────────┐
+│  docker-compose.prod.yml (esg_mefali_net)       │
+│                                                 │
+│  ┌─────────┐   ┌──────────┐   ┌──────────┐    │
+│  │ frontend│   │  backend │   │ postgres │    │
+│  │ Nuxt SSR│   │  FastAPI │   │ pgvector │    │
+│  │ :3010   │   │  :8010   │   │  :5434   │    │
+│  │ (loopb) │   │  (loopb) │   │  (loopb) │    │
+│  └─────────┘   └──────────┘   └──────────┘    │
+│                     │              │           │
+│                     │         ┌────┴────┐     │
+│                     │         │ postgres │     │
+│                     │         │ _data    │     │
+│                     │         └──────────┘     │
+│                     │                          │
+│                ┌────┴────────┐                 │
+│                │ backend_    │                 │
+│                │ uploads     │                 │
+│                └─────────────┘                 │
+└────────────────────────────────────────────────┘
 ```
 
-## 2. Prérequis infrastructure
+**Points-clés** :
+- Les trois services sont liés à `127.0.0.1:{3010,8010,5434}` et ne sont **pas** exposés directement sur l'internet.
+- L'accès public passe **obligatoirement** par nginx UAfricas via le réseau Docker externe `uafricas_net`.
+- Volumes persistés : `postgres_data` (BDD) + `backend_uploads` (fichiers utilisateurs).
 
-- Docker Engine 24.x+ et Docker Compose v2
-- Nom de domaine et certificats TLS (Let's Encrypt recommandé, Nginx configuré)
-- **Clé `OPENROUTER_API_KEY`** valide (crédits OpenRouter provisionnés)
-- Volume persistant pour `postgres_data` (snapshots RGPD compliant)
-- Volume persistant pour `backend/uploads/` (documents utilisateurs, rapports PDF)
+## 2. Prérequis serveur
 
-## 3. Variables d'environnement prod
+- Debian/Ubuntu récent (testé sur 22.04).
+- Docker + Docker Compose v2.
+- Accès SSH root à la machine cible (`root@<ip>` par défaut dans `deploy.sh`).
+- Domaine ou sous-domaine pointant (A record) vers l'IP du VPS.
+- Nginx UAfricas déjà installé et opérationnel sur le VPS (multi-tenant nginx).
 
-Créer un `.env` de production avec :
+Variables utilisées par `deploy.sh` (à adapter en tête du script) :
+- `VPS_HOST=root@161.97.92.63`
+- `DOMAIN=esg.mefali.com`
+- `INSTALL_DIR=/opt/esg_mefali`
+- `UAFRICAS_DIR=/opt/uafricas`
+
+## 3. Procédure de déploiement initial
+
+```bash
+# Depuis la machine locale, après avoir poussé main en remote :
+./deploy.sh setup      # Provisionne le VPS (clone repo, génère secrets, .env)
+                        # → SSH sur le VPS, installe Docker si absent, clone /opt/esg_mefali
+
+./deploy.sh vhost-install
+# Copie nginx/esg-mefali-vhost.conf.example → /opt/uafricas/nginx/conf.d/esg-mefali-vhost.conf
+# (à éditer pour activer les lignes SSL une fois le certificat émis)
+
+./deploy.sh ssl
+# Émet le certificat Let's Encrypt via certbot --standalone
+# (stoppe temporairement nginx UAfricas sur :80 le temps du challenge)
+# Copie fullchain.pem + privkey.pem dans /opt/uafricas/nginx/ssl/esg-mefali/
+# Installe un cron de renouvellement automatique
+
+./deploy.sh deploy
+# git pull origin main + docker compose -f docker-compose.prod.yml build + up -d
+# Attend 25s, puis vérifie /api/health et le frontend
+```
+
+**⚠️ Avant le premier `deploy`** : éditer `/opt/esg_mefali/.env` sur le VPS et renseigner `OPENROUTER_API_KEY`. Les autres secrets (`SECRET_KEY`, `POSTGRES_PASSWORD`) sont générés par `setup` via `openssl rand`.
+
+## 4. Déploiements itératifs
+
+```bash
+./deploy.sh update     # git pull + rebuild rapide des conteneurs applicatifs
+./deploy.sh deploy     # Plus complet (rebuild images, redémarre stack, healthcheck)
+./deploy.sh migrate    # Exécute alembic upgrade head sur le backend en prod
+./deploy.sh restart    # docker compose restart
+./deploy.sh logs       # Tail des logs combinés
+./deploy.sh status     # État des containers
+./deploy.sh shell      # Ouvre un shell dans le conteneur backend
+```
+
+## 5. Rétention / sauvegardes
+
+```bash
+./deploy.sh backup     # pg_dump + archive uploads/ dans /opt/backups/esg_mefali/<timestamp>/
+./deploy.sh restore <timestamp>   # Restaure depuis une sauvegarde datée
+```
+
+**Fréquence recommandée** : cron quotidien (à ajouter manuellement au crontab du VPS — pas automatisé par `deploy.sh`).
+
+## 6. Configuration nginx (reverse proxy)
+
+Référence : [nginx/esg-mefali-vhost.conf.example](../nginx/esg-mefali-vhost.conf.example). Points saillants :
+
+| Bloc | Contenu clé |
+|---|---|
+| `server_name` | `esg.mefali.com` |
+| SSL | Certificats Let's Encrypt dans `/opt/uafricas/nginx/ssl/esg-mefali/` |
+| TLS | Versions 1.2 + 1.3 uniquement |
+| En-têtes sécurité | `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, CSP |
+| `location /api/` | `proxy_pass http://esg_mefali_backend:8000;` — timeouts 600s, buffering **désactivé** (SSE) |
+| `location /` | `proxy_pass http://esg_mefali_frontend:3000;` — SSR Nuxt + upgrade WebSocket |
+| ACME | `location ^~ /.well-known/acme-challenge/` pour le renouvellement Let's Encrypt |
+| Upload max | `client_max_body_size 50M;` |
+
+### Directives critiques pour le SSE
+
+Dans `location /api/` :
+
+```nginx
+proxy_buffering off;
+proxy_cache off;
+proxy_request_buffering off;
+chunked_transfer_encoding on;
+proxy_read_timeout 600s;
+```
+
+Sans ces directives, nginx bufferiserait la réponse streamée du backend et le chat apparaîtrait figé côté frontend.
+
+## 7. Variables d'environnement prod
+
+Fichier attendu : `/opt/esg_mefali/.env` (non versionné).
 
 ```env
-# BDD
-DATABASE_URL=postgresql+asyncpg://<user>:<password>@postgres:5432/esg_mefali
-
-# Sécurité (OBLIGATOIRE — générer aléatoirement)
-SECRET_KEY=<64 caractères aléatoires générés (ex. openssl rand -hex 32)>
+# Backend
+DATABASE_URL=postgresql+asyncpg://esg_mefali:<postgres_password>@postgres:5432/esg_mefali
+SECRET_KEY=<64-char-hex>
 JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=480       # 8 h
+ACCESS_TOKEN_EXPIRE_MINUTES=480
 REFRESH_TOKEN_EXPIRE_DAYS=30
-
-# LLM
-OPENROUTER_API_KEY=<votre clé OpenRouter prod>
+OPENROUTER_API_KEY=<clef_OR>
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=anthropic/claude-sonnet-4-20250514
+DEBUG=false
+
+# Postgres
+POSTGRES_USER=esg_mefali
+POSTGRES_PASSWORD=<password>
+POSTGRES_DB=esg_mefali
+POSTGRES_PORT=5434
 
 # Frontend
-NUXT_PUBLIC_API_BASE=https://api.<votre-domaine>/api
-
-# Debug off
-DEBUG=false
+NODE_ENV=production
+NUXT_PUBLIC_API_BASE=/api
 ```
 
-> ⚠️ `SECRET_KEY` par défaut dans `.env.example` est un placeholder. Ne jamais le laisser en production.
+## 8. Observabilité
 
-## 4. Déploiement
+- Logs : `docker compose logs -f backend` ou `./deploy.sh logs`.
+- Healthcheck HTTP : `GET /api/health` renvoie `{status, database, version}`.
+- Audit des tool calls LangGraph : table `tool_call_logs` (user_id, conversation_id, node_name, tool_name, duration_ms, status, error_message, retry_count). Requêtes analytiques recommandées :
+  ```sql
+  SELECT tool_name, status, COUNT(*), AVG(duration_ms)
+  FROM tool_call_logs
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+  GROUP BY tool_name, status
+  ORDER BY COUNT(*) DESC;
+  ```
+- Aucune métrique Prometheus / trace distribuée n'est encore en place (voir [technical-debt-backlog.md](./technical-debt-backlog.md)).
 
-### 4.1 Via `deploy.sh`
+## 9. CI/CD
+
+**État actuel** : pas de pipeline GitHub Actions. Les déploiements sont déclenchés manuellement via `./deploy.sh`. Les tests locaux (`make test`) font office de porte de qualité.
+
+**Pistes futures** (documentées dans la dette technique) :
+- Workflow GitHub Actions : lint + tests backend + tests frontend unit + Playwright sur PR.
+- Build et push d'images Docker taggées vers un registry privé.
+- Déploiement staging → prod via SSH deploy key.
+
+## 10. Rollback
+
+En cas de déploiement défectueux :
 
 ```bash
-# Sur le serveur de prod
-cd /opt/esg_mefali
-git pull origin main
-./deploy.sh
+# Restaurer la dernière sauvegarde BDD + uploads
+./deploy.sh restore <timestamp_précédent>
+
+# Revenir à un commit stable
+ssh root@<vps> "cd /opt/esg_mefali && git reset --hard <sha> && ./deploy.sh deploy"
 ```
 
-Le script gère :
+Aucune stratégie de blue/green automatisée. Le downtime d'un rollback est de l'ordre de 30 secondes (le temps du rebuild + up).
 
-- Build des images `docker-compose.prod.yml`
-- Migrations Alembic automatiques
-- Redémarrage progressif (pas de downtime)
-- Vérification `/api/health`
+## 11. Sécurité
 
-### 4.2 Déploiement manuel
-
-```bash
-# Build
-docker compose -f docker-compose.prod.yml build
-
-# Démarrer
-docker compose -f docker-compose.prod.yml up -d
-
-# Appliquer les migrations
-docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
-
-# Vérifier la santé
-curl https://api.<votre-domaine>/api/health
-```
-
-## 5. Migrations
-
-Les migrations Alembic sont **obligatoires** à chaque montée de version. Procédure :
-
-1. `git pull`
-2. `docker compose -f docker-compose.prod.yml build backend`
-3. **Backup DB** avant migration : `docker compose -f docker-compose.prod.yml exec postgres pg_dump -U postgres esg_mefali > backup-$(date +%F).sql`
-4. `docker compose -f docker-compose.prod.yml exec backend alembic upgrade head`
-5. Vérifier `alembic current`
-
-## 6. Points d'attention prod
-
-### Sécurité
-
-- [ ] `SECRET_KEY` surchargée (jamais la valeur d'exemple)
-- [ ] TLS actif sur le domaine (Nginx + Let's Encrypt)
-- [ ] CORS : côté backend c'est en dur sur `http://localhost:3000` dans `app/main.py`. **À externaliser** via env `CORS_ORIGINS` avant la mise en production publique
-- [ ] Rate limiting sur les endpoints sensibles (`/auth/login`, `/chat/messages`) — actuellement absent côté backend, implémenter en Nginx en attendant slowapi
-- [ ] Rotation régulière des secrets (bcrypt, JWT)
-- [ ] Logs sanitisés (ne jamais logger `hashed_password`, `access_token`, `OPENROUTER_API_KEY`)
-- [ ] Pare-feu : port 5432 PostgreSQL non exposé publiquement
-
-### Observabilité
-
-- [ ] Logs centralisés (Loki, CloudWatch, Datadog...)
-- [ ] Monitoring `/api/health` (uptime check)
-- [ ] Alertes sur taux d'erreur 5xx, latence P95, utilisation mémoire
-- [ ] Suivi des coûts OpenRouter (dashboard + budget alerts)
-- [ ] Table `tool_call_logs` = source d'observabilité pour les tools LangChain
-
-### Performance
-
-- [ ] Nombre de workers Uvicorn (typiquement `--workers 4` pour CPU 4 cœurs)
-- [ ] Pool size SQLAlchemy async (`pool_size=20`, `max_overflow=10`)
-- [ ] Cache HTTP côté Nginx pour assets statiques frontend
-- [ ] CDN en amont (Cloudflare, Bunny) pour les assets Nuxt
-- [ ] Pagination systématique sur les listes — déjà respecté dans la plupart des routers
-
-### Backup & résilience
-
-- [ ] `pg_dump` quotidien + rétention 30 jours
-- [ ] Dump `backend/uploads/` (rsync vers stockage objet) — idéalement migrer vers MinIO/S3
-- [ ] Tests de restauration mensuels
-- [ ] Documentation du runbook d'incident
-
-## 7. Nginx — configuration reverse proxy
-
-Dossier `nginx/` (à inspecter lors d'un déploiement réel). Points typiques à couvrir :
-
-- Terminaison TLS avec certificats Let's Encrypt
-- Redirection `http → https`
-- `proxy_pass` vers `frontend:3000` et `backend:8000`
-- `proxy_read_timeout` large pour le streaming SSE (ex. `300s`)
-- `proxy_buffering off` pour les endpoints SSE (`/api/chat/*/messages`)
-- Rate limiting basique (`limit_req_zone`) sur `/api/auth/login`
-- Headers de sécurité (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
-
-## 8. Rollback
-
-```bash
-# Revenir à un tag git précédent
-git checkout <tag>
-./deploy.sh
-
-# Si échec migration :
-docker compose -f docker-compose.prod.yml exec postgres psql -U postgres -d esg_mefali -f /backup-<date>.sql
-docker compose -f docker-compose.prod.yml exec backend alembic downgrade <revision_target>
-```
-
-## 9. Mise à l'échelle
-
-Étapes recommandées pour scaler :
-
-1. **Externaliser la BDD** sur un service managé (RDS, Scaleway Managed, Neon) avec réplicas de lecture
-2. **Séparer le stockage fichiers** : MinIO ou S3 (configurable en un point — `backend/uploads/`)
-3. **Passer les tâches longues en async** : Celery + Redis (aujourd'hui synchrone) — documents, rapports PDF, génération de plans
-4. **Horizontal scaling backend** : plusieurs replicas Uvicorn derrière Nginx (stateless, seul le checkpointer LangGraph doit être partagé → migration vers `langgraph-checkpoint-postgres` déjà installée)
-5. **CDN** pour le frontend Nuxt (build statique ou SSR sur serverless)
-6. **Rate limiting** distribué via Redis
-
-## 10. Coûts à surveiller
-
-| Poste | Ordre de grandeur |
-|---|---|
-| Serveur de calcul (backend + frontend) | 2-4 vCPU, 4-8 Go RAM |
-| PostgreSQL managé | 2 vCPU, 4 Go RAM, 50 Go stockage |
-| Stockage documents uploadés | Variable (prévoir 100 Go+) |
-| OpenRouter (Claude Sonnet 4) | **Variable clé** : surveiller le budget, utiliser le cache / compact prompts |
-| Bande passante SSE | Moyenne (tokens streamés) |
-
-## 11. Références
-
-- [Architecture Backend](./architecture-backend.md)
-- [Guide de développement](./development-guide.md)
-- [Architecture d'intégration](./integration-architecture.md)
-- Fichier `deploy.sh` à la racine
-- Dossier `nginx/`
+- Secrets générés via `openssl rand`, jamais en clair dans git.
+- CORS backend **actuellement codé en dur** sur `http://localhost:3000` dans [backend/app/main.py](../backend/app/main.py) — à rendre configurable avant public. Voir [technical-debt-backlog.md](./technical-debt-backlog.md).
+- Pas de rate limiting ni de WAF en place. Recommandations : fail2ban côté nginx + middleware FastAPI (`slowapi`) avant ouverture publique large.
+- `SECRET_KEY` jamais loggué, jamais exposé. Rotation : regénérer + relancer le backend invalidera tous les JWT émis (utilisateurs relogueront).
+- Uploads stockés sur disque local du VPS. Pas de scan antivirus.

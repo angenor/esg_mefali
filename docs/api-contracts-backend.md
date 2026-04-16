@@ -1,217 +1,297 @@
 # Contrats d'API — Backend ESG Mefali
 
 > **Base URL** : `http://localhost:8000/api` (dev) — configurable via `NUXT_PUBLIC_API_BASE` côté frontend
-> **OpenAPI** : `http://localhost:8000/docs` (Swagger UI) / `http://localhost:8000/redoc`
-> **Auth** : JWT Bearer sur la quasi-totalité des endpoints (sauf `auth/*` et `health`)
+> **Authentification** : JWT HS256 Bearer token dans l'header `Authorization`
+> **Format** : JSON (sauf upload multipart + SSE)
+> **OpenAPI** : auto-généré sur `http://localhost:8000/docs` (Swagger) et `/redoc`
+> **Total endpoints** : 73 répartis sur 13 routers
 
-## Convention globale
+## Conventions
 
-- Toutes les routes sont préfixées par `/api`
-- Réponses JSON. Les endpoints de génération de fichiers retournent un `StreamingResponse` (PDF/DOCX)
-- Pagination : query params `?page=1&limit=20`, enveloppe `{ items, total, page, limit }`
-- Erreurs : `{ detail: "..." }` (FastAPI standard) avec codes HTTP 4xx/5xx
-- Dates : ISO 8601 UTC
-- Identifiants : UUID v4 en string
-- **Nombre total d'endpoints identifiés : ~73**
-
----
-
-## 1. Auth — `/api/auth`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| GET | `/detect-country` | `detect_country()` | Détecte le pays via IP ; retourne la liste des pays supportés |
-| POST | `/register` | `register()` | Crée un compte utilisateur + initialise `CompanyProfile` avec pays auto-détecté |
-| POST | `/login` | `login()` | Authentifie ; retourne `access_token` + `refresh_token` JWT |
-| POST | `/refresh` | `refresh()` | Renouvelle un `access_token` à partir d'un `refresh_token` valide |
-| GET | `/me` | `me()` | Profil de l'utilisateur connecté |
-
-Schemas : `RegisterRequest`, `LoginRequest`, `RefreshRequest`, `TokenResponse`, `UserResponse` (`schemas/auth.py`).
-
-## 2. Chat — `/api/chat`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/` | `create_conversation()` | Nouvelle conversation vide |
-| GET | `/` | `list_conversations()` | Liste paginée des conversations (filtre `archived`) |
-| GET | `/{id}` | `get_conversation()` | Détail conversation + premiers messages |
-| PATCH | `/{id}` | `update_conversation()` | Met à jour `title` / `archived` |
-| DELETE | `/{id}` | `delete_conversation()` | Suppression (cascade messages + questions interactives) |
-| POST | `/{id}/messages` | `send_message()` | Envoie un message (texte + optionnel `file`), déclenche le graphe LangGraph et **streame en SSE** |
-| GET | `/{id}/messages` | `list_messages()` | Messages paginés |
-| POST | `/interactive-questions/{id}/abandon` | `abandon_question()` | Abandonne une question interactive en attente |
-| GET | `/conversations/{id}/interactive-questions` | `list_interactive_questions()` | Liste les questions interactives d'une conversation |
-
-### 2.1 SSE — `POST /api/chat/{id}/messages`
-
-Corps : `multipart/form-data` avec :
-
-- `content` : texte utilisateur (obligatoire)
-- `file` : document optionnel (PDF / DOCX / XLSX / image)
-- `interactive_question_id`, `interactive_question_answer`, `interactive_question_justification` : réponse à un widget interactif (feature 018)
-
-Réponse : flux SSE `text/event-stream` avec les événements typés :
-
-| Event | Payload | Source |
-|---|---|---|
-| `token` | `{content: str}` | Chunks de texte assistant |
-| `done` | `{message_id, conversation_id}` | Fin de génération |
-| `document_upload` | `{document_id, filename, size}` | Upload accepté |
-| `document_status` | `{document_id, status}` | Progression analyse |
-| `document_analysis` | `{document_id, summary}` | Analyse finalisée |
-| `profile_update` | `{field, old_value, new_value}` | Extraction via tool `update_company_profile` |
-| `profile_completion` | `{identity, esg, overall}` | Recalcul complétude |
-| `tool_call_start` | `{tool_name, args}` | Début appel tool |
-| `tool_call_end` | `{tool_name, output}` | Fin appel tool |
-| `tool_call_error` | `{tool_name, error}` | Erreur tool |
-| `interactive_question` | `{question_id, type, options, question_text}` | Widget interactif injecté |
-| `interactive_question_resolved` | `{question_id, state, answer}` | Widget résolu |
-
-Schemas : `ConversationCreate`, `ConversationResponse`, `ConversationUpdate`, `MessageCreate`, `MessageResponse`, `PaginatedResponse` (`schemas/chat.py`).
-
-## 3. Company — `/api/company`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| GET | `/profile` | `get_profile()` | Profil entreprise de l'utilisateur |
-| PATCH | `/profile` | `update_profile()` | Mise à jour partielle (secteur, effectifs, CA, localisation) |
-| GET | `/profile/completion` | `get_completion()` | Score de complétude (`identity`, `esg`, `overall` en %) |
-
-## 4. Documents — `/api/documents`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/` | `upload_document()` | Upload + extraction + génération embeddings pgvector |
-| GET | `/` | `list_documents()` | Liste paginée |
-| GET | `/{id}` | `get_document()` | Détail + chunks + résumé d'analyse |
-| DELETE | `/{id}` | `delete_document()` | Supprime document + chunks vectoriels |
-| POST | `/{id}/reanalyze` | `reanalyze()` | Régénère l'analyse LLM |
-| GET | `/{id}/preview` | `get_preview()` | Preview PDF (stream binaire) |
-
-## 5. ESG — `/api/esg`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/assessments` | `create_assessment()` | Créer une évaluation ESG (secteur obligatoire) |
-| GET | `/assessments` | `list_assessments()` | Liste paginée |
-| GET | `/assessments/{id}` | `get_assessment()` | Détail (critères, scores) |
-| POST | `/assessments/{id}/evaluate` | `evaluate_assessment()` | Mise à jour de l'état et des scores critères |
-| GET | `/assessments/{id}/score` | `get_score()` | Score synthétique (E/S/G pondéré par secteur) |
-| GET | `/benchmarks/{sector}` | `get_benchmark()` | Benchmark sectoriel |
-
-## 6. Carbon — `/api/carbon`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/assessments` | `create_carbon_assessment()` | Créer un assessment (année) |
-| GET | `/assessments` | `list_assessments()` | Liste paginée |
-| GET | `/assessments/{id}` | `get_assessment()` | Détail + entries |
-| POST | `/assessments/{id}/entries` | `add_entries()` | Ajouter N lignes d'émission (calcul tCO2 automatique) |
-| GET | `/assessments/{id}/summary` | `get_summary()` | Résumé scope 1/2/3 + objectifs |
-| GET | `/benchmarks/{sector}` | `get_benchmark()` | Benchmark sectoriel carbone |
-
-## 7. Financing — `/api/financing`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| GET | `/funds` | `list_funds()` | Liste de fonds avec filtres : `type`, `sector`, `min_amount`, `max_amount`, `access_type` |
-| GET | `/funds/{id}` | `get_fund()` | Détail fonds + intermédiaires liés |
-| POST | `/funds` | `create_fund()` | Créer un fonds (réservé admin) |
-| GET | `/intermediaries` | `list_intermediaries()` | Liste avec filtres `type` / `country` |
-| GET | `/intermediaries/nearby` | `list_nearby()` | Intermédiaires géolocalisés (pays utilisateur) |
-| GET | `/intermediaries/{id}` | `get_intermediary()` | Détail |
-| GET | `/matches` | `list_matches()` | Matches calculés pour l'utilisateur |
-| GET | `/matches/{fund_id}` | `get_match()` | Détail d'un match + status |
-| PATCH | `/matches/{id}/status` | `update_match()` | Changer le status (`suggested` → `interested` → `preparing` → `applied`) |
-| GET | `/matches/{id}/preparation-sheet` | `get_prep_sheet()` | Feuille de préparation PDF |
-| PATCH | `/matches/{id}/intermediary` | `update_intermediary()` | Associer un intermédiaire au match |
-
-## 8. Applications — `/api/applications`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/` | `create_application()` | Créer un dossier de candidature à un fonds |
-| GET | `/` | `list_applications()` | Liste paginée |
-| GET | `/{id}` | `get_application()` | Détail + sections |
-| PATCH | `/{id}/status` | `update_status()` | Change le status (`draft` → `submitted` → `accepted`) |
-| POST | `/{id}/generate-section` | `generate_section()` | Génère une section via LLM |
-| PATCH | `/{id}/sections/{key}` | `update_section()` | Mise à jour manuelle d'une section |
-| GET | `/{id}/checklist` | `get_checklist()` | Checklist complétude |
-| POST | `/{id}/export` | `export_application()` | Export PDF ou DOCX |
-| POST | `/{id}/prep-sheet` | `get_prep_sheet()` | Feuille de préparation PDF |
-| POST | `/{id}/simulate` | `simulate_financing()` | Simulation financière (montant, durée, taux) |
-
-## 9. Credit — `/api/credit`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/generate` | `generate_score()` | Génère un score crédit (LLM + data points collectés) |
-| GET | `/score` | `get_score()` | Score crédit actuel |
-| GET | `/score/breakdown` | `get_breakdown()` | Détail par catégorie (solvabilité, impact, qualité données, comportement) |
-| GET | `/score/history` | `get_history()` | Historique des scores |
-| GET | `/score/certificate` | `get_certificate()` | Certificat PDF |
-
-## 10. Action Plan — `/api/action-plan`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| POST | `/generate` | `generate_plan()` | Génère un plan d'action (horizon `6_months` / `12_months` / `24_months`) |
-| GET | `/` | `get_plan()` | Plan actuel |
-| GET | `/{id}/items` | `get_items()` | Items du plan (filtre `category`) |
-| PATCH | `/items/{id}` | `update_item()` | Change le status d'un item |
-| POST | `/reminders/` | `create_reminder()` | Crée un rappel |
-| GET | `/reminders/upcoming` | `list_reminders()` | Rappels à venir (polling 60s côté frontend) |
-
-## 11. Dashboard — `/api/dashboard`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| GET | `/summary` | `get_summary()` | Vue consolidée : scores ESG/carbone/crédit, matches financement, prochaines actions, badges |
-
-## 12. Reports — `/api/reports`
-
-| Méthode | Chemin | Fonction | Description |
-|---|---|---|---|
-| GET | `/` | `list_reports()` | Liste paginée |
-| GET | `/{id}/download` | `download_report()` | Téléchargement PDF (stream) |
-
-## 13. Health — `/api/health`
-
-| Méthode | Chemin | Description |
-|---|---|---|
-| GET | `/health` | Status API + BDD |
+- **Identifiants** : UUID string.
+- **Timestamps** : ISO 8601 UTC (`2026-04-16T12:00:00Z`).
+- **Pagination** : query params `page` (1-based) + `page_size`.
+- **Réponses standard** : `200 OK` pour GET/PATCH, `201 Created` pour POST, `204 No Content` pour DELETE, `400/401/403/404/422/500` pour les erreurs.
+- **Champ erreur** : `{detail: string | object}` (format FastAPI standard).
 
 ---
 
-## Authentification — modèle d'appel typique
+## 1. Auth — `/api/auth` (5 endpoints)
 
-```http
-POST /api/chat/ HTTP/1.1
-Host: localhost:8000
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Content-Type: application/json
+[backend/app/api/auth.py](../backend/app/api/auth.py)
 
-{"title": "Discussion ESG"}
+### `GET /api/auth/detect-country`
+Retourne le pays détecté via IP + la liste des pays supportés.
+
+**200** :
+```json
+{ "country_code": "SN", "country_name": "Sénégal", "supported_countries": [{"code": "SN", "name": "Sénégal"}, …] }
 ```
 
-Dépendance FastAPI injectée : `Depends(get_current_user)` dans `app/api/deps.py`.
+### `POST /api/auth/register`
+```json
+// Request
+{ "email": "user@ex.com", "password": "…", "full_name": "Aminata Diop", "company_name": "Solar SARL" }
+// 201 Created
+{ "id": "uuid", "email": "user@ex.com", "full_name": "Aminata Diop", "company_name": "Solar SARL" }
+```
 
-## Codes d'erreur fréquents
+### `POST /api/auth/login`
+```json
+// Request
+{ "email": "user@ex.com", "password": "…" }
+// 200
+{ "access_token": "eyJ…", "refresh_token": "eyJ…", "token_type": "bearer", "expires_in": 3600 }
+```
 
-| Code | Cas |
-|---|---|
-| 401 | Token manquant, expiré ou invalide |
-| 403 | Ressource appartenant à un autre utilisateur |
-| 404 | ID inexistant |
-| 409 | Contrainte unique (ex. `CarbonAssessment(user_id, year)`) |
-| 422 | Validation Pydantic échouée |
-| 429 | (À prévoir) rate limiting |
-| 500 | Erreur serveur non gérée |
+### `POST /api/auth/refresh`
+```json
+// Request
+{ "refresh_token": "eyJ…" }
+// 200
+{ "access_token": "eyJ…", "token_type": "bearer", "expires_in": 3600 }
+```
 
-## À surveiller / TODO API
+### `GET /api/auth/me` 🔒
+```json
+{ "id": "uuid", "email": "…", "full_name": "…", "company_name": "…" }
+```
 
-- **CORS** : actuellement en dur sur `localhost:3000` (voir `main.py`) — à externaliser via env `CORS_ORIGINS`
-- **Rate limiting** : absent, à implémenter (slowapi / middleware)
-- **Pagination** : format à standardiser entre tous les routers (certains exposent encore la liste brute)
-- **Versioning** : aucune `/v1/` — à envisager avant une première API publique
-- **OpenAPI security scheme** : `Depends(get_current_user)` couvre l'auth, mais Swagger pourrait afficher le bouton 'Authorize' via `security=[{"bearerAuth": []}]`
+---
+
+## 2. Chat — `/api/chat` (9 endpoints)
+
+[backend/app/api/chat.py](../backend/app/api/chat.py)
+
+### `POST /api/chat/conversations` 🔒
+```json
+// Request
+{ "title": "Bilan carbone Q1", "previous_conversation_id": "uuid?" }
+// 201 — résume la conversation précédente si présente
+{ "id": "uuid", "user_id": "uuid", "title": "…", "thread_id": "…", "created_at": "…" }
+```
+
+### `GET /api/chat/conversations` 🔒
+Query : `page`, `page_size` (défaut 20). Tri décroissant sur `updated_at`.
+
+```json
+{ "items": [ {…} ], "total": 42, "page": 1, "page_size": 20 }
+```
+
+### `PATCH /api/chat/conversations/{conversation_id}` 🔒
+```json
+// Request
+{ "title": "Nouveau titre" }
+// 200 — ConversationResponse
+```
+
+### `DELETE /api/chat/conversations/{conversation_id}` 🔒
+**204 No Content**.
+
+### `GET /api/chat/conversations/{conversation_id}/messages` 🔒
+Query : `page`, `page_size`. Renvoie messages chronologiques.
+
+### `POST /api/chat/conversations/{conversation_id}/messages` 🔒 — **SSE streaming**
+Content-Type : `multipart/form-data`.
+
+| Champ form | Type | Obligatoire |
+|---|---|---|
+| `content` | str | ✅ |
+| `document_upload` | file (PDF / DOCX / XLSX) | ❌ |
+| `document_analysis_summary` | str | ❌ |
+| `interactive_question_id` | str (uuid) | ❌ (si réponse à widget, spec 018) |
+| `widget_response` | JSON str | ❌ (`{"values": [...], "justification": "..."}`) |
+| `current_page` | str | ❌ (spec 3 — ex. `carbon/results`) |
+| `guidance_stats` | JSON str | ❌ (spec 019 — `{refusal_count, acceptance_count}`) |
+
+**Réponse** : `text/event-stream`. Voir [integration-architecture.md#4-streaming-sse-chat-ia](./integration-architecture.md#4-streaming-sse-chat-ia) pour la liste des events.
+
+Format d'une ligne SSE :
+```
+data: {"type": "token", "content": "Bonjour"}\n\n
+```
+
+### `POST /api/chat/conversations/{conversation_id}/messages/json` 🔒
+Variante JSON (sans upload). Utile pour des clients non multipart.
+
+```json
+{ "content": "…", "interactive_question_id": "uuid?", "widget_response": {…}, "current_page": "…" }
+```
+
+### `POST /api/chat/interactive-questions/{question_id}/abandon` 🔒
+Marque la question comme abandonnée (spec 018, bouton "Répondre autrement").
+
+**200** :
+```json
+{ "id": "uuid", "state": "abandoned", "answered_at": "…" }
+```
+
+### `GET /api/chat/conversations/{conversation_id}/interactive-questions` 🔒
+Liste les questions interactives liées à la conversation (actives + historiques).
+
+```json
+{ "items": [ {"id": "…", "state": "pending|answered|abandoned|expired", …} ] }
+```
+
+---
+
+## 3. Company — `/api/company` (3 endpoints) 🔒
+
+[backend/app/modules/company/router.py](../backend/app/modules/company/router.py)
+
+- `GET /api/company/profile` — `CompanyProfile`
+- `PATCH /api/company/profile` — partial update (tous champs optionnels)
+- `GET /api/company/profile/completion` — `{percentage: float, missing_fields: [str]}`
+
+---
+
+## 4. Documents — `/api/documents` (6 endpoints) 🔒
+
+[backend/app/modules/documents/router.py](../backend/app/modules/documents/router.py)
+
+- `POST /api/documents/upload` — multipart : `file`. Retourne `Document` en statut `processing`.
+- `GET /api/documents/` — liste paginée.
+- `GET /api/documents/{document_id}` — détail + `analysis`.
+- `DELETE /api/documents/{document_id}` — suppression (soft delete via `status` ou hard selon le flag).
+- `POST /api/documents/{document_id}/reanalyze` — relance l'analyse.
+- `GET /api/documents/{document_id}/preview` — redirige vers le fichier (auth via JWT).
+
+---
+
+## 5. ESG — `/api/esg` (6 endpoints) 🔒
+
+[backend/app/modules/esg/router.py](../backend/app/modules/esg/router.py)
+
+- `POST /api/esg/assessments` — crée un draft (`conversation_id` optionnel).
+- `GET /api/esg/assessments` — liste paginée.
+- `GET /api/esg/assessments/{assessment_id}` — détail.
+- `POST /api/esg/assessments/{assessment_id}/evaluate` — calcule `overall_score`.
+- `GET /api/esg/assessments/{assessment_id}/score` — score détaillé par critère.
+- `GET /api/esg/benchmarks/{sector}` — benchmark sectoriel pour comparaison.
+
+---
+
+## 6. Carbon — `/api/carbon` (6 endpoints) 🔒
+
+[backend/app/modules/carbon/router.py](../backend/app/modules/carbon/router.py)
+
+- `POST /api/carbon/assessments` — crée un bilan (unique par `year`).
+- `GET /api/carbon/assessments`
+- `GET /api/carbon/assessments/{assessment_id}`
+- `POST /api/carbon/assessments/{assessment_id}/entries` — batch d'entrées (cat/valeur/unité).
+- `GET /api/carbon/assessments/{assessment_id}/summary` — `tco2e` total + plan de réduction.
+- `GET /api/carbon/benchmarks/{sector}`
+
+---
+
+## 7. Financing — `/api/financing` (10 endpoints) 🔒
+
+[backend/app/modules/financing/router.py](../backend/app/modules/financing/router.py)
+
+- `GET /api/financing/funds` — catalogue paginé, filtres `country`, `sector`, `min_amount`, `max_amount`, `access_type`.
+- `GET /api/financing/funds/{fund_id}` — fiche fonds complète + intermédiaires liés.
+- `POST /api/financing/funds` — (admin) création.
+- `GET /api/financing/intermediaries` — annuaire paginé, filtres `type`, `country`.
+- `GET /api/financing/intermediaries/nearby` — tri par proximité (requête géoloc optionnelle).
+- `GET /api/financing/intermediaries/{intermediary_id}` — détail.
+- `GET /api/financing/matches` — matches du user, paginés.
+- `GET /api/financing/matches/{fund_id}` — détail du scoring pour un fonds donné.
+- `PATCH /api/financing/matches/{match_id}/status` — change `matched` → `applied`/`shortlisted`/`rejected`.
+- `GET /api/financing/matches/{match_id}/preparation-sheet` — génère une fiche PDF de préparation.
+
+---
+
+## 8. Applications — `/api/applications` (9 endpoints) 🔒
+
+[backend/app/modules/applications/router.py](../backend/app/modules/applications/router.py)
+
+- `POST /api/applications/` — création (appelée via le tool `create_fund_application` depuis le chat, spec 015).
+- `GET /api/applications/`
+- `GET /api/applications/{application_id}`
+- `PATCH /api/applications/{application_id}/status`
+- `POST /api/applications/{application_id}/generate-section` — `{section_key}` → appelle LLM pour rédiger.
+- `PATCH /api/applications/{application_id}/sections/{section_key}` — édition manuelle.
+- `GET /api/applications/{application_id}/checklist` — progression par section.
+- `POST /api/applications/{application_id}/export` — export PDF/DOCX (WeasyPrint / python-docx).
+- `POST /api/applications/{application_id}/prep-sheet` — génération fiche de préparation (résumé + to-do avant envoi).
+
+---
+
+## 9. Credit — `/api/credit` (5 endpoints) 🔒
+
+[backend/app/modules/credit/router.py](../backend/app/modules/credit/router.py)
+
+- `POST /api/credit/generate` — calcule le score (via chat ou direct).
+- `GET /api/credit/score` — dernier score valide.
+- `GET /api/credit/score/breakdown` — détail des facteurs.
+- `GET /api/credit/score/history` — série temporelle.
+- `GET /api/credit/score/certificate` — PDF WeasyPrint.
+
+---
+
+## 10. Reports — `/api/reports` (4 endpoints) 🔒
+
+[backend/app/modules/reports/router.py](../backend/app/modules/reports/router.py)
+
+- `POST /api/reports/esg/{assessment_id}/generate` — lance la génération (retourne un `report_id` en statut `generating`).
+- `GET /api/reports/{report_id}/status` — polling (`generating` / `ready` / `error`).
+- `GET /api/reports/{report_id}/download` — retourne le PDF.
+- `GET /api/reports/` — liste paginée des rapports du user.
+
+---
+
+## 11. Action Plan — `/api/action-plan` (6 endpoints) 🔒
+
+[backend/app/modules/action_plan/router.py](../backend/app/modules/action_plan/router.py)
+
+- `POST /api/action-plan/generate` — génère un plan basé sur `assessment_id`.
+- `GET /api/action-plan/` — plan actif.
+- `GET /api/action-plan/{plan_id}/items` — items paginés avec filtres (`category`, `status`, `priority`).
+- `PATCH /api/action-plan/items/{item_id}` — update (priority, status, completion_pct).
+- `POST /api/action-plan/reminders/` — crée un rappel pour un item.
+- `GET /api/action-plan/reminders/upcoming` — rappels à venir (7 jours).
+
+---
+
+## 12. Dashboard — `/api/dashboard` (1 endpoint) 🔒
+
+[backend/app/modules/dashboard/router.py](../backend/app/modules/dashboard/router.py)
+
+- `GET /api/dashboard/summary` — agrégat : score ESG courant, `tco2e` total, score crédit, nombre de matches, dossiers en cours.
+
+---
+
+## 13. Health — `/api/health` (1 endpoint)
+
+[backend/app/api/health.py](../backend/app/api/health.py)
+
+```json
+// 200
+{ "status": "ok", "database": "connected", "version": "0.1.0" }
+```
+
+---
+
+## Codes d'erreur standard
+
+| Code | Signification | Cas typique |
+|---|---|---|
+| 400 | Bad Request | Payload malformé |
+| 401 | Unauthorized | Token absent / invalide / expiré |
+| 403 | Forbidden | Pas d'accès à la ressource |
+| 404 | Not Found | Resource inexistante |
+| 409 | Conflict | Contrainte unique violée (ex. email déjà utilisé, bilan carbone déjà existant pour l'année) |
+| 422 | Unprocessable Entity | Erreur de validation Pydantic |
+| 500 | Internal Server Error | Bug ; consulter les logs |
+
+## Limites techniques
+
+- **Rate limiting** : ❌ absent à ce jour.
+- **Taille upload** : 50 Mo (limite nginx prod).
+- **Timeout SSE** : 600 s (nginx) — suffisant pour les conversations LLM longues.
+- **Timeout LLM** : `request_timeout=60 s` explicitement configuré dans `get_llm()` (spec 015).
+- **CORS** : uniquement `http://localhost:3000` configuré (à élargir).
+
+## Champ `🔒`
+
+Indique un endpoint nécessitant un `Authorization: Bearer <access_token>` valide. L'absence du token retourne `401 Unauthorized` avec le header `WWW-Authenticate: Bearer`.

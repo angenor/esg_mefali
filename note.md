@@ -44,40 +44,13 @@ Souhaitez-vous que j'ouvre la page d'admissibilité du Programme Mobilité franc
 
 
 
+Les feature dévéloppés par speckit sembles fonctionner partiellement et je ne suis pas sùr de la qualité d'implementation, qu'est-ce que je peux faire avec BMAD pour regler celà, des reviews ? ou quoi ?
+de plus j'ai de nouvelles évolution pour la plateforme:
+- il arrive qu'un entrepreneurs veuil un financement pour un projet, il désir donc postuler avec un projet et non pas avec l'enreprise(je paraphrase). 
+- vu la demande précédente, un profil devrait peut-etre etre dynamique: infos entreprise, infos projet(il semblerait qu'un meme projet peut avoir des dossiers différent selon le fond où on veut postuler)
+-  Esg Mefali doit pouvoir monter un dossier pour demander le financement d'un projet particulier, sans exclure qu'on doit aussi pouvoir monter un dossier pour demander le financement de l'entreprise
+- il semblerait que les Criteres ESG soit aussi relatif, il va falloir creuser
+- Esg Mefali doit pouvoir faire une étude d’impact du projet d'une entreprise ou de l’entreprise
+- le Tableau de bord peut etre plus expressif, plus grafique
 
-
-
-
-
-
-
-Je veux créer un product brief pour une nouvelle feature de mon projet ESG Mefali.
-Invoque le skill bmad-product-brief et parle-moi en tant que Mary, l'agent Analyst.
-
-AVANT TOUTE QUESTION, lis ces fichiers pour comprendre le projet :
-1. /Users/mac/Documents/projets/2025/esg_mefali/CLAUDE.md
-2. /Users/mac/Documents/projets/2025/esg_mefali/docs/index.md
-3. /Users/mac/Documents/projets/2025/esg_mefali/docs/project-overview.md
-4. /Users/mac/Documents/projets/2025/esg_mefali/docs/architecture-frontend.md
-
-MON IDÉE BRUTE (telle qu'elle sort de ma tête, à structurer avec toi) :
-
-« Je ne veux plus de page `/chat` dédiée. Je veux plutôt un widget de chat flottant accessible depuis toutes les pages — le bouton existe déjà dans la barre de navigation mais ce qui est là me convient à peine. Je veux que la fenêtre de chat soit flottante au-dessus de la page courante, avec un effet glassmorphism sur le fond(le background glassmorphism ne couvre que l'espace du chat et non tout l'ecran).
-
-Ensuite je veux que le LLM ai la capacité de naviguer intelligemment dans les pages de la plateforme et pointer précisément des éléments au user avec un driverjs animé( documentation de driverjs: https://driverjs.com/docs/installation ).
-
-Le bouton pour révéler la fenetre de discution doit etre blottant en bas à droite. Il se rétracte et s'aggradi de facon animé avec un bouton.
-
-Lorsque le LLM est entrain de montrer quelque chose avec driverjs, il doit se retracter temporairement après affichage de la page pour ne pas masquer justement ce qu'il veux montrer. il peut arriver qu'il y ai plusieur étape et page pour montrer un élément. dans ce cas il faut pointer le lien à cliquer durant quelque seconde avec décompteur, si l'utilisateur ne clique pas jusqu'à épuisement du décompteur, on accede automatiquement à la page de destion et le process driverjs continue
-
-Bref, le LLM doit être plus vivant. L'entrepreneur doit avoir l'impression que le LLM peux lui tenir carrément la main. »
-
-Mène-moi dans un exercice de discovery guidée. Pose-moi des questions pour creuser :
-- Le problème utilisateur derrière cette idée
-- Les personas concernés
-- Les scénarios d'usage concrets
-- Les métriques de succès
-- Les contraintes et risques
-- Les alternatives que j'ai peut-être considérées
-
-Je veux que TU structures ma vision, pas que je te la donne déjà structurée. Sois curieuse et critique. Réponds en français.
+Comment gerer tout ca avec BMAD

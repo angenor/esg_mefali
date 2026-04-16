@@ -2,248 +2,189 @@
 
 ## 1. Résumé exécutif
 
-Le frontend est une **SPA Nuxt 4** (compatibilityVersion 4, structure `app/`) construite autour de **Vue 3 Composition API**, **TypeScript strict**, **Pinia 3** et **TailwindCSS 4**. Il consomme le backend FastAPI via `fetch()` natif et un **stream SSE** pour le chat IA (qui gère les tokens, les tools, les mises à jour de profil et les widgets interactifs). L'UI est en français, avec **dark mode obligatoire** (classe `.dark` sur `<html>`, thème CSS custom). 18 pages, 56 composants, 14 composables, 11 stores Pinia.
+Application SPA/SSR bâtie sur **Nuxt 4.4** avec Vue 3 Composition API stricte en TypeScript. State global Pinia, styling TailwindCSS 4 avec dark mode intégré, animations GSAP, rendu de diagrammes Mermaid, graphiques Chart.js et tours guidés driver.js. L'expérience utilisateur clé est un **widget de chat flottant** (refactor spec 019) disponible sur toutes les pages, piloté par un state module-level qui survit à la navigation.
 
-## 2. Stack technologique
+**Philosophie** : code et identifiants en anglais, UI et commentaires en français accentué, composition par modules métier, réutilisation forte via composables + composants `ui/`.
 
-| Catégorie | Technologie | Version | Justification |
+## 2. Stack technique
+
+| Catégorie | Techno | Version | Justification |
 |---|---|---|---|
-| Framework | Nuxt | ^4.4.2 | Routing auto, auto-imports, module `@pinia/nuxt` |
-| Vue | Vue 3 (Composition API, `<script setup lang="ts">`) | 3.x (via Nuxt) | Réactivité fine, types stricts |
-| Langage | TypeScript | ^5.7 (strict) | Sécurité type, auto-complétion |
-| State | Pinia | ^3.0.4 | Store officiel Vue 3, DX optimale |
-| CSS | TailwindCSS + @tailwindcss/postcss | ^4.2.2 | Tailwind 4, dark mode variant custom |
-| Graphiques | Chart.js + vue-chartjs | ^4.4 / ^5.3 | Dashboard, gauges, radars, scoring |
-| Diagrammes | Mermaid | ^11.4 | Timelines, flux, architecture inline chat |
-| Animations | GSAP | ^3.12 | Transitions de widgets, landing |
-| Markdown | marked + dompurify | ^17 / ^3.3 | Rendu sécurisé des réponses LLM |
-| Tests unit | Vitest | ^3.0.0 | Compatible Vue 3 + env=node |
-| Tests E2E | Playwright | ^1.49 | E2E headless |
+| Framework | Nuxt | `^4.4.2` | Structure Nuxt 4 (tout sous `app/`), routing fichier, runtimeConfig |
+| UI | Vue | 3 Composition API | `<script setup lang="ts">` systématique |
+| Langage | TypeScript | `^5.7.0` (strict) | Garantie de types, refactor sûr |
+| State | Pinia | `^3.0.4` | Setup stores, meilleur DX qu'avec Vuex |
+| Styling | TailwindCSS | `^4.2.2` + `@nuxtjs/tailwindcss 6.14` | Utility-first + @theme pour variables dark mode |
+| Animations | GSAP | `^3.12.0` | Rétraction du widget chat synchronisée avec driver.js |
+| Charts | Chart.js + vue-chartjs | `^4.4.0` / `^5.3.0` | Scores, timelines, benchmarks |
+| Diagrammes | Mermaid | `^11.4.0` | Rendu de blocs mermaid streamés par le backend |
+| Tours guidés | driver.js | `^1.4.0` | Popovers, lazy-loadé (ADR7) |
+| Markdown | marked + dompurify | `^17.0.5` / `^3.3.3` | Parsing + sanitization des messages assistant |
+| Tests unit | Vitest + @vue/test-utils + happy-dom | `^3.0.0` | Rapide, pas de jsdom |
+| Tests E2E | Playwright | `^1.49.0` | Chromium, mono-worker, backend mocké |
+| Nuxt modules | `@pinia/nuxt` | `^0.11.3` | Seul module Nuxt activé |
 
-## 3. Configuration Nuxt — `frontend/nuxt.config.ts`
+## 3. Architecture — pattern
 
-```ts
-export default defineNuxtConfig({
-  compatibilityDate: '2025-01-01',
-  devtools: { enabled: true },
-  modules: ['@pinia/nuxt'],
-  postcss: { plugins: { '@tailwindcss/postcss': {} } },
-  typescript: { strict: true },
-  runtimeConfig: {
-    public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api',
-    },
-  },
-  css: ['~/assets/css/main.css'],
-  components: [{ path: '~/components', pathPrefix: false }],
-  future: { compatibilityVersion: 4 },
-})
-```
+- **Composition par domaine métier** : chaque grand module (ESG, carbon, financing, applications, credit, action-plan, dashboard) a son trio `components/<domain>/ + composables/use<Domain>.ts + stores/<domain>.ts + pages/<domain>/`.
+- **Composables à state module-level** : 3 composables partagent leur état au niveau du module (donc unique par runtime) :
+  - `useAuth` — single-flight refresh token ;
+  - `useChat` — SSE reader + conversations + widgets interactifs (survit à la navigation) ;
+  - `useGuidedTour` — machine à états du tour actif (un seul tour à la fois).
+- **Runtime config** : URL API via `runtimeConfig.public.apiBase` (pas de hard-code).
+- **Accessibilité** : focus trap pour le widget chat et les popovers, ARIA sur les widgets QCU/QCM (`radiogroup`, `checkbox`, `aria-checked`, `aria-describedby`), `prefersReducedMotion`.
 
-Points clés :
+## 4. Point d'entrée et layout
 
-- `compatibilityVersion: 4` active la nouvelle structure Nuxt 4 (`app/` contient tout)
-- Un seul module externe (`@pinia/nuxt`) — volontairement minimal
-- `runtimeConfig.public.apiBase` expose l'URL backend (env `NUXT_PUBLIC_API_BASE`)
-- `components.pathPrefix: false` : un composant dans `components/ui/Button.vue` s'utilise `<Button />` sans préfixe de dossier
+- [frontend/nuxt.config.ts](../frontend/nuxt.config.ts) — déclare modules, css, runtimeConfig.
+- [frontend/app/app.vue](../frontend/app/app.vue) — racine Vue.
+- [frontend/app/layouts/default.vue](../frontend/app/layouts/default.vue) — layout unique : `AppHeader` + `AppSidebar` + `<slot />` + widget chat flottant (copilot). Intègre le `FloatingChatButton` pour ouvrir/rouvrir le widget.
 
-## 4. Structure du dossier `app/`
+Le layout par défaut est appliqué à toutes les pages sauf `login.vue` et `register.vue` qui n'ont pas besoin du chrome applicatif (middleware public).
 
-| Dossier | Nombre de fichiers | Rôle |
-|---|---:|---|
-| `pages/` | 18 | Routes Nuxt automatiques |
-| `components/` | 56 | Composants Vue 3, groupés par feature |
-| `composables/` | 14 | Logique métier partagée (fetch, SSE, gestion d'état) |
-| `stores/` | 11 | Stores Pinia |
-| `types/` | 11 | Interfaces TypeScript métier |
-| `layouts/` | 1 | Layout `default.vue` (sidebar + header + main + chat panel) |
-| `middleware/` | 1 | `auth.global.ts` — guard universel |
-| `plugins/` | 3 | `mermaid.client.ts`, `chartjs.client.ts`, `gsap.client.ts` |
-| `utils/` | 1 | `normalizeTimeline.ts` |
-| `assets/css/` | 1 | `main.css` — thème Tailwind 4 |
+## 5. Architecture par dossier (`app/`)
 
-## 5. Pages (routing Nuxt)
+### Pages (17)
 
-### Auth & profil
+Les pages suivent le routing automatique de Nuxt. Toutes protégées par `auth.global.ts` sauf `/login` et `/register`.
 
 | Route | Fichier | Rôle |
 |---|---|---|
-| `/login` | `pages/login.vue` | Connexion email/password |
-| `/register` | `pages/register.vue` | Inscription + détection pays automatique |
-| `/profile` | `pages/profile.vue` | Édition profil utilisateur/entreprise |
+| `/` | `pages/index.vue` | Accueil (redirige vers le dashboard selon contexte) |
+| `/login` | `pages/login.vue` | Connexion (publique) |
+| `/register` | `pages/register.vue` | Inscription (publique) |
+| `/dashboard` | `pages/dashboard.vue` | KPIs agrégés : ESG / carbone / crédit / financements (tour `show_dashboard_overview`) |
+| `/profile` | `pages/profile.vue` | Édition profil entreprise |
+| `/documents` | `pages/documents.vue` | Liste, upload, aperçu documents |
+| `/esg` | `pages/esg/index.vue` | Questionnaire ESG conversationnel |
+| `/esg/results` | `pages/esg/results.vue` | Scores + recommandations (tour `show_esg_results`) |
+| `/carbon` | `pages/carbon/index.vue` | Bilan carbone |
+| `/carbon/results` | `pages/carbon/results.vue` | Dashboard émissions + plan de réduction (tour `show_carbon_results`) |
+| `/credit-score` | `pages/credit-score/index.vue` | Score crédit vert (tour `show_credit_score`) |
+| `/financing` | `pages/financing/index.vue` | Catalogue fonds verts (tour `show_financing_catalog`) |
+| `/financing/[id]` | `pages/financing/[id].vue` | Fiche fonds + matching |
+| `/applications` | `pages/applications/index.vue` | Liste dossiers de financement |
+| `/applications/[id]` | `pages/applications/[id].vue` | Rédaction dossier |
+| `/action-plan` | `pages/action-plan/index.vue` | Timeline 6/12/24 mois + badges (tour `show_action_plan`) |
+| `/reports` | `pages/reports/index.vue` | Rapports ESG PDF |
 
-### Navigation principale
+### Composants (60, groupés par dossier)
 
-| Route | Fichier | Rôle |
+Inventaire détaillé : [component-inventory-frontend.md](./component-inventory-frontend.md). Groupes principaux :
+
+- **`copilot/`** — Widget chat flottant (spec 019) : `FloatingChatWidget`, `FloatingChatButton`, `ChatWidgetHeader`, `ConnectionStatusBadge`, `GuidedTourPopover`.
+- **`chat/`** — Messages + widgets interactifs (spec 018) : 11 composants dont les 5 du système Q&A (`InteractiveQuestionHost`, `SingleChoiceWidget`, `MultipleChoiceWidget`, `JustificationField`, `AnswerElsewhereButton`) + `ToolCallIndicator` (spec 012).
+- **`richblocks/`** — Blocs visuels streamés (8) : Chart, Mermaid, Gauge, Progress, Table, Timeline + BlockError / BlockPlaceholder.
+- **Domaine** — `esg/`, `credit/`, `financing/`, `applications/`, `action-plan/`, `dashboard/`, `documents/`, `profile/`.
+- **Structurels** — `layout/` (`AppHeader`, `AppSidebar`), `ui/` (`ToastNotification`, `FullscreenModal`).
+
+### Composables (18)
+
+[frontend/app/composables/](../frontend/app/composables/) — logique réutilisable. Voir [component-inventory-frontend.md](./component-inventory-frontend.md#composables) pour la liste complète. Les trois composables à **state module-level** sont critiques pour la résilience inter-pages :
+
+- `useAuth.ts` — `let refreshPromise: Promise<string> | null` garantit qu'une seule requête `/refresh` est en vol.
+- `useChat.ts` — `conversations`, `currentMessages`, `abortController`, `reader` partagés entre composants. Permet au widget flottant de conserver le contexte pendant la navigation.
+- `useGuidedTour.ts` — `tourState`, `currentTourId`, `guidanceStats` — une seule instance de tour driver.js active globalement.
+
+### Stores Pinia (11)
+
+[frontend/app/stores/](../frontend/app/stores/). Voir [component-inventory-frontend.md](./component-inventory-frontend.md#stores-pinia).
+
+- `auth.ts` — `user`, tokens, `loadFromStorage()`.
+- `ui.ts` — transverse : `theme`, `sidebarOpen`, `chatWidgetOpen`, `chatWidgetMinimized`, `currentPage` (spec 3), `guidedTourActive`, `prefersReducedMotion`, dimensions du widget.
+- Un store par domaine métier pour les données récupérées de l'API.
+
+### Middlewares (2, globaux)
+
+- [auth.global.ts](../frontend/app/middleware/auth.global.ts) — bloque l'accès aux pages non publiques si `authStore.accessToken` absent. Charge depuis localStorage au premier passage.
+- [chat-redirect.global.ts](../frontend/app/middleware/chat-redirect.global.ts) — redirige `/chat` (route obsolète depuis spec 019) vers `/?openChat=1`.
+
+### Plugins (3, tous `client`)
+
+- [gsap.client.ts](../frontend/app/plugins/gsap.client.ts) — register GSAP pour animations widget.
+- [mermaid.client.ts](../frontend/app/plugins/mermaid.client.ts) — init Mermaid.
+- [chartjs.client.ts](../frontend/app/plugins/chartjs.client.ts) — registerables Chart.js.
+
+### Types (12 fichiers `.ts`)
+
+Organisés par domaine. Notables :
+- [guided-tour.ts](../frontend/app/types/guided-tour.ts) — `GuidedTourDefinition`, `GuidedTourStep`, `TourState`, `TourContext`.
+- [interactive-question.ts](../frontend/app/types/interactive-question.ts) — 4 variantes de questions, payload de réponse, états.
+- [richblocks.ts](../frontend/app/types/richblocks.ts) — types des blocs streamés.
+
+### Librairie (`app/lib/`)
+
+- [guided-tours/registry.ts](../frontend/app/lib/guided-tours/registry.ts) — registre de 6 tours.
+- `guided-tours/definitions/` — définitions par tour (pas sous forme de fichier unique).
+
+## 6. Systèmes transverses
+
+### Dark mode
+
+- Variables CSS dans [frontend/app/assets/css/main.css](../frontend/app/assets/css/main.css) via `@theme` : `--color-dark-card`, `--color-dark-bg`, `--color-dark-border`, `--color-dark-hover`, `--color-dark-input`, surfaces claires équivalentes, palette brand (green/blue/purple/orange/red).
+- Activation : classe `dark` sur `<html>` pilotée par `useUiStore.toggleTheme()`.
+- Persistance : `localStorage['esg-theme']`, fallback `prefers-color-scheme: dark`.
+- Convention de code : chaque composant utilise les variantes `dark:` Tailwind (règle projet — voir [CLAUDE.md](../CLAUDE.md)).
+
+### Tours guidés (driver.js)
+
+- Lazy-load de driver.js pour ne pas peser sur le premier paint ([useDriverLoader.ts](../frontend/app/composables/useDriverLoader.ts)).
+- Machine à états (`idle → loading → navigating → waiting_dom → highlighting → complete → idle`) encapsulée dans `useGuidedTour`.
+- Multi-pages via `entryStep` et champ `route` par step.
+- Countdown adaptatif basé sur `guidanceStats` (persisté localStorage, synchronisé entre onglets via `storage` event, cap 5 refus).
+- Popover custom Vue monté par step : `GuidedTourPopover.vue`.
+- Consentement obligatoire via widget interactif QCU yes/no avant chaque tour (détection heuristique côté frontend ; voir [integration-architecture.md](./integration-architecture.md#8-tours-guidés-spec-019)).
+
+### Widgets interactifs chat
+
+- 4 types : `qcu`, `qcm`, `qcu_justification`, `qcm_justification`.
+- Hôte : [InteractiveQuestionHost.vue](../frontend/app/components/chat/InteractiveQuestionHost.vue). Instancie dynamiquement le bon composant selon `type`.
+- Verrouille l'input texte tant qu'une question `pending` existe (invariant : une seule question pending par conversation).
+- Bouton "Répondre autrement" → abandon (`state=abandoned`) + input texte libre.
+- Justification bornée à 400 caractères (validation double côté client + serveur).
+- ARIA roles complets : `radiogroup`, `checkbox`, `aria-checked`, `aria-describedby`.
+
+### SSE resilience
+
+- AbortController + `navigator.onLine` + classification d'erreurs (`abort`, `network`, `http`, `other`).
+- Badge visuel `ConnectionStatusBadge.vue`.
+- Bannière "Connexion perdue. Vérifiez votre réseau." en cas de rupture.
+
+## 7. Tests
+
+| Niveau | Outil | Localisation | Volume approximatif |
+|---|---|---|---|
+| Unitaire | Vitest + @vue/test-utils | `frontend/tests/components/`, `tests/composables/`, `tests/stores/`, `tests/pages/`, `tests/middleware/`, `tests/layouts/`, `tests/lib/` | ~37 fichiers |
+| E2E mocké | Playwright | `frontend/tests/e2e/` (2 specs : `8-1-parcours-fatou`, `8-2-parcours-moussa`) | Backend mocké intégralement via `fixtures/mock-backend.ts` |
+| E2E live | bash scripts | `frontend/tests/e2e-live/` (ex. `8-3-parcours-aminata.sh`) | Stack réelle (dépendances externes nécessaires) |
+
+Configurations :
+- [frontend/vitest.config.ts](../frontend/vitest.config.ts) — `happy-dom`, setup `tests/setup.ts`, plugin `nuxtImportMetaPlugin()` pour `import.meta.client/server`.
+- [frontend/playwright.config.ts](../frontend/playwright.config.ts) — port 4321, workers=1, `reducedMotion: 'reduce'` par défaut, trace sur retry, screenshots + video on failure.
+
+## 8. Build & déploiement
+
+- **Dev** : `npm run dev` (HMR, port 3000).
+- **Build SSR** : `npm run build` → `.output/` (exécuté dans `Dockerfile.prod`).
+- **Image prod** : Nuxt SSR exposé sur port 3000 (127.0.0.1:3010 via `docker-compose.prod.yml`). Consommé par nginx UAfricas.
+- Env build-time : `NUXT_PUBLIC_API_BASE`.
+
+## 9. Décisions architecturales notables (ADRs implicites)
+
+| Décision | Ref spec | Justification |
 |---|---|---|
-| `/` | `pages/index.vue` | Redirect vers `/dashboard` |
-| `/dashboard` | `pages/dashboard.vue` | 4 cartes synthétiques (ESG, carbone, crédit, financement), flux d'activité, prochaines étapes |
-| `/chat` | `pages/chat.vue` | Conversation IA avec SSE, upload documents, questions interactives |
+| Widget chat flottant au lieu de page dédiée | 019 | Accès au copilote sur toutes les pages, contexte page envoyé au backend, réduction de la friction UX |
+| Fetch streaming (pas EventSource) pour SSE | — | Besoin de poster du FormData + Authorization ; EventSource ne supporte que GET |
+| State module-level pour useChat / useAuth / useGuidedTour | 019, 7-2 | Survit à la navigation, garantit le single-flight, évite les races |
+| Lazy-load driver.js | ADR7 (spec 4-1) | Ne pas pénaliser le TTI des utilisateurs qui ne prennent aucun tour |
+| Popover custom Vue au lieu du popover natif driver.js | spec 5-4 | Contrôle total UI/UX, intégration dark mode, accessibilité |
+| Marker SSE HTML-commentaire | 018, 019 | Passe le canal token sans ajouter de type SSE distinct côté transport |
+| `reducedMotion: 'reduce'` par défaut en E2E | — | Déterminisme des tests Playwright |
 
-### Modules métier
+## 10. Dette technique et axes d'amélioration
 
-| Route | Fichier | Rôle |
-|---|---|---|
-| `/esg` | `pages/esg/index.vue` | Liste des évaluations ESG |
-| `/esg/results` | `pages/esg/results.vue` | Dashboard scores E/S/G, recommandations, forces/faiblesses |
-| `/carbon` | `pages/carbon/index.vue` | Calculateur empreinte carbone par catégorie |
-| `/carbon/results` | `pages/carbon/results.vue` | Total tCO2e, plan réduction, benchmark |
-| `/financing` | `pages/financing/index.vue` | Catalogue fonds filtrable (type, secteur, montant, accès) |
-| `/financing/[id]` | `pages/financing/[id].vue` | Détail fonds + intermédiaires + timeline |
-| `/credit-score` | `pages/credit-score/index.vue` | Score crédit vert (gauge), facteurs de risque, historique |
-| `/action-plan` | `pages/action-plan/index.vue` | Timeline verticale chronologique, filtres catégories, barre progression |
-| `/applications` | `pages/applications/index.vue` | Liste dossiers de candidature |
-| `/applications/[id]` | `pages/applications/[id].vue` | Détail dossier + sections |
-| `/documents` | `pages/documents.vue` | Upload, preview, liste docs |
-| `/reports` | `pages/reports/index.vue` | Génération/export rapports |
-
-## 6. Composants (56 fichiers, 11 sous-dossiers)
-
-| Dossier | Composants | Exemple |
-|---|---:|---|
-| `ui/` | 2 | `FullscreenModal`, `ToastNotification` |
-| `layout/` | 3 | `AppHeader`, `AppSidebar`, `ChatPanel` |
-| `chat/` | 13 | `ChatInput`, `ChatMessage`, `ConversationList`, `MessageParser`, `SingleChoiceWidget`, `MultipleChoiceWidget`, `InteractiveQuestionHost`, `JustificationField`, `ToolCallIndicator`, `ProfileNotification`, `AnswerElsewhereButton`, `WelcomeMessage`, `InteractiveQuestionInputBar` |
-| `richblocks/` | 8 | `ChartBlock`, `MermaidBlock`, `TableBlock`, `GaugeBlock`, `ProgressBlock`, `TimelineBlock`, `BlockError`, `BlockPlaceholder` |
-| `esg/` | 6 | `ScoreCircle`, `CriteriaProgress`, `ScoreHistory`, `Recommendations`, `ReportButton`, `StrengthsBadges` |
-| `credit/` | 7 | `ScoreGauge`, `SubScoreGauges`, `FactorsRadar`, `ScoreHistory`, `DataCoverage`, `CertificateButton`, `Recommendations` |
-| `dashboard/` | 4 | `ScoreCard`, `FinancingCard`, `NextActions`, `ActivityFeed` |
-| `action-plan/` | 6 | `ActionCard`, `ProgressBar`, `Timeline`, `CategoryFilter`, `BadgeGrid`, `ReminderForm` |
-| `documents/` | 4 | `DocumentList`, `DocumentDetail`, `DocumentUpload`, `DocumentPreview` |
-| `profile/` | 3 | `ProfileForm`, `ProfileField`, `ProfileProgress` |
-
-### Composants génériques (réutilisables)
-
-- **`components/ui/`** : seulement 2 composants UI de base (`FullscreenModal`, `ToastNotification`). La règle projet impose d'y extraire tout pattern répété 2+ fois — c'est une dette légère à surveiller.
-- **`components/richblocks/`** : système de blocs visuels inline pour le chat (chart, mermaid, table, gauge, progress, timeline) + placeholders d'erreur. Parsés depuis les réponses LLM via `useMessageParser`.
-
-## 7. Composables (14)
-
-| Composable | Rôle |
-|---|---|
-| `useAuth` | `login`, `register`, `logout`, `apiFetch<T>()` wrapper fetch avec header JWT |
-| `useChat` | SSE streaming, `sendMessage`, `createConversation`, `fetchMessages`, `submitInteractiveAnswer`, parsing des events SSE |
-| `useEsg` | `fetchAssessments`, `getScore` (criteria + pillar details) |
-| `useCarbon` | `calculateEmissions`, `getResults` |
-| `useFinancing` | `fetchFunds`, `getFundDetail`, `trackMatch` |
-| `useCreditScore` | `fetchScore`, `getGauges` |
-| `useActionPlan` | `fetchPlan`, `updateItem`, `createReminder` |
-| `useApplications` | `fetchApplications`, `submitApplication` |
-| `useDocuments` | `uploadDocument`, `fetchDocuments` |
-| `useCompanyProfile` | `fetchProfile`, `updateField`, `fetchCompletion` |
-| `useDashboard` | `fetchSummary` |
-| `useReports` | `generateReport`, `exportPDF` |
-| `useMessageParser` | `parse(content)` → `ParsedSegment[]` (texte vs richblock) |
-| `useToast` | Notifications in-app (`success`, `error`, `info`) |
-
-## 8. Stores Pinia (11)
-
-| Store | State principal | Actions |
-|---|---|---|
-| `auth` | `user`, `accessToken`, `refreshToken`, `isAuthenticated` | `setTokens`, `setUser`, `clearAuth`, `loadFromStorage` |
-| `ui` | `theme` (`light`/`dark`), `sidebarOpen`, `chatPanelOpen`, `conversationDrawerOpen` | `initTheme`, `toggleTheme`, `toggleSidebar`, `toggleChatPanel`, `setTheme` |
-| `company` | `profile`, `completion`, `recentUpdates` | `setProfile`, `updateProfileField`, `addProfileUpdate` |
-| `dashboard` | `summary`, `loading`, `error` | `setSummary`, `setLoading`, `setError` |
-| `esg` | `assessments[]`, `currentAssessment`, `currentScore` | `setAssessments`, `setCurrentAssessment`, `setCurrentScore` |
-| `carbon` | `assessments[]`, `currentAssessment`, `total` | `setAssessments`, `setCurrentAssessment` |
-| `financing` | `funds[]`, `currentFund`, `matches[]` | `setFunds`, `setCurrentFund`, `addMatch` |
-| `creditScore` | `score`, `loading` | `setScore`, `setLoading` |
-| `actionPlan` | `plan`, `items[]`, `reminders[]` | `setPlan`, `addItem`, `updateItem`, `addReminder` |
-| `applications` | `applications[]`, `currentApplication` | `setApplications`, `setCurrentApplication`, `addApplication` |
-| `documents` | `documents[]`, `currentDocument`, `uploading` | `setDocuments`, `setCurrentDocument`, `addDocument` |
-
-Le store `ui` est le seul qui manipule directement le DOM : il applique la classe `dark` sur `document.documentElement` et persiste le choix dans `localStorage`.
-
-## 9. Layouts et middleware
-
-- **`layouts/default.vue`** — layout unique : sidebar de navigation + header (user menu + toggle dark) + slot contenu + `ChatPanel` toujours monté à droite
-- **`middleware/auth.global.ts`** — middleware global : charge les tokens depuis `localStorage` au premier rendu client, redirige vers `/login` si non authentifié, laisse passer `/login` et `/register` sans auth
-
-## 10. Plugins (`.client.ts`, exécutés côté navigateur)
-
-| Plugin | Rôle |
-|---|---|
-| `mermaid.client.ts` | Init Mermaid (`startOnLoad: false`, theme `default`) |
-| `chartjs.client.ts` | Enregistrement des éléments Chart.js (`BarElement`, `LineElement`, `PieElement`, `RadarChart`, `Filler`, ...) |
-| `gsap.client.ts` | Injection GSAP globale (`$gsap` dans `useNuxtApp`) |
-
-## 11. Types TypeScript (`app/types/`, 11 fichiers)
-
-- `index.ts` — `User`, `Conversation`, `Message`, `TokenResponse`, `PaginatedResponse<T>`, `ApiError`
-- `esg.ts` — `ESGPillar`, `ESGStatus`, `CriteriaScoreDetail`, `PillarDetail`, `AssessmentData`, `ScoreResponse`
-- `carbon.ts` — `CarbonStatus`, `EmissionCategory`, `CarbonEmissionEntry`, `ReductionPlan`, `CarbonAssessment`, `BenchmarkPosition`
-- `financing.ts` — `FundType`, `AccessType`, `IntermediaryType`, `Fund`, `FundIntermediary`, `MatchStatus`, `ApplicationStatus`
-- `credit.ts` — `CreditScore`, `RiskFactor`, `SubScore`, `CertificateType`
-- `actionPlan.ts` — `ActionItem`, `ActionPlan`, `ReminderType`, `BadgeType`
-- `company.ts` — `CompanyProfile`, `CompletionResponse`, `ProfileUpdateEvent`
-- `dashboard.ts` — `DashboardSummary`
-- `documents.ts` — `Document`, `DocumentType`, `DocumentStatus`
-- `richblocks.ts` — `ChartBlockData`, `TableBlockData`, `GaugeBlockData`, `ProgressBlockData`, `TimelineBlockData`, `RichBlockType`, `ParsedSegment`
-- `interactive-question.ts` — `InteractiveQuestionType` (`qcu`/`qcm`/`qcu_justification`/`qcm_justification`), `InteractiveQuestion`, `InteractiveQuestionState` (`pending`/`answered`/`abandoned`/`expired`)
-- `report.ts` — `ReportType`, `ReportStatus`, `Report`, `ExportFormat`
-
-## 12. Thème et dark mode
-
-`app/assets/css/main.css` :
-
-```css
-@import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
-@theme {
-  --color-brand-green: #10B981;
-  --color-brand-blue: #3B82F6;
-  --color-brand-purple: #8B5CF6;
-  --color-brand-orange: #F59E0B;
-  --color-brand-red: #EF4444;
-  --color-surface-bg: #F9FAFB;
-  --color-surface-text: #111827;
-  --color-surface-dark-bg: #111827;
-  --color-surface-dark-text: #F9FAFB;
-  --color-dark-card: #1F2937;
-  --color-dark-border: #374151;
-}
-```
-
-**Règles dark mode (OBLIGATOIRES)** — appliquées à chaque nouveau composant :
-
-| Usage | Classes Tailwind |
-|---|---|
-| Fond de page | `bg-surface-bg dark:bg-surface-dark-bg` |
-| Fond de carte | `bg-white dark:bg-dark-card` |
-| Texte principal | `text-surface-text dark:text-surface-dark-text` |
-| Texte secondaire | `text-gray-600 dark:text-gray-400` |
-| Bordures | `border-gray-200 dark:border-dark-border` |
-| Inputs | `dark:bg-dark-input dark:text-surface-dark-text` |
-| Hover | `hover:bg-gray-50 dark:hover:bg-dark-hover` |
-
-## 13. Intégration backend
-
-- **Base URL** : `useRuntimeConfig().public.apiBase` (env `NUXT_PUBLIC_API_BASE`, défaut `http://localhost:8000/api`)
-- **Fetch** : API native `fetch()` (pas `$fetch` Nuxt ni `useFetch`) pour pouvoir lire le stream SSE ligne par ligne
-- **Auth** : tokens JWT en `localStorage`, ajoutés en header `Authorization: Bearer <token>` dans tous les appels authentifiés via le wrapper `useAuth.apiFetch`
-- **Streaming SSE** : géré par `useChat` avec un `ReadableStream` (pattern `data: {JSON}\n\n`). Les events typés sont dispatchés vers les stores concernés (`profile_update` → `companyStore`, `tool_call_*` → affichage `ToolCallIndicator`, etc.)
-- **Upload** : `multipart/form-data` pour les documents (`FormData` avec champ `file`)
-- **Refresh token** : logique à confirmer (pas immédiatement visible dans le composable `useAuth`) ; à documenter plus en détail
-
-## 14. Tests frontend
-
-- `frontend/tests/components/` :
-  - `MessageParser.test.ts` (parsing richblocks)
-  - `TimelineBlock.test.ts` (rendu timeline)
-- Config : `vitest.config.ts` (env `node`, pattern `tests/**/*.test.ts`, alias `~` vers `app/`)
-- E2E : Playwright configuré (`npm run test:e2e`), scénarios à compléter
-- Couverture actuelle très faible (2 tests unitaires + E2E framework prêt) — c'est la principale dette de test du projet
-
-## 15. Risques et points d'attention
-
-- **Couverture tests frontend** trop faible — à renforcer (rule projet : 80 %)
-- **`components/ui/` presque vide** — extraire plus de primitives réutilisables (boutons, badges, inputs) pour respecter la règle de réutilisabilité
-- **Gestion du refresh token** — logique à documenter / compléter côté `useAuth`
-- **Aucun rate-limit côté client** sur le chat SSE — dépendance à la robustesse du backend
-- **Middleware global `auth.global.ts`** — seule barrière d'autorisation, à tester soigneusement (cas `localStorage` inaccessible, SSR/hydration)
-
-## 16. Références croisées
-
-- [Inventaire des composants](./component-inventory-frontend.md)
-- [Architecture d'intégration](./integration-architecture.md)
-- [Guide de développement](./development-guide.md)
+Voir [technical-debt-backlog.md](./technical-debt-backlog.md). Principaux points côté frontend :
+- Absence de lint dédié JS/TS au-delà de `tsc`.
+- Couverture E2E encore partielle (3 parcours, plusieurs modules non couverts par des scénarios live).
+- Pas de i18n — tout est en français en dur. L'extraction sera nécessaire pour scaler à d'autres langues africaines.
+- Les blocs `richblocks/` n'ont pas de test unitaire dédié pour les cas d'erreur (décision assumée : surface minimale `BlockError.vue`).

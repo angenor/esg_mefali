@@ -1,133 +1,155 @@
 # Index de documentation — ESG Mefali
 
-> **Point d'entrée principal** pour toute assistance IA (Claude Code, BMad Method, speckit) travaillant sur ce projet.
-> **Date de génération** : 2026-04-12
-> **Mode de scan** : `initial_scan` / niveau `deep`
-> **Générée par** : workflow BMad `bmad-document-project` (v1.2.0)
+> **Point d'entrée principal** pour toute assistance IA (Claude Code, BMad Method, SpecKit) travaillant sur ce projet.
+> **Généré le** : 2026-04-16 (Deep Scan)
+> **Type** : monorepo avec 2 parties (Frontend Nuxt 4 + Backend FastAPI)
 
-## Project Documentation Index
+## Vue d'ensemble
 
-### Project Overview
+- **Type** : monorepo (`frontend/` + `backend/`) déployé conjointement via Docker Compose
+- **Architecture** : client-serveur, orchestration LLM côté serveur, streaming SSE unidirectionnel
+- **Pattern** : modulaire par domaine métier (ESG, carbon, financing, applications, credit, action-plan, documents, dashboard, reports, profile)
+- **Dernière refonte majeure** : spec 019 — chat refactoré en widget flottant omniprésent + tours guidés driver.js + résilience SSE
 
-- **Type** : monorepo multi-parts avec 2 parties indépendantes
-- **Primary Language** : TypeScript (frontend) + Python 3.12 (backend)
-- **Architecture** : SPA Nuxt 4 + API FastAPI asynchrone orchestrée par LangGraph
-- **Base de données** : PostgreSQL 16 + pgvector
-- **LLM** : Claude Sonnet 4 via OpenRouter
-- **Infrastructure** : Docker Compose (postgres + backend + frontend) + Nginx en production
+## Quick reference par partie
 
-### Quick Reference
+### 🟢 Frontend Nuxt 4 (`frontend/`)
 
-#### Partie `frontend` (Nuxt 4)
-
-- **Type** : `web`
-- **Tech stack** : Nuxt 4.4, Vue 3 Composition API, TypeScript strict, Pinia 3, TailwindCSS 4, Chart.js, GSAP, Mermaid
-- **Root** : `frontend/`
-- **Entry point** : `frontend/nuxt.config.ts` + `frontend/app/app.vue`
-- **Tests** : Vitest (unit) + Playwright (E2E)
-- **Métriques** : 18 pages, 56 composants, 14 composables, 11 stores Pinia, 11 fichiers de types
-
-#### Partie `backend` (FastAPI)
-
-- **Type** : `backend`
-- **Tech stack** : Python 3.12, FastAPI, SQLAlchemy async 2, asyncpg, LangGraph, LangChain, Alembic, Pydantic v2, WeasyPrint, PyMuPDF
-- **Root** : `backend/`
-- **Entry point** : `backend/app/main.py`
-- **Tests** : pytest + pytest-asyncio (~935 tests)
-- **Métriques** : ~73 endpoints REST, 16 modèles SQLAlchemy, 13 migrations Alembic, 10 nœuds LangGraph, ~100 tools LangChain, 9 modules de prompts
-
-### Generated Documentation
-
-Tous les fichiers sont dans `docs/` :
-
-| Document | Description |
+| Dimension | Valeur |
 |---|---|
-| [Project Overview](./project-overview.md) | Vue d'ensemble métier + architecture globale + stack + modules fonctionnels |
-| [Architecture Frontend](./architecture-frontend.md) | Configuration Nuxt, structure app/, pages, composants, composables, stores, dark mode, intégration API |
-| [Architecture Backend](./architecture-backend.md) | Couches, point d'entrée main.py, LangGraph, config, sécurité, tests, tools LangChain |
-| [Architecture d'intégration](./integration-architecture.md) | Points d'intégration frontend ↔ backend, REST JSON, SSE, upload, auth JWT, invariants |
-| [Arbre des sources annoté](./source-tree-analysis.md) | Arborescence complète annotée du monorepo |
-| [Inventaire des composants frontend](./component-inventory-frontend.md) | 56 composants Vue détaillés par sous-dossier |
-| [Modèles de données backend](./data-models-backend.md) | 16 modèles SQLAlchemy + relations + migrations Alembic |
-| [Contrats d'API REST](./api-contracts-backend.md) | 13 routers / ~73 endpoints + events SSE |
-| [Guide de développement](./development-guide.md) | Setup local, Docker, tests, linting, conventions, workflow feature |
-| [Guide de déploiement](./deployment-guide.md) | Prod Docker Compose + Nginx, sécurité, migrations, backup, scaling |
-| [Project parts metadata](./project-parts.json) | Métadonnées structurées du monorepo (machine-readable) |
+| Framework | Nuxt 4.4 + Vue 3 Composition API |
+| Langage | TypeScript 5 strict |
+| State | Pinia 3 (11 stores) |
+| Styling | TailwindCSS 4 + dark mode (`@theme`) |
+| Animations | GSAP (widget chat) |
+| Tours guidés | driver.js 1.4 (lazy-loaded) |
+| Charts / Diagrams | Chart.js + Mermaid |
+| Tests | Vitest 3 (unit) + Playwright 1.49 (E2E mocké) + bash (E2E live) |
+| Pages | 17 |
+| Composants | 60 |
+| Composables | 18 (dont 3 à state module-level) |
+| Tours guidés | 6 |
+| Point d'entrée | [frontend/nuxt.config.ts](../frontend/nuxt.config.ts) |
 
-### Existing Documentation
+### 🟣 Backend FastAPI (`backend/`)
 
-- [README.md](../README.md) — Quickstart Docker + commandes `make`
-- [CLAUDE.md](../CLAUDE.md) — Instructions projet pour Claude Code (conventions, modules, historique features)
-- [.env.example](../.env.example) — Variables d'environnement documentées
-- [Makefile](../Makefile) — `make dev`, `make test`, `make migrate`, ...
-- [note.md](../note.md) — Notes internes
-- `specs/` — 18 spécifications speckit (features 001 à 018)
-- `documents_et_brouillons/` — Brouillons, brainstorming, documents sources
+| Dimension | Valeur |
+|---|---|
+| Framework | FastAPI 0.115 (async) |
+| Langage | Python 3.12 |
+| ORM | SQLAlchemy 2 async + asyncpg |
+| BDD | PostgreSQL 16 + pgvector |
+| LLM | LangGraph 0.2 + LangChain 0.3 + OpenRouter (Claude Sonnet 4) |
+| Auth | JWT HS256 (python-jose + bcrypt) + refresh single-flight |
+| Tests | pytest 8 + pytest-asyncio + pytest-cov |
+| Endpoints REST | 73 |
+| Nœuds LangGraph | 9 |
+| Tools LangChain | ~36 (12 fichiers) |
+| Modèles ORM | 22 |
+| Migrations Alembic | 13 |
+| Point d'entrée | [backend/app/main.py](../backend/app/main.py) |
 
-### Getting Started
+## Documentation générée
 
-Pour démarrer le projet en local :
+### Architecture
+
+- [project-overview.md](./project-overview.md) — Mission, stack, chiffres-clés, journal specs 001–019
+- [source-tree-analysis.md](./source-tree-analysis.md) — Arborescence annotée des 2 parties
+- [architecture-frontend.md](./architecture-frontend.md) — Architecture Nuxt 4 + systèmes transverses (dark mode, tours, widgets, SSE)
+- [architecture-backend.md](./architecture-backend.md) — Architecture FastAPI + orchestration LangGraph détaillée
+- [integration-architecture.md](./integration-architecture.md) — Contrats frontend ↔ backend : REST, SSE, upload, tours, widgets
+
+### Références techniques
+
+- [api-contracts-backend.md](./api-contracts-backend.md) — Catalogue des 73 endpoints REST + format SSE
+- [data-models-backend.md](./data-models-backend.md) — Schéma BDD complet (22 modèles, 13 migrations, pgvector)
+- [component-inventory-frontend.md](./component-inventory-frontend.md) — Inventaire composants + composables + stores + types
+
+### Opérationnel
+
+- [development-guide.md](./development-guide.md) — Setup local (Docker + manuel), commandes Make, conventions
+- [deployment-guide.md](./deployment-guide.md) — Procédure prod (`deploy.sh`), nginx UAfricas, SSL Let's Encrypt, rollback
+- [technical-debt-backlog.md](./technical-debt-backlog.md) — Dette technique priorisée
+
+### Métadonnées
+
+- [project-parts.json](./project-parts.json) — Métadonnées structurées des 2 parties (pour consommation outillée)
+- [project-scan-report.json](./project-scan-report.json) — État du workflow de documentation
+
+## Intégrations frontend ↔ backend
+
+| Flux | Source | Cible | Détail |
+|---|---|---|---|
+| CRUD + fetch | `frontend/app/composables/use*.ts` | `/api/*` | REST JSON + JWT Bearer |
+| Chat streaming | `frontend/app/composables/useChat.ts` | `POST /api/chat/.../messages` | SSE via fetch reader (10+ types d'events) |
+| Upload | `frontend/app/composables/useDocuments.ts` | `POST /api/documents/upload` | multipart/form-data, 50 Mo max |
+| Tours guidés | `useGuidedTour.ts` ← event SSE `guided_tour` | Tool `trigger_guided_tour` (backend) | Marker `<!--SSE:{__sse_guided_tour__:true}-->` |
+| Widgets interactifs | `InteractiveQuestionHost.vue` ← event SSE `interactive_question` | Tool `ask_interactive_question` (backend) | Marker `<!--SSE:{__sse_interactive_question__:true}-->` + table `interactive_questions` |
+| Contexte page | `uiStore.currentPage` → FormData | `ConversationState.current_page` | Injecté dans les prompts (spec 3) |
+
+Voir [integration-architecture.md](./integration-architecture.md) pour le détail des formats et événements SSE.
+
+## Points d'entrée clés pour l'IDE
+
+- **Layout principal** : [frontend/app/layouts/default.vue](../frontend/app/layouts/default.vue)
+- **Widget chat flottant** : [frontend/app/components/copilot/FloatingChatWidget.vue](../frontend/app/components/copilot/FloatingChatWidget.vue)
+- **SSE reader + state chat** : [frontend/app/composables/useChat.ts](../frontend/app/composables/useChat.ts)
+- **Tours guidés** : [frontend/app/composables/useGuidedTour.ts](../frontend/app/composables/useGuidedTour.ts)
+- **Registre des tours** : [frontend/app/lib/guided-tours/registry.ts](../frontend/app/lib/guided-tours/registry.ts)
+- **App FastAPI** : [backend/app/main.py](../backend/app/main.py)
+- **Endpoint SSE** : [backend/app/api/chat.py](../backend/app/api/chat.py)
+- **Graphe LangGraph** : [backend/app/graph/graph.py](../backend/app/graph/graph.py), [backend/app/graph/nodes.py](../backend/app/graph/nodes.py)
+- **État conversationnel** : [backend/app/graph/state.py](../backend/app/graph/state.py)
+- **Prompts** : [backend/app/prompts/system.py](../backend/app/prompts/system.py)
+- **Tools** : [backend/app/graph/tools/](../backend/app/graph/tools/)
+- **Migrations** : [backend/alembic/versions/](../backend/alembic/versions/)
+
+## Getting Started (développeur)
 
 ```bash
-# 1. Cloner et configurer
-git clone <repo-url>
-cd esg_mefali
-cp .env.example .env
-# → Éditer .env : ajouter OPENROUTER_API_KEY, changer SECRET_KEY
+# 1. Clone & config
+git clone <repo> && cd esg_mefali
+cp .env.example .env         # Éditer OPENROUTER_API_KEY
 
-# 2. Lancer les 3 services (postgres + backend + frontend)
-make dev
+# 2. Stack Docker
+make dev                     # postgres + backend + frontend
+make migrate                 # Applique les migrations Alembic
 
-# 3. Appliquer les migrations (une fois les containers up)
-make migrate
+# 3. Accès
+# Frontend : http://localhost:3000
+# Backend  : http://localhost:8000
+# Swagger  : http://localhost:8000/docs
 
-# 4. Ouvrir
-# Frontend :   http://localhost:3000
-# Backend API : http://localhost:8000
-# Swagger :    http://localhost:8000/docs
+# 4. Tests
+make test                    # Complet (backend + frontend)
 ```
 
-Pour le **développement local sans Docker**, voir la section dédiée du [Guide de développement](./development-guide.md#5-développement-local-sans-docker).
+Détails et alternatives sans Docker : [development-guide.md](./development-guide.md).
 
-### Pour les workflows BMad / Claude Code
+## Getting Started (IA / Agent)
 
-- **Brownfield PRD** : pointer le workflow PRD sur `docs/index.md` (ce fichier)
-- **Feature UI seule** : référencer `docs/architecture-frontend.md`
-- **Feature backend / API seule** : référencer `docs/architecture-backend.md`
-- **Feature full-stack** : combiner les deux + `docs/integration-architecture.md`
-- **Modèle de données** : `docs/data-models-backend.md`
-- **Contrat d'API** : `docs/api-contracts-backend.md`
+1. **Commencer par** [project-overview.md](./project-overview.md) pour comprendre la mission, la stack et l'historique des specs.
+2. **Pour un travail ciblé** :
+   - Fonctionnalité UI/frontend : [architecture-frontend.md](./architecture-frontend.md) + [component-inventory-frontend.md](./component-inventory-frontend.md).
+   - Fonctionnalité backend / API / LangGraph : [architecture-backend.md](./architecture-backend.md) + [api-contracts-backend.md](./api-contracts-backend.md) + [data-models-backend.md](./data-models-backend.md).
+   - Fonctionnalité transverse (chat, widgets, tours) : [integration-architecture.md](./integration-architecture.md).
+3. **Conventions projet** : [CLAUDE.md](../CLAUDE.md) (langue, dark mode, réutilisation, contexte métier).
+4. **Dette connue** : [technical-debt-backlog.md](./technical-debt-backlog.md).
+5. **Specs passées** : [specs/001](../specs/001-technical-foundation) → [specs/018](../specs/018-interactive-chat-widgets) (spec 019 pilotée via `_bmad-output/`).
 
-### Conventions projet clés (extraits de `CLAUDE.md`)
+## Conventions projet (rappel)
 
-- **Langue code** : anglais (variables, fonctions, classes)
-- **Langue commentaires** : français
-- **Langue UI/docs** : français avec accents obligatoires
-- **Dark mode** : OBLIGATOIRE sur tous les composants via variantes Tailwind `dark:`
-- **Réutilisabilité** : extraire tout pattern répété 2+ fois dans `components/ui/`
-- **Python venv** : toujours activer `backend/venv` avant toute commande Python
-- **Nommage BDD** : tables `snake_case` pluriel
-- **Tests** : cible 80 % de couverture (rule `common/testing.md`)
+- 🇫🇷 **UI + doc en français accentué** (é, è, ê, à, ç, ù obligatoires). Code + identifiants en anglais.
+- 🌙 **Dark mode obligatoire** sur chaque composant (`dark:` variants Tailwind, variables `@theme`).
+- ♻️ **Réutilisation** : pattern > 2 occurrences ⇒ extraction en `components/ui/` ou composable.
+- 🐍 **Python venv** : jamais d'installation globale, `source backend/venv/bin/activate` à chaque session.
+- 📐 **Nuxt 4** : toutes les sources dans `frontend/app/`.
+- ✅ **Fichiers autorisés à être modifiés** : aucun fichier n'est "interdit" par convention ; la modification est toujours permise si elle sert la cohérence.
 
-### Historique des features majeures (18)
+## État de la documentation
 
-Voir `specs/` pour le détail de chaque feature (spec-kit structure) :
+Tous les documents listés ci-dessus existent sur le disque. Aucun marqueur `_(To be generated)_` en suspens.
 
-1. `001-technical-foundation` — Fondation technique
-2. `002-chat-rich-visuals` — Rich blocks visuels chat
-3. `003-company-profiling-memory` — Profilage entreprise + mémoire
-4. `004-document-upload-analysis` — Upload + analyse documents
-5. `005-esg-scoring-assessment` — Évaluation et scoring ESG
-6. `006-esg-pdf-reports` — Rapports ESG PDF
-7. `007-carbon-footprint-calculator` — Calculateur empreinte carbone
-8. `008-green-financing-matching` — Matchmaking financement vert
-9. `009-fund-application-generator` — Générateur dossiers de candidature
-10. `010-green-credit-scoring` — Scoring crédit vert
-11. `011-dashboard-action-plan` — Dashboard + plan d'action
-12. `012-langgraph-tool-calling` — Tool calling LangGraph
-13. `013-fix-multiturn-routing-timeline` — Routing multi-tour + timeline
-14. `014-concise-chat-style` — Style concis du chat
-15. `015-fix-toolcall-esg-timeout` — Fix timeout tool ESG
-16. `016-fix-tool-persistence-bugs` — Fix persistance tools
-17. `017-fix-failing-tests` — Correction tests
-18. `018-interactive-chat-widgets` — Widgets questions interactives (en cours)
+**Généré par** : workflow `bmad-document-project` (Deep Scan, full_rescan)
+**Session** : 2026-04-16
+**État précédent archivé** : `docs/.archive/project-scan-report-2026-04-12.json`

@@ -1,119 +1,151 @@
 # ESG Mefali — Vue d'ensemble du projet
 
 > **Type de projet :** Monorepo multi-parts (Frontend Nuxt 4 + Backend FastAPI)
-> **Date de documentation :** 2026-04-12
-> **Version applicative :** 0.1.0
+> **Dernière mise à jour :** 2026-04-16
+> **Langue de documentation :** Français (code et identifiants en anglais)
 
-## 1. Mission et contexte métier
+## 1. Mission et contexte produit
 
-**ESG Mefali** est une plateforme conversationnelle IA qui démocratise l'accès à la finance durable pour les **PME africaines francophones** (zone UEMOA / CEDEAO).
+**ESG Mefali** est une plateforme conversationnelle IA qui démocratise l'accès à la finance durable pour les PME africaines francophones. Elle combine :
 
-Elle combine :
+1. **Analyse de conformité ESG** adaptée au contexte africain (UEMOA, BCEAO, CEDEAO, ODD 8/9/10/12/13/17).
+2. **Conseil en financement vert** avec une base de 12 fonds réels (GCF, FEM, BOAD, BAD, SUNREF, FNDE…) et un catalogue d'intermédiaires.
+3. **Scoring de crédit vert alternatif** basé sur des données non conventionnelles (Mobile Money, photos IA).
+4. **Calcul d'empreinte carbone** contextualisé Afrique de l'Ouest, avec équivalences parlantes en FCFA.
+5. **Plan d'action** personnalisé (6/12/24 mois) avec rappels et badges.
+6. **Dashboard** agrégé multi-modules.
 
-- Analyse de **conformité ESG** (Environnement, Social, Gouvernance) contextualisée Afrique
-- Conseil en **financement vert** (GCF, FEM, BOAD, BAD, SUNREF, FNDE, etc.)
-- **Scoring de crédit alternatif** fondé sur des données non-conventionnelles (Mobile Money, photos IA)
-- **Calculateur d'empreinte carbone** avec facteurs d'émission adaptés à l'Afrique de l'Ouest
-- **Plan d'action** personnalisé et **gamification** (badges, rappels, timeline)
+**Public cible** : PME francophones zone UEMOA/CEDEAO, secteurs agriculture, énergie, recyclage, transport ; le secteur informel est explicitement pris en compte.
 
-### Public cible
+## 2. Stack technique
 
-- PME africaines francophones, y compris secteur informel
-- Secteurs : agriculture, énergie, recyclage, transport, industrie légère, services
-- Taille : TPE à ETI (moins de 250 employés)
+### Frontend — Nuxt 4
 
-### Référentiels ESG
-
-- Taxonomies vertes UEMOA et BCEAO
-- Réglementations CEDEAO
-- Standards internationaux : Gold Standard, Verra, REDD+
-- Objectifs de Développement Durable ciblés : ODD 8, 9, 10, 12, 13, 17
-
-## 2. Architecture globale
-
-**Type :** Monorepo à 2 parties, communication REST/SSE synchrone.
-
-```
-┌──────────────────────────────────┐         ┌──────────────────────────────────┐
-│  FRONTEND (Nuxt 4 + Vue 3)       │         │  BACKEND (FastAPI + LangGraph)   │
-│                                  │  HTTPS  │                                  │
-│  · 18 pages routes               │◄───────►│  · 13 routers REST (~73 endpoints)│
-│  · 56 composants Vue             │  + SSE  │  · 9 nœuds LangGraph spécialisés │
-│  · 14 composables                │         │  · ~100 tools LangChain          │
-│  · 11 stores Pinia               │         │  · 16 modèles SQLAlchemy         │
-│  · Chart.js / Mermaid / GSAP     │         │  · Prompts système dynamiques    │
-└──────────────────────────────────┘         └──────────────┬───────────────────┘
-                                                            │
-                                                            ▼
-                                             ┌──────────────────────────────┐
-                                             │  PostgreSQL 16 + pgvector    │
-                                             │  (embeddings RAG documents   │
-                                             │   et fonds de financement)   │
-                                             └──────────────────────────────┘
-                                                            │
-                                                            ▼
-                                             ┌──────────────────────────────┐
-                                             │  OpenRouter (Claude Sonnet 4)│
-                                             │  pour chat + tool calling    │
-                                             └──────────────────────────────┘
-```
-
-## 3. Stack technique synthétique
-
-| Couche | Technologies |
+| Couche | Techno |
 |---|---|
-| **Frontend** | Nuxt 4.4, Vue 3 Composition API, TypeScript strict, Pinia 3, TailwindCSS 4, Chart.js 4, GSAP 3, Mermaid 11, Vitest, Playwright |
-| **Backend** | Python 3.12, FastAPI ≥0.115, SQLAlchemy async 2, asyncpg, Alembic, Pydantic v2, LangGraph ≥0.2, LangChain Core ≥0.3, WeasyPrint, PyMuPDF, python-docx, Jinja2 |
-| **Base de données** | PostgreSQL 16 (image `pgvector/pgvector:pg16`), extension `pgvector` pour embeddings |
-| **LLM** | Claude Sonnet 4 (`anthropic/claude-sonnet-4-20250514`) via OpenRouter |
-| **Auth** | JWT HS256 (access 8h + refresh 30j), bcrypt, python-jose |
-| **Infra** | Docker Compose (3 services : postgres, backend, frontend), nginx reverse proxy en prod |
-| **Tests** | Backend : pytest + pytest-asyncio, SQLite in-memory, ~935 tests. Frontend : Vitest (unit) + Playwright (E2E) |
+| Framework | Nuxt 4.4 + Vue 3 Composition API |
+| Langage | TypeScript 5 (strict) |
+| State | Pinia 3 |
+| Styling | TailwindCSS 4 + dark mode (`@theme`) |
+| Animations | GSAP |
+| Tours guidés | driver.js (lazy-loadé) |
+| Charts | Chart.js + vue-chartjs |
+| Diagrammes | Mermaid |
+| Tests | Vitest (unit) + Playwright (E2E mocké) + bash (E2E live) |
 
-## 4. Modules fonctionnels (8 modules métier)
+### Backend — FastAPI
 
-Chaque module existe **en miroir** entre le frontend (pages + composants + store + composable) et le backend (router + service + nœud LangGraph + prompts + tools).
+| Couche | Techno |
+|---|---|
+| Framework | FastAPI 0.115 (async) |
+| Langage | Python 3.12 |
+| ORM | SQLAlchemy 2 async + asyncpg |
+| Migrations | Alembic |
+| Base de données | PostgreSQL 16 + pgvector |
+| LLM orchestration | LangGraph 0.2 + LangChain 0.3 |
+| LLM provider | OpenRouter (Claude Sonnet 4) |
+| Auth | JWT HS256 (python-jose + bcrypt) |
+| Documents | PyMuPDF + pytesseract + pdf2image + docx2txt + openpyxl |
+| PDF output | WeasyPrint + Jinja2 + matplotlib |
+| Tests | pytest 8 + pytest-asyncio + pytest-cov |
 
-| # | Module | Rôle | Pages / Routes clés |
-|---|---|---|---|
-| 1 | **Agent conversationnel** | Chat multimodal FR, profilage entreprise, mémoire contextuelle, SSE streaming, questions interactives (widgets QCU/QCM) | `/chat`, `POST /api/chat/messages` |
-| 2 | **Analyseur ESG** | Upload/OCR documents, grille E-S-G contextualisée Afrique, scoring dynamique /100, 30 critères, benchmark sectoriel | `/esg`, `/esg/results`, `/api/esg/*` |
-| 3 | **Conseiller Financement Vert** | BDD de 12 fonds réels + 14 intermédiaires, matching projet-financement, générateur de dossiers | `/financing`, `/financing/[id]`, `/api/financing/*` |
-| 4 | **Calculateur Carbone** | Questionnaire par catégorie (énergie, transport, déchets, industriel, agriculture), calcul tCO2e scope 1/2/3, plan réduction, benchmark 9 secteurs | `/carbon`, `/carbon/results`, `/api/carbon/*` |
-| 5 | **Scoring Crédit Vert** | Données non-conventionnelles (Mobile Money, photos IA), score hybride solvabilité+impact, certificat PDF | `/credit-score`, `/api/credit/*` |
-| 6 | **Plan d'Action** | Feuille de route 6-12-24 mois, items catégorisés (environment/social/governance/financing/carbon), rappels cron, bibliothèque de ressources, badges | `/action-plan`, `/api/action-plan/*` |
-| 7 | **Tableau de Bord** | Agrégation ESG/carbone/crédit/financement en 4 cartes synthétiques, flux d'activité, prochaines étapes | `/dashboard`, `/api/dashboard/summary` |
-| 8 | **Documents & Rapports** | Upload PDF/DOCX/XLSX, OCR, embeddings pgvector, RAG, génération rapports PDF WeasyPrint (ESG, carbone, crédit) | `/documents`, `/reports`, `/api/documents/*`, `/api/reports/*` |
+### Infrastructure
 
-## 5. Flux utilisateur principal
+- **Conteneurisation** : Docker Compose (dev + prod).
+- **Reverse proxy** (prod) : nginx UAfricas (multi-tenant, mutualisé).
+- **Déploiement** : `deploy.sh` (SSH root, certificats Let's Encrypt automatisés).
 
-1. Inscription (`/register`) — Détection automatique du pays via IP, initialisation du `CompanyProfile`
-2. Connexion (`/login`) — Tokens JWT stockés en `localStorage`
-3. Complétion progressive du profil entreprise via le chat (secteur, CA, effectifs, localisation)
-4. Dialogue libre ou module spécialisé via le routeur LangGraph (classification d'intent LLM)
-5. Upload de documents (pdf, docx, xlsx) → OCR + embeddings pgvector → analyse LLM
-6. Évaluation ESG guidée, calcul carbone, matching financement, scoring crédit
-7. Génération d'un plan d'action consolidé et de rapports PDF téléchargeables
-8. Suivi continu via dashboard, rappels et badges de gamification
+## 3. Classification
 
-## 6. Liens vers la documentation détaillée
+- **Type de dépôt** : monorepo.
+- **Parties** : 2 (frontend + backend) — déploiement conjoint.
+- **Architecture** : client-serveur classique, orchestration LLM côté serveur, streaming SSE unidirectionnel.
+- **Pattern** : modulaire par domaine métier (10 modules backend, composition identique côté frontend).
 
-- [Architecture Frontend](./architecture-frontend.md)
-- [Architecture Backend](./architecture-backend.md)
-- [Architecture d'intégration](./integration-architecture.md)
-- [Arbre des sources annoté](./source-tree-analysis.md)
-- [Inventaire des composants frontend](./component-inventory-frontend.md)
-- [Modèles de données backend](./data-models-backend.md)
-- [Contrats d'API REST](./api-contracts-backend.md)
-- [Guide de développement](./development-guide.md)
-- [Guide de déploiement](./deployment-guide.md)
-- [Index maître](./index.md)
+## 4. Chiffres clés
 
-## 7. Conventions clés
+| Indicateur | Valeur |
+|---|---|
+| Endpoints REST | 73 |
+| Nœuds LangGraph | 9 |
+| Tools LangChain | ~36 répartis dans 12 fichiers |
+| Modèles ORM | 22 classes |
+| Migrations Alembic | 13 |
+| Prompts modules | 11 |
+| Pages frontend | 17 |
+| Composants Vue | 60 |
+| Composables | 18 |
+| Stores Pinia | 11 |
+| Tours guidés | 6 |
+| Tests backend | ~50 fichiers (~935 assertions cible) |
+| Tests frontend unitaires | ~37 fichiers |
+| Tests E2E Playwright | 2 parcours + 1 parcours live (shell) |
 
-- **Langue du code** : anglais pour identifiants, français pour commentaires
-- **Langue UI/UX** : français obligatoire, accents compris (é, è, à, ç, ù…)
-- **Dark mode** : obligatoire sur tout nouveau composant, variantes `dark:` Tailwind systématiques
-- **Réutilisabilité** : extraire les patterns répétés en `components/ui/`
-- **Nommage BDD** : `snake_case` pluriel (ex. `companies`, `esg_scores`)
-- **Python venv** : toujours activer `backend/venv` avant toute commande Python
+## 5. Journal des grandes évolutions
+
+Historique synthétique (voir `specs/001` à `018` + commits post-018 pour le détail) :
+
+| Spec | Module livré |
+|---|---|
+| 001 | Fondation technique |
+| 002 | Chat avec visualisations enrichies |
+| 003 | Profilage entreprise + mémoire conversationnelle |
+| 004 | Upload + analyse documents (OCR + embeddings pgvector) |
+| 005 | Scoring ESG 30 critères + benchmark sectoriel |
+| 006 | Rapports ESG PDF (WeasyPrint + matplotlib) |
+| 007 | Calculateur empreinte carbone |
+| 008 | Matching financement vert |
+| 009 | Générateur dossiers de candidature |
+| 010 | Scoring crédit vert |
+| 011 | Dashboard + plan d'action + badges |
+| 012 | Tool calling LangGraph (migration) |
+| 013 | Fix routage multi-tour (`active_module`) + format timeline |
+| 014 | Style de communication concis |
+| 015 | Fix tool calling ESG + timeout + `create_fund_application` + `batch_save_esg_criteria` |
+| 016 | Fix persistance tool calls |
+| 017 | Fix tests failing |
+| 018 | Widgets interactifs (QCU / QCM / justification) |
+| 019 | Tour guidé (driver.js) + JWT transparent + SSE resilience + chat widget flottant |
+
+## 6. Décisions architecturales majeures
+
+- **LangGraph au cœur** : le backend expose une API REST classique, mais le chat est piloté par un graphe compilé à 9 nœuds + tool calling avec boucle (max 5 itérations).
+- **SSE via fetch streaming** : pas d'`EventSource` (pour pouvoir poster FormData + Authorization). Reader partagé au niveau module côté frontend (`useChat.ts`).
+- **Widget flottant** : depuis la spec 019, la page `/chat` n'existe plus — le chat est accessible sur toutes les pages via le widget, le contexte de page courante est transmis au backend pour adaptation du prompt.
+- **Tours guidés consentis** : un widget interactif QCU yes/no précède chaque tour. Le comptage d'acceptation/refus module la fréquence des propositions (cap 5 refus).
+- **Persistance des widgets interactifs** : table satellite `interactive_questions`, invariant d'une seule question pending par conversation.
+- **Multi-turn routing** : champs `active_module` + `active_module_data` dans l'état LangGraph pour ne pas perdre le contexte sur les flux ESG/carbon longs (spec 013).
+
+## 7. Conventions projet (rappel)
+
+- **Langue** : UI + doc en français accentué (é, è, ê, à, ç, ù…). Code et identifiants en anglais. Tables en snake_case pluriel.
+- **Nuxt 4** : toutes les sources dans `frontend/app/`.
+- **Dark mode** : obligatoire sur chaque composant (`dark:` variants Tailwind, variables `@theme`).
+- **Réutilisation** : pattern > 2 occurrences ⇒ extraction en composant `ui/` ou composable.
+- **Python venv** : jamais d'installation globale, `source backend/venv/bin/activate` à chaque session.
+
+## 8. Liens vers la documentation détaillée
+
+- [index.md](./index.md) — master index de navigation
+- [source-tree-analysis.md](./source-tree-analysis.md) — arborescence annotée
+- [architecture-frontend.md](./architecture-frontend.md) — architecture Nuxt 4
+- [architecture-backend.md](./architecture-backend.md) — architecture FastAPI + LangGraph
+- [integration-architecture.md](./integration-architecture.md) — contrats frontend ↔ backend
+- [api-contracts-backend.md](./api-contracts-backend.md) — endpoints REST + SSE
+- [data-models-backend.md](./data-models-backend.md) — schéma BDD complet
+- [component-inventory-frontend.md](./component-inventory-frontend.md) — catalogue composants/composables/stores
+- [development-guide.md](./development-guide.md) — setup + commandes + conventions
+- [deployment-guide.md](./deployment-guide.md) — procédures prod + nginx + SSL
+- [technical-debt-backlog.md](./technical-debt-backlog.md) — dette technique priorisée
+
+## 9. Prise en main rapide
+
+```bash
+git clone <repo> && cd esg_mefali
+cp .env.example .env       # Éditer OPENROUTER_API_KEY
+make dev                   # Postgres + Backend + Frontend via Docker
+make migrate               # Applique les migrations Alembic
+# Ouvrir http://localhost:3000 et créer un compte
+```
+
+Voir [development-guide.md](./development-guide.md) pour les alternatives sans Docker.

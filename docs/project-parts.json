@@ -1,5 +1,7 @@
 {
   "repository_type": "monorepo",
+  "project_name": "esg_mefali",
+  "scan_date": "2026-04-16",
   "parts": [
     {
       "part_id": "frontend",
@@ -11,12 +13,12 @@
         "frontend/app/app.vue",
         "frontend/app/layouts/default.vue"
       ],
-      "primary_language": "TypeScript",
-      "framework": "Nuxt 4 + Vue 3 Composition API",
+      "primary_language": "TypeScript (strict)",
+      "framework": "Nuxt 4.4 + Vue 3 Composition API",
       "state_management": "Pinia 3",
-      "styling": "TailwindCSS 4 + dark mode @theme",
+      "styling": "TailwindCSS 4 + dark mode via @theme (main.css)",
       "build_tool": "Nuxt / Vite",
-      "test_framework": "Vitest (unit) + Playwright (E2E)",
+      "test_framework": "Vitest 3 (unit) + Playwright 1.49 (E2E) + shell scripts (e2e-live)",
       "critical_directories": [
         "frontend/app/pages",
         "frontend/app/components",
@@ -25,17 +27,21 @@
         "frontend/app/types",
         "frontend/app/middleware",
         "frontend/app/plugins",
-        "frontend/app/assets/css"
+        "frontend/app/lib/guided-tours",
+        "frontend/app/assets/css",
+        "frontend/tests/e2e",
+        "frontend/tests/e2e-live"
       ],
       "counts": {
-        "pages": 18,
-        "components": 56,
-        "composables": 14,
+        "pages": 17,
+        "components": 60,
+        "composables": 18,
         "stores": 11,
-        "type_files": 11,
+        "type_files": 12,
         "layouts": 1,
-        "middleware": 1,
-        "plugins": 3
+        "middleware": 2,
+        "plugins": 3,
+        "guided_tours": 6
       }
     },
     {
@@ -47,12 +53,12 @@
         "backend/app/main.py"
       ],
       "primary_language": "Python 3.12",
-      "framework": "FastAPI + SQLAlchemy async 2",
-      "orchestration": "LangGraph + LangChain + OpenRouter (Claude Sonnet 4)",
+      "framework": "FastAPI 0.115 + SQLAlchemy 2 async",
+      "orchestration": "LangGraph 0.2 + LangChain 0.3 + OpenRouter (Claude Sonnet 4)",
       "database": "PostgreSQL 16 + pgvector",
-      "auth": "JWT HS256 (python-jose + bcrypt)",
+      "auth": "JWT HS256 (python-jose + bcrypt) + refresh token single-flight",
       "migrations_tool": "Alembic",
-      "test_framework": "pytest + pytest-asyncio",
+      "test_framework": "pytest 8 + pytest-asyncio + pytest-cov",
       "critical_directories": [
         "backend/app/api",
         "backend/app/core",
@@ -62,20 +68,21 @@
         "backend/app/modules",
         "backend/app/prompts",
         "backend/app/schemas",
+        "backend/app/chains",
         "backend/alembic/versions",
         "backend/tests"
       ],
       "counts": {
-        "api_endpoints_approx": 73,
-        "sqlalchemy_models": 16,
+        "api_endpoints": 73,
+        "sqlalchemy_models": 22,
         "alembic_migrations": 13,
-        "langgraph_nodes": 10,
+        "langgraph_nodes": 9,
         "langchain_tool_files": 12,
-        "prompt_modules": 9,
-        "pydantic_schema_files": 9,
+        "langchain_tools_total": 36,
+        "prompt_modules": 11,
+        "pydantic_schema_files": 3,
         "business_modules": 10,
-        "test_files_approx": 54,
-        "tests_approx": 935
+        "test_files_approx": 50
       }
     }
   ],
@@ -85,16 +92,16 @@
       "to": "backend",
       "type": "REST JSON",
       "protocol": "HTTPS",
-      "description": "Appels synchrones via fetch() natif, header Authorization Bearer JWT, base URL via runtimeConfig.public.apiBase (env NUXT_PUBLIC_API_BASE)"
+      "description": "Appels synchrones via useAuth().apiFetch<T>() (wrapper fetch natif), header Authorization Bearer JWT, base URL via runtimeConfig.public.apiBase (env NUXT_PUBLIC_API_BASE)"
     },
     {
       "from": "frontend",
       "to": "backend",
       "type": "Server-Sent Events (SSE)",
       "protocol": "HTTPS + text/event-stream",
-      "endpoint": "POST /api/chat/{conversation_id}/messages",
-      "description": "Stream LangGraph : events token / done / document_* / profile_* / tool_call_* / interactive_question*",
-      "implementation": "frontend/app/composables/useChat.ts ↔ backend/app/api/chat.py + backend/app/graph/"
+      "endpoint": "POST /api/chat/conversations/{conversation_id}/messages",
+      "description": "Stream LangGraph via astream_events : token, done, tool_call_start, tool_call_end, tool_call_error, interactive_question, interactive_question_resolved, guided_tour, profile_update, profile_completion, error, document_*",
+      "implementation": "frontend/app/composables/useChat.ts (fetch streaming via response.body.getReader()) ↔ backend/app/api/chat.py + backend/app/graph/"
     },
     {
       "from": "frontend",
@@ -102,18 +109,21 @@
       "type": "Multipart upload",
       "protocol": "HTTPS multipart/form-data",
       "endpoints": [
-        "POST /api/documents/",
-        "POST /api/chat/{id}/messages (champ file optionnel)"
+        "POST /api/documents/upload",
+        "POST /api/chat/conversations/{id}/messages (champ document_upload optionnel)"
       ],
-      "description": "Upload de documents (PDF/DOCX/XLSX/image) déclenche extraction + OCR + embeddings pgvector + analyse LLM"
+      "description": "Upload de documents (PDF/DOCX/XLSX) déclenche extraction + OCR + embeddings pgvector + analyse LLM"
     }
   ],
+  "services": ["postgres", "backend", "frontend"],
+  "containerization": "Docker Compose (dev + prod)",
+  "reverse_proxy": "nginx (UAfricas multi-tenant host, prod uniquement)",
   "shared_conventions": {
     "identifiers": "UUID v4 string",
     "timestamps": "ISO 8601 UTC",
     "currency": "FCFA en entiers (pas de float)",
     "scores": "0-100 float",
     "emissions": "tCO2e float",
-    "language_code": "Français pour UI et identifiants anglais pour code"
+    "language_code": "Interface et documentation en français, code (variables, fonctions, classes) en anglais"
   }
 }

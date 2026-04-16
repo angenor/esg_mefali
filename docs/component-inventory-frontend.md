@@ -1,183 +1,220 @@
-# Inventaire des composants Frontend
+# Inventaire frontend — composants, composables, stores
 
-56 composants Vue 3 dans `frontend/app/components/`, regroupés en 11 sous-dossiers par feature. Tous compatibles **dark mode** obligatoire et écrits en `<script setup lang="ts">`.
+60 composants Vue 3 dans [frontend/app/components/](../frontend/app/components/), regroupés en ~12 sous-dossiers par feature. Tous compatibles **dark mode** obligatoire et écrits en `<script setup lang="ts">`. Complété par 18 composables réutilisables et 11 stores Pinia.
 
-## 1. Vue d'ensemble
+## 1. Composants par domaine
 
-| Dossier | # | Catégorie | Réutilisable |
-|---|---:|---|---|
-| `ui/` | 2 | UI génériques | ✓ |
-| `layout/` | 3 | Layout app | ✗ (singletons) |
-| `chat/` | 13 | Feature Chat IA + widgets | partiel (widgets) |
-| `richblocks/` | 8 | Blocs visuels injectables | ✓ |
-| `esg/` | 6 | Feature ESG | ✗ |
-| `credit/` | 7 | Feature Crédit | ✗ |
-| `dashboard/` | 4 | Feature Dashboard | ✗ |
-| `action-plan/` | 6 | Feature Plan d'action | ✗ |
-| `documents/` | 4 | Feature Documents | ✗ |
-| `profile/` | 3 | Feature Profil | ✗ |
-| **Total** | **56** | | |
-
-## 2. `components/ui/` — UI génériques
-
-| Composant | Rôle | Props clés | Slots |
-|---|---|---|---|
-| `FullscreenModal.vue` | Modal plein écran (preview docs, formulaires longs) | `isOpen`, `title`, `@close` | `default`, `footer` |
-| `ToastNotification.vue` | Toast temporaire (success/error/info) | `message`, `type`, `duration` | — |
-
-> **Dette technique** : seulement 2 composants UI génériques. La règle projet (`CLAUDE.md`) impose d'extraire tout pattern répété 2+ fois dans `components/ui/`. Candidats évidents à factoriser : boutons, badges, inputs, cards, tabs, gauges génériques.
-
-## 3. `components/layout/` — Layout applicatif
+### 1.1 Widget chat flottant — `copilot/` (5 composants, spec 019)
 
 | Composant | Rôle |
 |---|---|
-| `AppHeader.vue` | Barre supérieure : logo, titre, avatar user, toggle dark mode, toggle chat panel |
-| `AppSidebar.vue` | Navigation gauche : liens modules, état actif, collapse mobile |
-| `ChatPanel.vue` | Panneau chat IA toujours visible à droite (ouverture via store `ui.chatPanelOpen`) |
+| `FloatingChatWidget.vue` | Conteneur principal du widget ; gère rétraction GSAP, résilience SSE, chat + widgets interactifs |
+| `FloatingChatButton.vue` | Bouton de relance quand le widget est minimisé |
+| `ChatWidgetHeader.vue` | En-tête (titre conversation, actions) |
+| `ConnectionStatusBadge.vue` | Indicateur online/offline pour SSE resilience (spec 7-3) |
+| `GuidedTourPopover.vue` | Popover custom driver.js avec contenu Vue, dark mode, ARIA (spec 5-4) |
 
-Utilisés uniquement dans `layouts/default.vue`.
+### 1.2 Chat — `chat/` (11 composants)
 
-## 4. `components/chat/` — Chat IA (13 composants)
-
-| Composant | Rôle |
-|---|---|
-| `ChatInput.vue` | Input texte + upload file + gestion envoi (verrouillé si question interactive `pending`) |
-| `ChatMessage.vue` | Rendu d'un message (user/assistant), parsing markdown + richblocks, intègre les widgets interactifs |
-| `MessageParser.vue` | Parse le contenu assistant en segments (texte vs richblocks) |
-| `ConversationList.vue` | Liste conversations (sidebar chat drawer) |
-| `WelcomeMessage.vue` | Message de bienvenue onboarding |
-| `ProfileNotification.vue` | Notification in-chat des mises à jour de profil (event SSE `profile_update`) |
-| `ToolCallIndicator.vue` | Indicateur visuel contextualisé en français pour chaque tool call en cours |
-| `InteractiveQuestionHost.vue` | Hôte d'un widget interactif (feature 018), dispatch selon type |
-| `SingleChoiceWidget.vue` | Widget QCU (radiogroup, ARIA `role="radiogroup"` + `aria-checked`) |
-| `MultipleChoiceWidget.vue` | Widget QCM (checkbox, ARIA `role="checkbox"` + `aria-checked`) |
-| `JustificationField.vue` | Champ justification (max 400 caractères, `aria-describedby`) |
-| `AnswerElsewhereButton.vue` | Bouton « Répondre autrement » — expire la question et débloque l'input texte |
-| `InteractiveQuestionInputBar.vue` | Barre d'actions associée au widget (soumettre / abandonner) |
-
-**Principe feature 018** : un seul widget `pending` par conversation. Les précédents sont marqués `expired` automatiquement côté backend.
-
-## 5. `components/richblocks/` — Blocs visuels inline (8)
-
-Blocs rendus dans les réponses LLM via `useMessageParser`. Types enregistrés dans `types/richblocks.ts` (`RichBlockType`, `ParsedSegment`).
-
-| Composant | Rôle | Données |
-|---|---|---|
-| `ChartBlock.vue` | Graphique Chart.js (bar, line, pie, doughnut, radar) | `ChartBlockData` |
-| `MermaidBlock.vue` | Diagramme Mermaid (timeline, flow, gantt) | `{ code: string }` |
-| `TableBlock.vue` | Tableau structuré avec entêtes + lignes | `TableBlockData` |
-| `GaugeBlock.vue` | Jauge circulaire (score, progression) | `GaugeBlockData` |
-| `ProgressBlock.vue` | Barre de progression | `ProgressBlockData` |
-| `TimelineBlock.vue` | Timeline chronologique verticale (normalisée via `utils/normalizeTimeline.ts`) | `TimelineBlockData` |
-| `BlockError.vue` | Placeholder d'erreur de parsing/rendu | `{ message: string }` |
-| `BlockPlaceholder.vue` | Skeleton pendant le chargement d'un bloc | — |
-
-La normalisation `TimelineBlock` (feature 013) tolère plusieurs formats : `phases` / `items` / `steps` → `events`, alias `period→date`, `name→title`, `state→status`, defaut `status=todo`.
-
-## 6. `components/esg/` — Feature ESG (6)
+Messages, widgets interactifs (spec 018) et indicateurs tool (spec 012) :
 
 | Composant | Rôle |
 |---|---|
-| `ScoreCircle.vue` | Score global ESG en cercle (0-100, couleur selon seuil) |
-| `CriteriaProgress.vue` | Barres de progression par critère et par pilier |
-| `ScoreHistory.vue` | Historique des évaluations (Chart.js line) |
-| `Recommendations.vue` | Liste des recommandations LLM |
-| `ReportButton.vue` | Bouton de génération rapport PDF |
-| `StrengthsBadges.vue` | Badges des forces / faiblesses ESG |
+| `ChatMessage.vue` | Bulle message user/assistant + rendu markdown + blocs richblocks |
+| `ChatInput.vue` | Zone de saisie + upload fichier |
+| `ConversationList.vue` | Liste latérale des conversations |
+| `WelcomeMessage.vue` | Message d'accueil en début de conversation |
+| `MessageParser.vue` | Parse le markdown et hydrate les blocs richblocks |
+| `ToolCallIndicator.vue` | Indicateur contextualisé en français pour chaque tool call |
+| `InteractiveQuestionHost.vue` | Hôte des widgets interactifs (monte le composant adapté selon le type) |
+| `SingleChoiceWidget.vue` | Widget QCU (type `qcu` / `qcu_justification`) |
+| `MultipleChoiceWidget.vue` | Widget QCM (type `qcm` / `qcm_justification`) avec bornes min/max |
+| `JustificationField.vue` | Textarea 400 char max pour les variantes `*_justification` |
+| `AnswerElsewhereButton.vue` | Bouton "Répondre autrement" → passe la question en `abandoned` |
 
-## 7. `components/credit/` — Feature Crédit (7)
+### 1.3 Blocs visuels streamés — `richblocks/` (8 composants)
 
-| Composant | Rôle |
-|---|---|
-| `ScoreGauge.vue` | Jauge principale du score crédit |
-| `SubScoreGauges.vue` | 4 sous-scores (solvabilité, impact, qualité données, comportement) |
-| `FactorsRadar.vue` | Chart.js radar des facteurs |
-| `ScoreHistory.vue` | Historique du score |
-| `DataCoverage.vue` | Taux de couverture des data points |
-| `CertificateButton.vue` | Téléchargement certificat PDF |
-| `Recommendations.vue` | Actions d'amélioration |
-
-## 8. `components/dashboard/` — Dashboard (4)
+Les blocs sont émis par les nœuds LangGraph (contenu inline dans un message) et hydratés par `MessageParser.vue`.
 
 | Composant | Rôle |
 |---|---|
-| `ScoreCard.vue` | Carte score synthétique (ESG / carbon / credit) |
-| `FinancingCard.vue` | Carte financements avec parcours intermédiaire |
-| `NextActions.vue` | Prochaines étapes (3-5 items prioritaires) |
-| `ActivityFeed.vue` | Flux d'activité chronologique |
+| `ChartBlock.vue` | Graphique Chart.js (bar, line, donut, radar) |
+| `MermaidBlock.vue` | Diagramme mermaid |
+| `GaugeBlock.vue` | Jauge circulaire (scores 0-100) |
+| `ProgressBlock.vue` | Barre de progression |
+| `TableBlock.vue` | Tableau structuré |
+| `TimelineBlock.vue` | Timeline verticale (plan d'action, évaluations historiques). Normalisation tolérante aux variantes `phases/items/steps → events`, aliases `period→date`, `name→title` (spec 013) |
+| `BlockError.vue` | Surface minimale en cas d'erreur de rendu |
+| `BlockPlaceholder.vue` | Skeleton pendant chargement |
 
-## 9. `components/action-plan/` — Plan d'action (6)
+### 1.4 ESG — `esg/` (6 composants)
 
 | Composant | Rôle |
 |---|---|
-| `ActionCard.vue` | Carte item d'action (titre, catégorie, priorité, deadline, status) |
-| `ProgressBar.vue` | Barre de progression globale et par catégorie |
+| `ScoreCircle.vue` | Cercle score ESG global |
+| `CriteriaProgress.vue` | Progression 30 critères E-S-G |
+| `StrengthsBadges.vue` | Forces identifiées |
+| `Recommendations.vue` | Recommandations |
+| `ScoreHistory.vue` | Historique Chart.js |
+| `ReportButton.vue` | Déclenche génération rapport PDF |
+
+### 1.5 Crédit — `credit/` (7 composants)
+
+| Composant | Rôle |
+|---|---|
+| `ScoreGauge.vue` | Jauge principale score crédit |
+| `SubScoreGauges.vue` | Sous-scores (paiements, stabilité, etc.) |
+| `FactorsRadar.vue` | Radar des facteurs |
+| `DataCoverage.vue` | Taux de couverture des données source |
+| `Recommendations.vue` | Recommandations spécifiques crédit |
+| `ScoreHistory.vue` | Historique |
+| `CertificateButton.vue` | Télécharge le certificat PDF |
+
+### 1.6 Plan d'action — `action-plan/` (6 composants)
+
+| Composant | Rôle |
+|---|---|
 | `Timeline.vue` | Timeline verticale chronologique |
-| `CategoryFilter.vue` | Filtres par catégorie (environment / social / governance / financing / carbon / intermediary_contact) |
-| `BadgeGrid.vue` | Grille des badges débloqués (5 types) |
-| `ReminderForm.vue` | Formulaire de création de rappel |
+| `ActionCard.vue` | Carte d'action unique (catégorie, priorité, completion) |
+| `ProgressBar.vue` | Barre de progression globale / par catégorie |
+| `CategoryFilter.vue` | Filtre environment/social/governance/financing/carbon/intermediary_contact |
+| `BadgeGrid.vue` | Grille de 5 badges gamification |
+| `ReminderForm.vue` | Création de rappel custom |
 
-## 10. `components/documents/` — Documents (4)
-
-| Composant | Rôle |
-|---|---|
-| `DocumentList.vue` | Liste des documents uploadés |
-| `DocumentDetail.vue` | Détail + analyse LLM + chunks |
-| `DocumentUpload.vue` | Upload par drag & drop (wrapper du FormData) |
-| `DocumentPreview.vue` | Aperçu PDF dans `FullscreenModal` |
-
-## 11. `components/profile/` — Profil (3)
+### 1.7 Dashboard — `dashboard/` (4 composants)
 
 | Composant | Rôle |
 |---|---|
-| `ProfileForm.vue` | Formulaire d'édition complet |
-| `ProfileField.vue` | Champ individuel éditable inline |
-| `ProfileProgress.vue` | Taux de complétude par section |
+| `ScoreCard.vue` | Carte synthétique (ESG / carbon / crédit) |
+| `FinancingCard.vue` | Carte financements (parcours direct / intermédiaire) |
+| `ActivityFeed.vue` | Activité récente |
+| `NextActions.vue` | Prochaines actions recommandées |
 
-## 12. Conventions communes
+### 1.8 Documents — `documents/` (4 composants)
 
-- **Props typées** : tous les composants exportent une `interface Props` TypeScript
-- **Émissions typées** : `defineEmits<{ ... }>()`
-- **Dark mode** : variantes `dark:` systématiques — testées manuellement
-- **Accessibilité** : labels ARIA sur les widgets interactifs (`radiogroup`, `checkbox`, `aria-checked`, `aria-describedby`)
-- **Auto-import** : `pathPrefix: false` dans `nuxt.config.ts` permet d'utiliser `<ScoreCircle />` sans préfixe de dossier
+`DocumentList.vue`, `DocumentDetail.vue`, `DocumentUpload.vue` (drag & drop), `DocumentPreview.vue`.
 
-## 13. Dépendances inter-composants (liens clés)
+### 1.9 Profil — `profile/` (3 composants)
 
-```
-pages/chat.vue
- ├─ layout/ChatPanel
- │   ├─ chat/ConversationList
- │   ├─ chat/ChatMessage ──► richblocks/* (parse segments)
- │   │   ├─ chat/InteractiveQuestionHost
- │   │   │   ├─ chat/SingleChoiceWidget
- │   │   │   ├─ chat/MultipleChoiceWidget
- │   │   │   └─ chat/JustificationField
- │   │   └─ chat/ToolCallIndicator
- │   └─ chat/ChatInput
- │       └─ chat/InteractiveQuestionInputBar
- └─ chat/ProfileNotification
+`ProfileForm.vue`, `ProfileField.vue`, `ProfileProgress.vue`.
 
-pages/dashboard.vue
- ├─ dashboard/ScoreCard × 3
- ├─ dashboard/FinancingCard
- ├─ dashboard/NextActions
- └─ dashboard/ActivityFeed
+### 1.10 Financements & Applications
 
-pages/esg/results.vue
- ├─ esg/ScoreCircle
- ├─ esg/CriteriaProgress
- ├─ esg/ScoreHistory
- ├─ esg/Recommendations
- ├─ esg/StrengthsBadges
- └─ esg/ReportButton
+Répartis entre `financing/` et `applications/` — cartes de fonds, matching, éditeur de dossier.
 
-pages/credit-score/index.vue
- ├─ credit/ScoreGauge
- ├─ credit/SubScoreGauges
- ├─ credit/FactorsRadar
- ├─ credit/ScoreHistory
- ├─ credit/DataCoverage
- ├─ credit/CertificateButton
- └─ credit/Recommendations
-```
+### 1.11 Structurels — `layout/` et `ui/`
+
+| Composant | Rôle |
+|---|---|
+| `layout/AppHeader.vue` | Barre du haut (logo, theme toggle, user menu) |
+| `layout/AppSidebar.vue` | Navigation latérale (marqueurs `data-guide-target` pour tours) |
+| `ui/ToastNotification.vue` | Notification flottante (pilotée par `useToast`) |
+| `ui/FullscreenModal.vue` | Modale plein écran réutilisable |
+
+## 2. Composables (18)
+
+[frontend/app/composables/](../frontend/app/composables/). **Gras** = state module-level (partagé entre composants, survit à la navigation).
+
+| Composable | Responsabilité |
+|---|---|
+| **`useAuth.ts`** | Login, logout, refresh token (single-flight), `apiFetch<T>()` universal wrapper, `SessionExpiredError` |
+| **`useChat.ts`** | SSE streaming (fetch reader), conversations, messages, widgets interactifs, résilience réseau, parsing marker SSE |
+| **`useGuidedTour.ts`** | Machine à états tours guidés driver.js, polling DOM, countdown adaptatif, guidanceStats localStorage, multi-tab sync |
+| `useDeviceDetection.ts` | Détection mobile/desktop, breakpoints (pour sizing widget) |
+| `useDriverLoader.ts` | Lazy-load driver.js via dynamic import (ADR7) |
+| `useMessageParser.ts` | Parse markdown + hydrate richblocks |
+| `useFocusTrap.ts` | Focus trap clavier pour widget / modales (accessibilité) |
+| `useToast.ts` | Queue de notifications in-app |
+| `useCompanyProfile.ts` | API `/api/company/profile` |
+| `useDocuments.ts` | API `/api/documents/*` + upload multipart |
+| `useEsg.ts` | API `/api/esg/*` |
+| `useCarbon.ts` | API `/api/carbon/*` |
+| `useFinancing.ts` | API `/api/financing/*` |
+| `useCreditScore.ts` | API `/api/credit/*` |
+| `useApplications.ts` | API `/api/applications/*` |
+| `useActionPlan.ts` | API `/api/action-plan/*` |
+| `useReports.ts` | API `/api/reports/*` |
+| `useDashboard.ts` | API `/api/dashboard/summary` |
+
+## 3. Stores Pinia (11)
+
+[frontend/app/stores/](../frontend/app/stores/). Pattern setup stores.
+
+| Store | State clé | Actions clé |
+|---|---|---|
+| `auth.ts` | `user`, `accessToken`, `refreshToken` | `setTokens()`, `setUser()`, `clearAuth()`, `loadFromStorage()` |
+| `ui.ts` | `sidebarOpen`, `chatWidgetOpen`, `chatWidgetMinimized`, `guidedTourActive`, `currentPage`, `theme`, `prefersReducedMotion`, widget geometry | `toggleTheme()`, `initTheme()`, `setChatWidgetOpen()`, `setCurrentPage()`, `setGuidedTourActive()` |
+| `company.ts` | Profil entreprise + completion | `fetchProfile()`, `updateProfile()`, `markFieldUpdated()` |
+| `documents.ts` | Liste + état d'upload | `fetchDocuments()`, `uploadDocument()`, `deleteDocument()` |
+| `esg.ts` | Score courant, critères, historique | `fetchScore()`, `saveCriterion()`, `evaluate()` |
+| `carbon.ts` | Bilans, entrées, résumé | `fetchAssessments()`, `saveEntry()`, `finalize()` |
+| `financing.ts` | Catalogue + filtres + matches | `fetchFunds()`, `fetchMatches()`, `updateMatchStatus()` |
+| `creditScore.ts` | Score + breakdown + history | `fetchScore()`, `generateScore()` |
+| `actionPlan.ts` | Plan actif + items par bucket (6m/12m/24m) | `generatePlan()`, `updateItem()`, `createReminder()` |
+| `applications.ts` | Liste + dossier en cours | `fetchApplications()`, `generateSection()`, `updateSection()` |
+| `dashboard.ts` | KPIs agrégés | `fetchSummary()` |
+
+## 4. Types TypeScript
+
+[frontend/app/types/](../frontend/app/types/) — 12 fichiers.
+
+| Fichier | Domaine principal |
+|---|---|
+| `index.ts` | Re-exports consolidés |
+| `guided-tour.ts` | `GuidedTourDefinition`, `GuidedTourStep`, `TourState`, `TourContext` |
+| `interactive-question.ts` | `InteractiveQuestion*`, 4 variantes, `InteractiveQuestionAnswer`, états |
+| `richblocks.ts` | `ChartBlock`, `MermaidBlock`, `GaugeBlock`, `ProgressBlock`, `TableBlock`, `TimelineBlock`, `RichBlock` union |
+| `company.ts`, `documents.ts`, `esg.ts`, `carbon.ts`, `financing.ts`, `actionPlan.ts`, `dashboard.ts`, `report.ts` | Un par domaine métier |
+
+## 5. Layouts, middlewares, plugins
+
+### Layouts (1)
+- `default.vue` — header + sidebar + slot + widget chat flottant.
+
+### Middlewares globaux (2)
+- `auth.global.ts` — redirige non connectés vers `/login` (exceptions : `/login`, `/register`).
+- `chat-redirect.global.ts` — `/chat` → `/?openChat=1` (legacy spec 019).
+
+### Plugins client (3)
+- `gsap.client.ts`, `mermaid.client.ts`, `chartjs.client.ts` — initialisent les libs client-only.
+
+## 6. Assets & styles
+
+- Stylesheet principal : [frontend/app/assets/css/main.css](../frontend/app/assets/css/main.css).
+  - `@import 'driver.js/dist/driver.css';`
+  - `@import 'tailwindcss';`
+  - Bloc `@theme` avec variables brand (`--color-brand-green`, `-blue`, `-purple`, `-orange`, `-red`), surfaces (`--color-surface-bg`, `-text`, `-dark-bg`, `-dark-text`) et dark mode (`--color-dark-card`, `-border`, `-hover`, `-input`).
+- Overrides driver.js : classes dark mode, couleurs brand sur les boutons de navigation du popover.
+
+## 7. Registre des tours guidés
+
+[frontend/app/lib/guided-tours/registry.ts](../frontend/app/lib/guided-tours/registry.ts) expose 6 tours :
+
+| Tour ID | Page cible | Marquages `data-guide-target` |
+|---|---|---|
+| `show_esg_results` | `/esg/results` | `score-circle`, `strengths-badges`, `recommendations` |
+| `show_carbon_results` | `/carbon/results` | `donut-chart`, `benchmark`, `reduction-plan` |
+| `show_financing_catalog` | `/financing` | `fund-list` |
+| `show_credit_score` | `/credit-score` | `score-gauge` |
+| `show_action_plan` | `/action-plan` | `timeline` |
+| `show_dashboard_overview` | `/dashboard` | `esg-card`, `carbon-card`, `credit-card`, `financing-card` |
+
+Total : 14 marquages `data-guide-target` à travers 7 fichiers (sidebar + 6 pages cibles).
+
+## 8. Patrons et conventions
+
+- **Composition API uniquement**, `<script setup lang="ts">`.
+- **Props explicites** + `defineEmits` pour tous les composants.
+- **Pas de `style` scopé** pour les variables couleurs — utiliser Tailwind variants `dark:`.
+- **Accessibilité** : chaque widget interactif annote `role`, `aria-checked`, `aria-describedby`.
+- **Animations** : GSAP encapsulé dans le widget chat, respect `prefers-reduced-motion` via `useUiStore.prefersReducedMotion`.
+- **Réutilisation** : si un pattern apparaît > 2 fois, extraction en `components/ui/` ou composable ([CLAUDE.md](../CLAUDE.md)).
+- **Dark mode obligatoire** sur chaque composant (variables `dark:bg-dark-card`, etc.).
+- **Format d'imports** : alias `~` → `app/` (défini dans `tsconfig.json`).
+
+## 9. Axes d'évolution
+
+- Composants `ui/` encore légers (2). À étoffer (boutons, inputs, badges, modals génériques) à mesure que les patterns se répètent.
+- Tests de composants unitaires couvrent principalement les composables et stores ; les composants Vue ont moins de couverture. À renforcer via `@vue/test-utils` pour les richblocks critiques.
+- Pas de Storybook ou équivalent — documentation visuelle des composants à envisager.
+- Internationalisation : tout est en français en dur ; à extraire si élargissement à d'autres langues de la zone CEDEAO.

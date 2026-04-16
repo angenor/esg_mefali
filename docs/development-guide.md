@@ -4,300 +4,219 @@
 
 | Outil | Version minimale | Usage |
 |---|---|---|
-| Docker Desktop | 4.20+ | Dev via `docker compose` |
-| Git | 2.40+ | |
-| Node.js | 24.x (LTS récent) | Dev frontend local |
-| Python | **3.12** (préférence projet) | Dev backend local |
-| PostgreSQL | 16 + pgvector | Optionnel si hors Docker |
-| Make | | `make dev`, `make test`, ... |
+| Docker + Docker Compose | 24+ | Orchestration complète (voie recommandée) |
+| Git | 2.30+ | Gestion de version |
+| Node.js | 20 LTS | Dev frontend hors Docker |
+| Python | 3.12 | Dev backend hors Docker |
+| PostgreSQL | 16 + `pgvector` | BDD locale hors Docker |
+| OpenRouter API key | — | Obligatoire pour le chat IA (modèle Claude Sonnet 4) |
 
-> **⚠️ venv local actuellement basé sur Python 3.14** — les rules projet recommandent 3.12. À harmoniser lors de la prochaine revue de dépendances.
-
-## 2. Installation rapide (Docker)
+## 2. Démarrage rapide (Docker — recommandé)
 
 ```bash
-# 1. Cloner le dépôt
+# 1. Cloner
 git clone <repo-url>
 cd esg_mefali
 
-# 2. Copier la configuration
+# 2. Configurer l'environnement
 cp .env.example .env
+# → éditer .env et renseigner OPENROUTER_API_KEY
 
-# 3. Éditer .env et ajouter OPENROUTER_API_KEY (obligatoire pour le chat IA)
-#    Modifier SECRET_KEY en production
-
-# 4. Lancer les 3 services (postgres + backend + frontend)
+# 3. Lancer les 3 services (postgres + backend + frontend)
 make dev
+
+# 4. Appliquer les migrations Alembic
+make migrate
+
+# 5. Vérifier
+# Frontend   : http://localhost:3000
+# Backend    : http://localhost:8000
+# Swagger    : http://localhost:8000/docs
+# PostgreSQL : localhost:5432 (user/pass : postgres/postgres)
 ```
-
-Services disponibles :
-
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| Swagger UI | http://localhost:8000/docs |
-| Redoc | http://localhost:8000/redoc |
-| PostgreSQL | `localhost:5432` (user `postgres` / password `postgres` / db `esg_mefali`) |
 
 ## 3. Commandes Makefile
 
-```bash
-make dev          # Démarre Docker Compose (postgres + backend + frontend)
-make build        # Build de production
-make migrate      # Exécute alembic upgrade head dans le container backend
-make test         # Tests backend + frontend
-make test-back    # Tests backend seulement (pytest + couverture)
-make test-front   # Tests frontend seulement (vitest)
-make down         # Stop les services
-make logs         # Stream logs des 3 services
-make clean        # Stop + suppression des volumes (⚠️ efface la BDD)
-```
+| Commande | Effet |
+|---|---|
+| `make dev` | `docker compose up -d` — démarre postgres, backend (reload), frontend (HMR) |
+| `make build` | `docker compose build` — reconstruit les images |
+| `make migrate` | Exécute `alembic upgrade head` dans le conteneur backend |
+| `make test` | Lance tests backend puis frontend |
+| `make test-back` | `pytest tests/ -v --cov=app --cov-report=term-missing` (backend uniquement) |
+| `make test-front` | `npm run test` + `npm run test:e2e` (frontend uniquement) |
+| `make down` | Arrête les services sans supprimer les volumes |
+| `make logs` | Tail des logs combinés |
+| `make clean` | Arrête + supprime volumes (⚠️ efface la BDD) |
 
-## 4. Variables d'environnement
+## 4. Développement local sans Docker
 
-Fichier `.env` (à la racine) :
-
-```env
-# Base de données
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/esg_mefali
-
-# Sécurité
-SECRET_KEY=changez-cette-cle-en-production
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60      # Dev ; prod recommandé 480 (8h)
-REFRESH_TOKEN_EXPIRE_DAYS=30
-
-# IA (OpenRouter)
-OPENROUTER_API_KEY=votre-cle-openrouter
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=anthropic/claude-sonnet-4-20250514
-
-# Frontend
-NUXT_PUBLIC_API_BASE=http://localhost:8000/api
-```
-
-> Les variables `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` sont supportées en alias pour rétro-compatibilité (mapping dans `Settings.model_post_init`).
-
-## 5. Développement local (sans Docker)
-
-### 5.1 Backend
+### Backend (venv obligatoire)
 
 ```bash
 cd backend
-
-# Création du venv (une seule fois)
-python3.12 -m venv venv
-
-# Activation à chaque session
-source venv/bin/activate
-
-# Installation des dépendances
+python3 -m venv venv
+source venv/bin/activate          # ⚠️ À chaque nouvelle session
 pip install -r requirements.txt -r requirements-dev.txt
 
-# Vérifier que le bon Python est actif
-which python                       # doit pointer vers backend/venv/bin/python
-
-# Lancer un PostgreSQL pgvector en local (via Docker)
+# S'assurer que postgres + pgvector tourne (via Docker ou install local)
 docker compose up postgres -d
 
 # Migrations
 alembic upgrade head
 
-# Démarrer le serveur en hot-reload
+# Run
 uvicorn app.main:app --reload --port 8000
 ```
 
-> **Règle projet** : ne jamais installer de packages Python globalement — toujours dans le venv.
+Vérification de l'environnement virtuel actif : `which python` doit retourner `backend/venv/bin/python`.
 
-### 5.2 Frontend
+### Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev          # http://localhost:3000
+npm run dev         # HMR sur http://localhost:3000
+npm run build       # Build SSR production
+npm run preview     # Sert le build
 ```
 
-Si le backend est hors Docker, pointer le frontend via :
+### Base de données seule
 
 ```bash
-NUXT_PUBLIC_API_BASE=http://localhost:8000/api npm run dev
+docker compose up postgres -d
+# Se connecter : psql postgresql://postgres:postgres@localhost:5432/esg_mefali
 ```
 
-## 6. Base de données
+## 5. Variables d'environnement critiques
 
-- **Image Docker** : `pgvector/pgvector:pg16`
-- **Extension** : `CREATE EXTENSION IF NOT EXISTS vector` (appliquée par la 1ʳᵉ migration)
-- **Migrations** : `alembic/versions/` — 13 migrations au 2026-04-12
-- **Nommage** : tables `snake_case` pluriel (`companies`, `esg_scores`, `carbon_assessments`)
+Voir [.env.example](../.env.example) pour la liste exhaustive. Indispensables en dev :
 
-### Créer une migration
+| Variable | Valeur par défaut (dev) | Rôle |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@postgres:5432/esg_mefali` | Chaîne SQLAlchemy asyncpg |
+| `SECRET_KEY` | généré à l'install | Signe les JWT |
+| `JWT_ALGORITHM` | `HS256` | — |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `60` (dev) / `480` (prod) | Durée de vie de l'access token |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Durée de vie du refresh token |
+| `OPENROUTER_API_KEY` | (à fournir) | Accès au LLM Claude Sonnet 4 |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | — |
+| `OPENROUTER_MODEL` | `anthropic/claude-sonnet-4-20250514` | — |
+| `NUXT_PUBLIC_API_BASE` | `http://localhost:8000/api` (dev) / `/api` (prod) | Base URL API côté frontend |
+| `DEBUG` | `true` (dev) / `false` (prod) | Active les échos utiles |
 
-```bash
-cd backend
-source venv/bin/activate
+## 6. Workflow de développement
 
-# Après modification d'un modèle SQLAlchemy
-alembic revision --autogenerate -m "add xyz column"
+### Conventions générales
 
-# Relire le fichier généré (autogenerate n'est pas parfait)
-# puis appliquer
-alembic upgrade head
-```
+- **Langue** : code et identifiants en **anglais**, commentaires et UI en **français avec accents** (é, è, ê, à, ç, ù — obligatoires).
+- **Structure Nuxt 4** : tout le code source dans `frontend/app/`.
+- **Composables et composants UI** : vérifier la réutilisabilité avant de créer. Si un pattern visuel se répète plus de 2 fois, l'extraire dans `components/ui/`.
+- **Dark mode obligatoire** sur chaque composant : utiliser les variantes `dark:` Tailwind (`dark:bg-dark-card`, `dark:text-surface-dark-text`, etc.). Variables CSS définies dans `frontend/app/assets/css/main.css` via `@theme`.
+- **Backend Python** : jamais d'installation globale, toujours via venv.
+- **Pas de fichiers interdits de modification dans les specs** — la modification est toujours autorisée si elle sert la cohérence.
+
+### Cycle feature
+
+1. **Recherche & réutilisation** — vérifier `specs/`, les composants existants, les tools LangChain existants, les composables.
+2. **Planification** — utiliser le workflow BMM (`_bmad/`) ou SpecKit (`specs/`).
+3. **Implémentation TDD** — écrire les tests (RED), implémenter (GREEN), refactorer.
+4. **Dark mode + accessibilité** — vérifier au passage.
+5. **Tests** — `make test` doit rester vert (935+ tests backend, ~60 tests frontend unit + E2E).
+6. **Commit** — format conventionnel (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
 
 ## 7. Tests
 
-### 7.1 Backend — pytest asynchrone
-
-Config : `backend/pytest.ini` (`asyncio_mode=auto`).
+### Backend
 
 ```bash
 cd backend
 source venv/bin/activate
-
-# Tous les tests avec couverture
-pytest tests/ -v --cov=app --cov-report=term-missing
-
-# Un seul fichier
-pytest tests/test_esg_scoring.py -v
-
-# Un seul test
-pytest tests/test_chat.py::test_streaming_sse -v
-
-# Via Make (dans Docker)
-make test-back
+pytest                                    # Tous les tests
+pytest tests/test_graph/                  # Scoped (ex: nodes LangGraph)
+pytest -k "interactive_question"          # Par mot-clef
+pytest --cov=app --cov-report=term-missing
 ```
 
-Cible de couverture : **80 %** (rule `common/testing.md`).
+Configuration dans [backend/pytest.ini](../backend/pytest.ini). Fixtures partagées dans [backend/tests/conftest.py](../backend/tests/conftest.py) : SQLite in-memory pour la rapidité, `AsyncClient` FastAPI, `db_session` brut.
 
-### 7.2 Frontend — Vitest + Playwright
+### Frontend — unitaires (Vitest)
 
 ```bash
 cd frontend
-npm run test            # Vitest unit tests
-npm run test:e2e        # Playwright E2E (framework prêt, scénarios à ajouter)
+npm run test                              # Interactive
+npm run test -- --run                     # CI (sans watch)
+npm run test -- tests/composables/useChat.test.ts
 ```
 
-> **Dette actuelle** : la couverture frontend est très faible (2 tests unitaires). À renforcer — feature TDD recommandée.
+Config : [frontend/vitest.config.ts](../frontend/vitest.config.ts). Environnement `happy-dom`, setup `tests/setup.ts` (patchs `import.meta.client/server`).
 
-### 7.3 Workflow TDD
-
-Suivre la rule `common/testing.md` :
-
-1. Écrire le test (RED) → le test doit échouer
-2. Implémenter (GREEN) → minimum viable
-3. Refactor (IMPROVE)
-4. Vérifier couverture 80 %+
-
-Pour nouvelles features : utiliser l'agent **tdd-guide**.
-
-## 8. Qualité et linting
-
-### Python
-
-| Outil | Usage |
-|---|---|
-| `black` | Formatter automatique |
-| `isort` | Tri des imports |
-| `ruff` | Linter rapide (remplace flake8) |
-| `mypy` | Type checking statique |
-| `bandit` | Audit sécurité statique |
-
-Lancement manuel :
+### Frontend — E2E (Playwright)
 
 ```bash
+cd frontend
+npm run test:e2e                          # Backend mocké via tests/e2e/fixtures/mock-backend.ts
+npm run test:e2e -- --headed              # Voir le navigateur
+PLAYWRIGHT_SLOWMO=200 npm run test:e2e   # Ralentir pour debug
+PLAYWRIGHT_FULL_MOTION=1 npm run test:e2e # Désactiver reducedMotion
+```
+
+Config : [frontend/playwright.config.ts](../frontend/playwright.config.ts). Un seul worker, Chromium, port dédié 4321 pour éviter les conflits avec le dev server (3000). Backend mocké intégralement (pas de dépendance Postgres / OpenRouter en E2E mockée).
+
+Specs E2E existantes :
+- `tests/e2e/8-1-parcours-fatou.spec.ts` — parcours ESG complet
+- `tests/e2e/8-2-parcours-moussa.spec.ts` — parcours carbone + financement
+- `tests/e2e-live/8-3-parcours-aminata.sh` — parcours Aminata (stack live, pas de mock)
+
+### Tests E2E "live" (shell)
+
+Le dossier `frontend/tests/e2e-live/` contient des tests bash exécutés contre une stack réelle (backend + LLM + Postgres). Prérequis : services up (`make dev`), compte seed. Helpers dans `lib/` (assertions, env, login).
+
+```bash
+cd frontend/tests/e2e-live
+./8-3-parcours-aminata.sh
+```
+
+## 8. Migrations BDD
+
+```bash
+# Créer une nouvelle migration
 cd backend && source venv/bin/activate
-black app/ tests/
-isort app/ tests/
-ruff check app/ tests/
-mypy app/
-bandit -r app/
+alembic revision -m "add_my_table" --autogenerate
+
+# Appliquer
+alembic upgrade head
+
+# Revenir en arrière d'un cran
+alembic downgrade -1
+
+# Historique
+alembic history
 ```
 
-### TypeScript
+Les migrations vivent dans [backend/alembic/versions/](../backend/alembic/versions/). 13 migrations au total (voir [data-models-backend.md](./data-models-backend.md)).
 
-| Outil | Usage |
-|---|---|
-| `tsc --noEmit` | Type checking (strict mode) |
-| `prettier` | Formatter |
-| `eslint` | (à configurer si non présent) |
+## 9. Linting & formatage
 
-```bash
-cd frontend
-npx tsc --noEmit                      # Vérification TypeScript globale
-```
+- **Backend** : `ruff check app/` + `ruff format app/`.
+- **Frontend** : pas de linter dédié côté frontend (hors `tsc` via `nuxt typecheck`). Convention de style portée par les revues de code.
 
-## 9. Conventions code
+## 10. Ressources internes
 
-### Langue
-- **Identifiants** : anglais (variables, fonctions, classes)
-- **Commentaires** : français
-- **UI / docs** : français, accents obligatoires (é, è, ê, à, ç, ù)
+- Spécifications détaillées : [specs/](../specs/)
+- Contexte produit : [CLAUDE.md](../CLAUDE.md) (conventions, stack, domaine)
+- Workflows BMM : [_bmad/bmm/](../_bmad/bmm/)
+- Artefacts de planification : `_bmad-output/planning-artifacts/`
 
-### Python
-- PEP 8 + annotations de type sur toutes les signatures
-- `snake_case` pour fonctions, variables, fichiers
-- `PascalCase` pour classes
-- Dataclasses immutables (`frozen=True`) quand pertinent
+## 11. Problèmes courants
 
-### TypeScript
-- `strict: true` dans `tsconfig.json`
-- `interface` pour les DTO et props de composants
-- Éviter `any`, préférer `unknown` + narrowing
-- Props de composants typées via `interface`, émissions via `defineEmits<T>`
+| Symptôme | Cause probable | Solution |
+|---|---|---|
+| Chat ne stream pas | `OPENROUTER_API_KEY` manquant ou invalide | Vérifier `.env`, redémarrer backend |
+| Frontend 401 en boucle | Refresh token expiré / SECRET_KEY changé | Vider `localStorage`, se reconnecter |
+| Migration Alembic refuse | Venv non activé | `source backend/venv/bin/activate` |
+| `pgvector` introuvable | Extension non installée | `CREATE EXTENSION IF NOT EXISTS vector;` (géré par migration 001) |
+| Tests E2E flaky | Motion activé par défaut | S'assurer que `reducedMotion: 'reduce'` (par défaut) |
+| Port 3000 / 8000 / 5432 occupé | Autre service local | Arrêter ou mapper différemment dans `docker-compose.yml` |
 
-### Commits Git
-Format conventional :
-
-```
-<type>: <description courte>
-
-<corps optionnel>
-```
-
-Types : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`.
-
-**Attribution désactivée globalement** via `~/.claude/settings.json`. Ne pas ajouter de `Co-Authored-By` sauf demande explicite.
-
-### Dark mode (OBLIGATOIRE)
-
-Chaque composant / page / layout doit avoir les variantes `dark:` :
-
-```html
-<div class="bg-white dark:bg-dark-card text-surface-text dark:text-surface-dark-text">
-  <p class="text-gray-600 dark:text-gray-400">...</p>
-</div>
-```
-
-## 10. Ajouter une feature (workflow complet)
-
-1. **Spec** : créer `specs/NNN-feature-name/` avec `spec.md`, `plan.md`, `tasks.md` (skills `speckit.*`)
-2. **Research** : GitHub search + Context7 + registry avant toute nouvelle implémentation (rule `common/development-workflow.md`)
-3. **Planning** : utiliser l'agent `planner` pour les features complexes
-4. **TDD** : tests d'abord via l'agent `tdd-guide`
-5. **Implémentation** :
-   - Backend : model → migration → schema → service → router → tool LangChain → nœud graphe → prompt
-   - Frontend : types → store → composable → composants → page
-6. **Code review** : agent `code-reviewer` puis `security-reviewer`
-7. **Tests** : couverture 80 %+
-8. **Commit** : format conventional
-9. **PR** : via `gh pr create`, inclure le test plan
-
-## 11. Debugging utile
-
-| Problème | Piste |
-|---|---|
-| Chat ne répond pas | Vérifier `OPENROUTER_API_KEY` dans `.env` ; logs : `make logs` → chercher `Graphe LangGraph initialisé` |
-| Migration échoue | `docker compose exec backend alembic current` + inspecter `alembic_version` |
-| Embeddings vides | Vérifier `CREATE EXTENSION vector;` dans la BDD |
-| CORS errors | Le backend autorise uniquement `http://localhost:3000` en dur (`app/main.py`) |
-| Dark mode qui ne persiste pas | `stores/ui.ts` lit `localStorage.theme` au montage ; vérifier `auth.global.ts` |
-| Tests async qui boguent | Vérifier `asyncio_mode=auto` dans `pytest.ini` |
-
-## 12. Références internes
-
-- [Architecture Backend](./architecture-backend.md)
-- [Architecture Frontend](./architecture-frontend.md)
-- [Contrats d'API](./api-contracts-backend.md)
-- [Modèles de données](./data-models-backend.md)
-- [Guide de déploiement](./deployment-guide.md)
+Voir aussi le backlog de dette technique : [technical-debt-backlog.md](./technical-debt-backlog.md).
