@@ -167,3 +167,9 @@
 - Test invariant AC8 fragile au cwd : `path.resolve(process.cwd(), 'app/composables/useGuidedTour.ts')` fonctionne si vitest lance depuis `frontend/`. Robustesse : `new URL(..., import.meta.url)`. [frontend/tests/composables/useChat.connection.test.ts:831-838]
 - bfcache : listeners survivent mais `isConnected` stale au `pageshow`. Edge case rare (page cachee offline puis restauree online sans event). Handler `pageshow` a ajouter a terme. [frontend/app/composables/useChat.ts:77-85]
 - Fetches concurrents (`sendMessage` + `submitInteractiveAnswer`) : si l'un succeed et flip a true puis l'autre fail en network, la bascule a false ecrase le signal de reprise. Peu probable dans l'UX normale (serialisation par `abortController`). [frontend/app/composables/useChat.ts:289, 683, 503, 775]
+
+## Deferred from: code review of 8-3-tests-e2e-parcours-aminata (2026-04-15)
+
+- Semantique exacte de `agent-browser close` (sans `--session`) : bloque sur la documentation upstream de la CLI agent-browser 0.8.5 ; le `cleanup()` actuel appelle `agent-browser --headed close` sans session nommee et swallow la sortie. A tracker via issue CLI si comportement imprevu observe [frontend/tests/e2e-live/8-3-parcours-aminata.sh:1175, 1264].
+- Driver.js popover i18n : textes hardcoded FR + fallback EN (Suivant/Next, Terminer/Done/Fermer). Aucune couverture pour ES/DE/etc. Hors scope 8.3 ; a reprendre dans une story dediee si Driver.js expose des builds i18n ou si on force la locale applicative [frontend/tests/e2e-live/8-3-parcours-aminata.sh:1328-1358].
+- Flag `--session aminata-e2e` absent des invocations `agent-browser` (la spec AC3–AC8 l'impose, le dev utilise la var d'env `AGENT_BROWSER_SESSION` a la place). Defere le 2026-04-16 par Angenor : « la simulation marche, on laisse comme ca pour le moment ». A reprendre si on observe des collisions de session ou si 8.4/8.5/8.6 introduisent du parallelisme [frontend/tests/e2e-live/8-3-parcours-aminata.sh + lib/env.sh:50].
