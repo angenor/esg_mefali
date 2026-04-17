@@ -424,3 +424,250 @@ class TestSendMessage:
         assert body["total"] >= 1
         assert body["items"][0]["role"] == "user"
         assert body["items"][0]["content"] == "Mon message"
+
+
+class TestRateLimit:
+    """Tests rate limiting FR-013 : 30 messages/minute/user sur /messages (SSE + JSON fallback)."""
+
+    @staticmethod
+    async def _mock_stream(*args, **kwargs):
+        """Mock asynchrone de stream_graph_events retournant un token simple."""
+        yield {"type": "token", "content": "ok"}
+
+    @staticmethod
+    def _make_mock_session_factory():
+        """Construire un mock async_session_factory qui simule la persistance SSE."""
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock(
+            side_effect=lambda m: setattr(m, "id", uuid.uuid4())
+        )
+        mock_session.commit = AsyncMock()
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+        )
+
+        @asynccontextmanager
+        async def factory():
+            yield mock_session
+
+        return factory
+
+    @staticmethod
+    async def _send_one_message(
+        client: AsyncClient, conv_id: str, token: str, content: str = "msg"
+    ) -> int:
+        """Envoyer un message et consommer le flux SSE jusqu'au bout. Retourne le status."""
+        response = await client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            data={"content": content},
+            headers=auth_headers(token),
+        )
+        # Drainer le body pour fermer proprement la connexion (evite les fuites
+        # dans le pool HTTPX y compris sur les reponses d'erreur — 429, 401...).
+        await response.aread()
+        return response.status_code
+
+    async def test_rate_limit_trips_at_31st_message(self, client: AsyncClient) -> None:
+        """AC1 — Le 31e message dans une fenetre de 60s renvoie 429 + Retry-After."""
+        _, token = await create_authenticated_user(client)
+        create_resp = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token)
+        )
+        conv_id = create_resp.json()["id"]
+
+        with (
+            patch("app.api.chat.stream_graph_events", side_effect=self._mock_stream),
+            patch("app.api.chat.async_session_factory", self._make_mock_session_factory()),
+        ):
+            for i in range(30):
+                status_code = await self._send_one_message(client, conv_id, token, f"m{i}")
+                assert status_code == 200, f"Message {i + 1} a echoue (status {status_code})"
+
+            # 31e message -> 429
+            response = await client.post(
+                f"/api/chat/conversations/{conv_id}/messages",
+                data={"content": "dépassement"},
+                headers=auth_headers(token),
+            )
+            await response.aread()  # Drainer le body 429 pour fermer la connexion HTTPX.
+
+        assert response.status_code == 429
+        assert "Retry-After" in response.headers
+        retry_after = response.headers["Retry-After"]
+        assert retry_after.isdigit(), f"Retry-After doit etre un entier, recu: {retry_after!r}"
+        # AC4 — la reponse 429 est une JSONResponse, pas un StreamingResponse SSE.
+        content_type = response.headers.get("content-type", "")
+        assert not content_type.startswith("text/event-stream"), (
+            f"AC4 viole : 429 doit precéder l'ouverture du stream SSE "
+            f"(content-type recu : {content_type!r})"
+        )
+
+    async def test_rate_limit_returns_retry_after_header(self, client: AsyncClient) -> None:
+        """AC1 — Header Retry-After explicitement present et numerique sur 429."""
+        _, token = await create_authenticated_user(client)
+        create_resp = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token)
+        )
+        conv_id = create_resp.json()["id"]
+
+        with (
+            patch("app.api.chat.stream_graph_events", side_effect=self._mock_stream),
+            patch("app.api.chat.async_session_factory", self._make_mock_session_factory()),
+        ):
+            for i in range(30):
+                await self._send_one_message(client, conv_id, token, f"m{i}")
+
+            response = await client.post(
+                f"/api/chat/conversations/{conv_id}/messages",
+                data={"content": "dépassement"},
+                headers=auth_headers(token),
+            )
+            await response.aread()  # Drainer le body 429 pour fermer la connexion HTTPX.
+
+        assert response.status_code == 429
+        assert response.headers.get("Retry-After") is not None
+        assert int(response.headers["Retry-After"]) > 0
+
+    async def test_rate_limit_resets_after_60s(self, client: AsyncClient) -> None:
+        """AC2 — Apres reinitialisation de la fenetre, le message suivant passe.
+
+        On simule le « apres 60s » par un reset explicite du storage SlowAPI
+        car freezegun ne peut pas patcher time.time() dans le thread
+        `threading.Timer` de `MemoryStorage` (voir Dev Notes story 9.3
+        §Root cause #1). Equivalent semantique, determinisme preserve.
+
+        NB : la fixture autouse `reset_rate_limiter` (conftest.py:43-53) tourne
+        AVANT chaque test. Ici on appelle `limiter.reset()` AU MILIEU du test,
+        entre les 2 phases, ce qui est une utilisation distincte et voulue.
+        """
+        from app.core.rate_limit import limiter
+
+        _, token = await create_authenticated_user(client)
+        create_resp = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token)
+        )
+        conv_id = create_resp.json()["id"]
+
+        with (
+            patch("app.api.chat.stream_graph_events", side_effect=self._mock_stream),
+            patch("app.api.chat.async_session_factory", self._make_mock_session_factory()),
+        ):
+            # Phase 1 : saturer la fenetre (30 messages OK + 1 refuse en 429).
+            for i in range(30):
+                status_code = await self._send_one_message(client, conv_id, token, f"m{i}")
+                assert status_code == 200
+
+            response = await client.post(
+                f"/api/chat/conversations/{conv_id}/messages",
+                data={"content": "dépassement"},
+                headers=auth_headers(token),
+            )
+            assert response.status_code == 429
+
+            # Phase 2 : reset explicite du limiter (equivalent « 60s passes »).
+            limiter.reset()
+
+            status_code = await self._send_one_message(
+                client, conv_id, token, "après fenêtre"
+            )
+
+        assert status_code == 200
+
+    async def test_rate_limit_isolated_per_user(self, client: AsyncClient) -> None:
+        """AC3 — Deux utilisateurs distincts ont des quotas independants."""
+        _, token_a = await create_authenticated_user(client)
+        _, token_b = await create_authenticated_user(client)
+
+        create_a = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token_a)
+        )
+        create_b = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token_b)
+        )
+        conv_a = create_a.json()["id"]
+        conv_b = create_b.json()["id"]
+
+        with (
+            patch("app.api.chat.stream_graph_events", side_effect=self._mock_stream),
+            patch("app.api.chat.async_session_factory", self._make_mock_session_factory()),
+        ):
+            # user_A epuise son quota
+            for i in range(30):
+                status_code = await self._send_one_message(client, conv_a, token_a, f"a{i}")
+                assert status_code == 200
+
+            over_a = await client.post(
+                f"/api/chat/conversations/{conv_a}/messages",
+                data={"content": "a-over"},
+                headers=auth_headers(token_a),
+            )
+            assert over_a.status_code == 429
+
+            # user_B doit toujours pouvoir envoyer un message
+            status_b = await self._send_one_message(client, conv_b, token_b, "b1")
+
+        assert status_b == 200
+
+    async def test_rate_limit_on_json_fallback_endpoint(self, client: AsyncClient) -> None:
+        """AC6 — Le fallback JSON /messages/json applique le meme quota 30/min."""
+        _, token = await create_authenticated_user(client)
+        create_resp = await client.post(
+            "/api/chat/conversations", json={}, headers=auth_headers(token)
+        )
+        conv_id = create_resp.json()["id"]
+
+        with (
+            patch("app.api.chat.stream_graph_events", side_effect=self._mock_stream),
+            patch("app.api.chat.async_session_factory", self._make_mock_session_factory()),
+        ):
+            for i in range(30):
+                response = await client.post(
+                    f"/api/chat/conversations/{conv_id}/messages/json",
+                    json={"content": f"m{i}"},
+                    headers=auth_headers(token),
+                )
+                if response.status_code == 200:
+                    await response.aread()
+                assert response.status_code == 200, f"Message {i + 1} a echoue"
+
+            response = await client.post(
+                f"/api/chat/conversations/{conv_id}/messages/json",
+                json={"content": "dépassement"},
+                headers=auth_headers(token),
+            )
+            await response.aread()  # Drainer le body 429 pour fermer la connexion HTTPX.
+
+        assert response.status_code == 429
+        assert "Retry-After" in response.headers
+
+    async def test_rate_limit_unauthenticated_returns_401_not_429(
+        self, client: AsyncClient
+    ) -> None:
+        """AC7 — Sans token, l'API retourne 401 avant toute verification de quota.
+
+        On envoie 31 requetes sans token : si l'auth guard ne precedait PAS le
+        decorateur @limiter.limit, la 31e basculerait en 429. En restant a 401
+        sur les 31 requetes, on prouve que l'authentification court-circuite le
+        rate-limit (et donc qu'un attaquant non authentifie ne peut pas epuiser
+        le quota d'un autre utilisateur).
+        """
+        fake_conv_id = str(uuid.uuid4())
+
+        for i in range(31):
+            response = await client.post(
+                f"/api/chat/conversations/{fake_conv_id}/messages",
+                data={"content": f"sans auth {i}"},
+            )
+            await response.aread()
+            assert response.status_code == 401, (
+                f"Requete {i + 1}/31 sans token : status {response.status_code}, "
+                f"attendu 401 (l'auth guard doit preceder le rate-limit)"
+            )
+            assert response.status_code != 429, (
+                f"Requete {i + 1}/31 : rate-limit declenche avant l'auth guard (AC7 viole)"
+            )

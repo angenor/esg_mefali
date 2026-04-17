@@ -6,8 +6,11 @@ from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,11 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
 )
+
+# Rate limiting SlowAPI — FR-013 : 30 msg/min/user sur l'endpoint chat
+# Le limiter est applique via decorateur cible dans app/api/chat.py (pas de middleware global)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
 app.add_middleware(

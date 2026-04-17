@@ -22,16 +22,29 @@ from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
 
 
 def _post_module_section(text: str) -> str:
-    """Extrait la section « Apres un module (proposition) » du prompt.
+    """Extrait la section post-module du prompt.
 
-    On delimite entre l'ancre de debut et l'ancre de la regle suivante
-    (« Sur demande explicite (declenchement direct) ») pour isoler la
-    fenetre de verification de l'ordre normatif.
+    Supporte 2 ancres (pre- et post-commit 8c71101 du 2026-04-15, fix story
+    9.3) :
+     - Ancienne : « Apres un module (proposition) »
+     - Nouvelle : « Proposition de guidage (post-module »
+
+    On cherche la premiere ancre presente. L'ancre de fin reste
+    « Sur demande explicite (declenchement direct) » (inchangee).
     """
-    start = text.find("Apres un module (proposition)")
+    anchors = [
+        "Proposition de guidage (post-module",  # post-2026-04-15
+        "Apres un module (proposition)",         # pre-2026-04-15 (retro-compat)
+    ]
+    start = -1
+    for anchor in anchors:
+        start = text.find(anchor)
+        if start != -1:
+            break
     assert start != -1, (
-        "Ancre « Apres un module (proposition) » introuvable — "
-        "la section normative de consentement a ete renommee ou supprimee."
+        "Aucune ancre de section post-module trouvee "
+        f"(essaye : {anchors}) — la section normative de consentement "
+        "a ete renommee au-dela des variantes supportees."
     )
     end = text.find("Sur demande explicite (declenchement direct)", start)
     assert end != -1, (

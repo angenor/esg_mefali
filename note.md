@@ -54,3 +54,104 @@ de plus j'ai de nouvelles évolution pour la plateforme:
 - le Tableau de bord peut etre plus expressif, plus grafique
 
 Comment gerer tout ca avec BMAD
+
+
+________________________________________________________________________
+/bmad-brainstorming TITRE : Exploration des 6 évolutions ESG Mefali avant PRD d'extension
+
+CONTEXTE PROJET :
+ESG Mefali — conseiller et agent ESG IA pour PME africaines francophones UEMOA/CEDEAO.
+Plateforme existante : 8 modules métier (ESG, carbone, crédit vert, 
+financement, dossiers, plan d'action, dashboard, rapports), ~935 tests, 
+LangGraph + tool calling, RAG pgvector, widgets interactifs, guided tours.
+
+AUDIT 18-SPECS TERMINÉ (voir _bmad-output/implementation-artifacts/spec-audits/index.md) :
+- 14 P1 identifiés (1 résolu — rate limiting) + 28 P2 + 56 P3
+- 5 références architecturales reconnues (specs 010, 011, 013, 014, 017)
+- Signaux PRD consolidés dans la section « Signaux pour le prochain PRD »
+
+ÉVOLUTIONS À EXPLORER :
+1. FINANCEMENT DE PROJET (vs entreprise) — un entrepreneur peut demander un 
+   financement pour UN projet spécifique, pas juste l'entreprise.
+2. PROFIL DYNAMIQUE (entreprise + projets) — un même projet peut avoir N 
+   dossiers différents selon le fonds ciblé et le profils peut etre ajusté selon le font.
+3. DOSSIER PROJET OU ENTREPRISE — ESG Mefali doit pouvoir monter un dossier 
+   pour financer un projet particulier sans exclure la possibilité de monter les dossiers de financement d'entreprise.
+4. CRITÈRES ESG RELATIFS — les critères ESG seraient relatifs (au secteur ? 
+   à la taille ? au projet ? le fond ciblé ? à creuser).
+5. ÉTUDE D'IMPACT — Mefali doit pouvoir faire une étude d'impact du projet 
+   d'une entreprise OU de l'entreprise.
+6. DASHBOARD PLUS EXPRESSIF ET GRAPHIQUE — enrichissement visuel.
+
+OBJECTIFS DU BRAINSTORMING (par ordre) :
+a) Révéler les implications cachées de chaque évolution (ex : passer d'un 
+   profil entreprise unique à N projets change le modèle data + routing 
+   LangGraph + scoring ESG).
+b) Identifier les DÉPENDANCES entre évolutions (ex : "critères ESG relatifs" 
+   est sans doute prérequis à "étude d'impact").
+c) Prioriser : lesquelles sont "phase 1" et lesquelles peuvent attendre.
+d) Révéler les personas impactés (entrepreneur solo vs multi-projets ? 
+   consultant qui suit plusieurs PME ?).
+
+CONTRAINTES ET SIGNAUX PRD À INTÉGRER (cf. spec-audits/index.md) :
+
+1. DÉCISION DATA-DRIVEN vs HARD-CODED (priorité absolue) :
+   - 4 specs ont révélé un hard-coding massif (SECTOR_WEIGHTS, 
+     SECTOR_BENCHMARKS, 12 fonds + 14 intermédiaires dans seed.py 889 lignes, 
+     facteurs d'émission, UEMOA/BCEAO)
+   - Les 6 évolutions nécessitent toutes une migration vers BDD avec 
+     interface admin — sinon refactor impossible
+   - Table `fund` + `intermediary` + `esg_sector_config` + 
+     `carbon_emission_factor` + `regulation_reference` à prévoir
+
+2. SATURATION DU PATTERN « PROMPTS DIRECTIFS » :
+   - 4 spec-correctifs consécutives (013, 015, 016, 017) ont juste ajouté 
+     plus de REGLE ABSOLUE dans les prompts
+   - Le pattern ne scale plus → réfléchir à un enforcement applicatif 
+     (state machines, guards pré-tool, agents dédiés)
+   - Nouvelles évolutions = nouvelles instructions transverses = saturation 
+     accélérée si pas de refactor
+
+3. FRAMEWORK D'INJECTION D'INSTRUCTIONS :
+   - 3 instructions transverses déjà dupliquées 
+     (STYLE + WIDGET + GUIDED_TOUR)
+   - Projet dynamique + étude d'impact généreront vraisemblablement 
+     2-3 nouvelles instructions → refactor préventif recommandé
+
+4. RICH BLOCKS EXTENSIBLES :
+   - Dashboard graphique nécessitera probablement des nouveaux types de 
+     blocs visuels — registre extensible attendu
+   - Spec 018 a contourné en créant un système parallèle 
+     (interactive_questions) plutôt qu'étendre
+
+5. SNAPSHOT DES DONNÉES SOURCE :
+   - Specs 008 + 010 n'ont pas de snapshot → historiques trompeurs
+   - Profil dynamique et étude d'impact : obligation de snapshot propre
+
+6. RAG TRANSVERSAL :
+   - Promesse FR-005 spec 009 non tenue, 1/8 modules consomme le RAG
+   - Étude d'impact et dossier projet bénéficieraient directement du RAG
+
+RÉFÉRENCES ARCHITECTURALES À S'INSPIRER :
+- Spec 010 (Green Credit Scoring) — pattern scoring/évaluation
+- Spec 011 (Dashboard Action Plan) — pattern intégration multi-modules + 
+  snapshot
+- Spec 013 (Fix routing) — pattern spec-correctif
+- Spec 014 (Concise Chat Style) — pattern micro-spec transverse
+- Spec 017 (Fix failing tests) — pattern spec-nettoyage
+
+PUBLIC CIBLE RAPPEL :
+- PME africaines francophones UEMOA/CEDEAO
+- Secteurs dominants : agroalimentaire (60-70%), commerce, artisanat, 
+  construction (source BCEAO) — actuellement SOUS-PONDÉRÉS dans le scoring ESG
+- Accès internet variable, data cost-sensitive, mobile-first
+- Bailleurs cibles : GCF, FEM, BOAD, BAD, SUNREF, FNDE
+
+LIVRABLE ATTENDU :
+Un document de brainstorming qui, pour chaque évolution :
+- Implications architecturales identifiées
+- Dépendances avec les autres évolutions
+- Personas impactés
+- Prérequis (dettes P1 à fixer avant)
+- Priorité suggérée (P0/P1/P2)
+- Questions ouvertes à clarifier

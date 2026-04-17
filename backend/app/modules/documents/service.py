@@ -42,6 +42,10 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 MIME_LABELS = "PDF, PNG, JPG, JPEG, DOCX, XLSX"
 
 
+class QuotaExceededError(Exception):
+    """Levée quand l'utilisateur dépasse son quota de stockage (dette spec 004 §3.2)."""
+
+
 # ─── Validation ──────────────────────────────────────────────────────
 
 
@@ -122,6 +126,28 @@ def _delete_file_from_disk(storage_path: str) -> None:
         parent.rmdir()
 
 
+# ─── Quota utilisateur ───────────────────────────────────────────────
+
+
+async def check_user_storage_quota(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> tuple[int, int]:
+    """Retourner (bytes_used, docs_count) pour cet utilisateur.
+
+    `func.coalesce(..., 0)` garantit le retour `0` quand l'utilisateur n'a
+    aucun document (SUM() renvoie NULL dans ce cas).
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Document.file_size), 0),
+            func.count(Document.id),
+        ).where(Document.user_id == user_id)
+    )
+    bytes_used, docs_count = result.one()
+    return int(bytes_used), int(docs_count)
+
+
 # ─── Upload ──────────────────────────────────────────────────────────
 
 
@@ -138,9 +164,38 @@ async def upload_document(
     _validate_mime_type(content_type)
     _validate_file_size(file_size)
 
+    # Vérification quota cumulé (dette spec 004 §3.2)
+    # NOTE : import local pour permettre le patch via monkeypatch.setattr
+    # dans les tests (cf. AC7) sans recharger le module.
+    from app.core.config import settings
+
+    bytes_used, docs_count = await check_user_storage_quota(db, user_id)
+    bytes_limit = settings.quota_bytes_per_user_mb * 1024 * 1024
+    docs_limit = settings.quota_docs_per_user
+
+    # Ordre des checks : docs_count AVANT bytes pour privilégier le message
+    # "documents" quand les deux quotas sont dépassés simultanément (AC3).
+    if docs_count >= docs_limit:
+        raise QuotaExceededError(
+            f"Quota atteint : {docs_count}/{docs_limit} documents. "
+            "Supprimez d'anciens documents pour libérer de l'espace."
+        )
+    if bytes_used + file_size > bytes_limit:
+        used_mb = bytes_used // (1024 * 1024)
+        limit_mb = settings.quota_bytes_per_user_mb
+        raise QuotaExceededError(
+            f"Quota atteint : {used_mb}/{limit_mb} MB. "
+            "Supprimez d'anciens documents pour libérer de l'espace."
+        )
+
     safe_filename = _sanitize_filename(filename)
     document_id = uuid.uuid4()
 
+    # Dette pré-existante spec 004 : dans un upload multi-fichiers, si un
+    # fichier ultérieur fait lever QuotaExceededError, _save_file_to_disk
+    # aura déjà écrit sur disque les fichiers précédents → orphelins
+    # (la transaction BDD rollback mais le disque n'est pas nettoyé).
+    # Hors scope story 9.2.
     storage_path = _save_file_to_disk(
         user_id=user_id,
         document_id=document_id,

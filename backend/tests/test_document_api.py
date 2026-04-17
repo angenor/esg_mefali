@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import make_unique_email
 
@@ -277,3 +278,195 @@ class TestDeleteEndpoint:
         )
 
         assert response.status_code == 403
+
+
+# ─── Tests GET /api/documents/quota (AC5) ───────────────────────────
+
+
+class TestQuotaEndpoint:
+    """Tests du endpoint de consultation du quota (dette spec 004 §3.2)."""
+
+    @pytest.mark.asyncio
+    async def test_quota_endpoint_requires_auth(
+        self, client: AsyncClient
+    ) -> None:
+        """GET /api/documents/quota sans token retourne 401."""
+        response = await client.get("/api/documents/quota")
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_quota_endpoint_returns_correct_structure(
+        self, client: AsyncClient
+    ) -> None:
+        """Après upload, GET /api/documents/quota retourne les 5 champs corrects."""
+        _, token = await create_authenticated_user(client)
+
+        # Upload un document de 2 MB pour avoir des valeurs non-nulles
+        two_mb = 2 * 1024 * 1024
+        content = b"%PDF-1.4" + b"x" * (two_mb - 8)
+
+        with patch(
+            "app.modules.documents.service._save_file_to_disk"
+        ) as mock_save:
+            mock_save.return_value = "uploads/test/doc/test.pdf"
+            upload_resp = await client.post(
+                "/api/documents/upload",
+                headers=auth_headers(token),
+                files={"files": ("doc.pdf", content, "application/pdf")},
+            )
+        assert upload_resp.status_code == 201
+
+        response = await client.get(
+            "/api/documents/quota",
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert set(body.keys()) == {
+            "bytes_used",
+            "bytes_limit",
+            "docs_count",
+            "docs_limit",
+            "usage_percent",
+        }
+        assert body["bytes_used"] == two_mb
+        assert body["bytes_limit"] == 100 * 1024 * 1024
+        assert body["docs_count"] == 1
+        assert body["docs_limit"] == 50
+        assert 0 <= body["usage_percent"] <= 100
+
+    @pytest.mark.asyncio
+    async def test_quota_endpoint_reflects_delete(
+        self, client: AsyncClient
+    ) -> None:
+        """Review P2 (AC4 end-to-end) — DELETE décrémente bytes_used visible via GET /quota."""
+        _, token = await create_authenticated_user(client)
+
+        # Upload 2 fichiers de 2 MB (batch sous MAX_FILES_PER_UPLOAD=5).
+        two_mb = 2 * 1024 * 1024
+        content = b"%PDF-1.4" + b"x" * (two_mb - 8)
+
+        with patch(
+            "app.modules.documents.service._save_file_to_disk"
+        ) as mock_save:
+            mock_save.return_value = "uploads/test/doc/test.pdf"
+            upload_resp = await client.post(
+                "/api/documents/upload",
+                headers=auth_headers(token),
+                files=[
+                    ("files", ("a.pdf", content, "application/pdf")),
+                    ("files", ("b.pdf", content, "application/pdf")),
+                ],
+            )
+        assert upload_resp.status_code == 201
+        doc_ids = [d["id"] for d in upload_resp.json()["documents"]]
+
+        # GET /quota avant delete
+        before = await client.get(
+            "/api/documents/quota", headers=auth_headers(token)
+        )
+        assert before.status_code == 200
+        assert before.json()["bytes_used"] == 2 * two_mb
+        assert before.json()["docs_count"] == 2
+
+        # DELETE un document
+        with patch(
+            "app.modules.documents.service._delete_file_from_disk"
+        ):
+            delete_resp = await client.delete(
+                f"/api/documents/{doc_ids[0]}",
+                headers=auth_headers(token),
+            )
+        assert delete_resp.status_code == 204
+
+        # GET /quota après delete : bytes_used décrémenté de 2 MB
+        after = await client.get(
+            "/api/documents/quota", headers=auth_headers(token)
+        )
+        assert after.status_code == 200
+        assert after.json()["bytes_used"] == two_mb
+        assert after.json()["docs_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_quota_endpoint_usage_percent_realistic(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Review P5 (AC5) — usage_percent = max(bytes_pct, docs_pct) sur valeurs non-triviales.
+
+        Pré-remplit 50 MB / 5 docs directement en BDD (plus rapide que
+        uploader 50 MB via HTTP). bytes_pct=50%, docs_pct=10%, max=50%.
+        """
+        from sqlalchemy import select
+
+        from app.models.user import User
+        from tests.test_document_upload import _fill_user_quota
+
+        data, token = await create_authenticated_user(client)
+
+        result = await db_session.execute(
+            select(User).where(User.email == data["email"])
+        )
+        user = result.scalar_one()
+
+        await _fill_user_quota(
+            db_session,
+            user.id,
+            bytes_total=50 * 1024 * 1024,
+            docs_count=5,
+        )
+        await db_session.commit()
+
+        response = await client.get(
+            "/api/documents/quota", headers=auth_headers(token)
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["bytes_used"] == 50 * 1024 * 1024
+        assert body["docs_count"] == 5
+        # bytes_pct = 50/100 = 50% ; docs_pct = 5/50 = 10% ; max = 50%
+        assert body["usage_percent"] == 50
+
+    @pytest.mark.asyncio
+    async def test_upload_returns_413_on_quota_exceeded(
+        self,
+        client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Review P6 — POST /api/documents/upload via HTTP → 413 quand quota dépassé.
+
+        Baisse le quota docs à 1 pour déclencher facilement le 413 sur le
+        2ᵉ upload ; vérifie le code HTTP, le détail JSON, et que le 413
+        passe bien par le router (pas par le check service).
+        """
+        from app.core.config import settings
+
+        _, token = await create_authenticated_user(client)
+
+        # Quota docs = 1 : un seul upload autorisé.
+        monkeypatch.setattr(settings, "quota_docs_per_user", 1)
+
+        with patch(
+            "app.modules.documents.service._save_file_to_disk"
+        ) as mock_save:
+            mock_save.return_value = "uploads/test/doc/test.pdf"
+            first = await client.post(
+                "/api/documents/upload",
+                headers=auth_headers(token),
+                files={"files": ("first.pdf", b"%PDF-1.4 content", "application/pdf")},
+            )
+        assert first.status_code == 201
+
+        # 2ᵉ upload : 1 + 1 = 2 > 1 → 413 via le pré-check router.
+        second = await client.post(
+            "/api/documents/upload",
+            headers=auth_headers(token),
+            files={"files": ("second.pdf", b"%PDF-1.4 content", "application/pdf")},
+        )
+
+        assert second.status_code == 413
+        detail = second.json()["detail"]
+        assert "Quota atteint" in detail
+        assert "documents" in detail

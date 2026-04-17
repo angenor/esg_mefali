@@ -40,6 +40,19 @@ async def setup_db():
         await conn.run_sync(Base.metadata.drop_all)
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reinitialiser l'etat du limiter SlowAPI entre chaque test (FR-013).
+
+    Evite que les compteurs de rate limit persistent d'un test a l'autre et
+    declenchent des faux 429 sur des tests qui envoient plus de 30 messages.
+    """
+    from app.core.rate_limit import limiter
+
+    limiter.reset()
+    yield
+
+
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dépendance de test pour remplacer la session de BDD."""
     async with test_session_factory() as session:

@@ -165,9 +165,11 @@ def test_guided_tour_instruction_unchanged():
 
     Verrouille sa longueur approximative pour detecter toute alteration.
     """
-    # Valeur de reference au moment de la story 6.3 — toute derive > 5 %
-    # indique une modification non intentionnelle du contrat cible par les
-    # 16+17 tests existants. Relevee a 7000 le 2026-04-15 pour accueillir
-    # la section « Cles context par tour_id » (BUG-1 post-fix guided_tour).
-    assert 3500 <= len(GUIDED_TOUR_INSTRUCTION) <= 7000
+    # Valeur de reference au moment de la story 6.3 — toute derive > 14 %
+    # (soit 7000 -> 8000) indique une modification non intentionnelle du
+    # contrat cible par les 16+17 tests existants. Relevee a 8000 le
+    # 2026-04-17 (story 9.3) pour accueillir la section « Cles context par
+    # tour_id » (commit 8c71101 post-fix BUG-1) qui a legitimement etendu
+    # le prompt de ~1600 chars.
+    assert 3500 <= len(GUIDED_TOUR_INSTRUCTION) <= 8000
     assert GUIDED_TOUR_INSTRUCTION.startswith("## OUTIL GUIDAGE VISUEL")

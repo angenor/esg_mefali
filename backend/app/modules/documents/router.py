@@ -3,21 +3,35 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.user import User
 from app.modules.documents.schemas import (
     DocumentDetailResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
+    QuotaStatus,
     ReanalyzeResponse,
 )
 from app.modules.documents.service import (
+    QuotaExceededError,
+    check_user_storage_quota,
     delete_document,
     get_document,
     list_documents,
@@ -78,10 +92,48 @@ async def upload_documents(
             detail=f"Maximum {MAX_FILES_PER_UPLOAD} fichiers par upload",
         )
 
-    uploaded_docs: list[DocumentResponse] = []
-
+    # Lire tous les contenus en mémoire AVANT toute écriture disque.
+    # Évite les orphelins disque quand un fichier tardif d'un batch
+    # dépasse le quota — cf. review D2.
+    files_data: list[tuple[UploadFile, bytes]] = []
     for file in files:
         content = await file.read()
+        files_data.append((file, content))
+
+    # Pré-check quota aggregate du batch AVANT tout _save_file_to_disk.
+    from app.core.config import settings
+
+    total_new_bytes = sum(len(content) for _, content in files_data)
+    total_new_docs = len(files_data)
+
+    bytes_used, docs_count = await check_user_storage_quota(db, current_user.id)
+    bytes_limit = settings.quota_bytes_per_user_mb * 1024 * 1024
+    docs_limit = settings.quota_docs_per_user
+
+    # Ordre : docs AVANT bytes, cf. AC3 du spec (message « documents »
+    # prioritaire quand les deux quotas sont dépassés simultanément).
+    if docs_count + total_new_docs > docs_limit:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"Quota atteint : {docs_count}/{docs_limit} documents. "
+                "Supprimez d'anciens documents pour libérer de l'espace."
+            ),
+        )
+    if bytes_used + total_new_bytes > bytes_limit:
+        used_mb = bytes_used // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"Quota atteint : "
+                f"{used_mb}/{settings.quota_bytes_per_user_mb} MB. "
+                "Supprimez d'anciens documents pour libérer de l'espace."
+            ),
+        )
+
+    uploaded_docs: list[DocumentResponse] = []
+
+    for file, content in files_data:
         try:
             doc = await upload_document(
                 db=db,
@@ -103,6 +155,14 @@ async def upload_documents(
                     has_analysis=False,
                     created_at=doc.created_at,
                 )
+            )
+        except QuotaExceededError as e:
+            # Défense en profondeur : le pré-check amont rejette déjà,
+            # mais un appel concurrent pourrait pousser un utilisateur
+            # juste au-dessus de la limite entre le pré-check et l'insert.
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=str(e),
             )
         except ValueError as e:
             raise HTTPException(
@@ -155,10 +215,51 @@ async def list_user_documents(
     )
 
 
+# ─── GET /quota ──────────────────────────────────────────────────────
+# L'ordre de déclaration n'est plus critique depuis que les routes
+# suivantes utilisent le path converter `{document_id:uuid}` — « quota »
+# n'est pas un UUID valide, donc aucune collision possible.
+
+
+@router.get("/quota", response_model=QuotaStatus)
+@limiter.limit("60/minute")
+async def get_quota_status(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> QuotaStatus:
+    """Récupérer le statut de quota de l'utilisateur (dette spec 004 §3.2).
+
+    Rate-limité à 60 req/min/utilisateur (review D3) pour protéger la BDD
+    contre le polling abusif de l'agrégat SUM+COUNT. Le paramètre `response`
+    est requis par SlowAPI pour pouvoir injecter les en-têtes X-RateLimit-*
+    (headers_enabled=True dans rate_limit.py).
+    """
+    from app.core.config import settings
+
+    bytes_used, docs_count = await check_user_storage_quota(db, current_user.id)
+    bytes_limit = settings.quota_bytes_per_user_mb * 1024 * 1024
+    docs_limit = settings.quota_docs_per_user
+    bytes_pct = (
+        min(100, round(bytes_used / bytes_limit * 100)) if bytes_limit else 0
+    )
+    docs_pct = (
+        min(100, round(docs_count / docs_limit * 100)) if docs_limit else 0
+    )
+    return QuotaStatus(
+        bytes_used=bytes_used,
+        bytes_limit=bytes_limit,
+        docs_count=docs_count,
+        docs_limit=docs_limit,
+        usage_percent=max(bytes_pct, docs_pct),
+    )
+
+
 # ─── GET /{id} ───────────────────────────────────────────────────────
 
 
-@router.get("/{document_id}", response_model=DocumentDetailResponse)
+@router.get("/{document_id:uuid}", response_model=DocumentDetailResponse)
 async def get_document_detail(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -195,7 +296,7 @@ async def get_document_detail(
 # ─── DELETE /{id} ────────────────────────────────────────────────────
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{document_id:uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document_endpoint(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -216,7 +317,7 @@ async def delete_document_endpoint(
 # ─── POST /{id}/reanalyze ───────────────────────────────────────────
 
 
-@router.post("/{document_id}/reanalyze", response_model=ReanalyzeResponse)
+@router.post("/{document_id:uuid}/reanalyze", response_model=ReanalyzeResponse)
 async def reanalyze_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -247,7 +348,7 @@ async def reanalyze_document(
 # ─── GET /{id}/preview ─────────────────────────────────────────────
 
 
-@router.get("/{document_id}/preview")
+@router.get("/{document_id:uuid}/preview")
 async def preview_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

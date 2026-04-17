@@ -5,7 +5,7 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from sqlalchemy import func, select, update
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import async_session_factory, get_db
+from app.core.rate_limit import limiter
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
@@ -660,7 +661,9 @@ async def get_messages(
 @router.post(
     "/conversations/{conversation_id}/messages",
 )
+@limiter.limit("30/minute")
 async def send_message(
+    request: Request,
     conversation_id: uuid.UUID,
     content: str = Form(None),
     file: UploadFile | None = File(None),
@@ -986,7 +989,9 @@ async def send_message(
 @router.post(
     "/conversations/{conversation_id}/messages/json",
 )
+@limiter.limit("30/minute")
 async def send_message_json(
+    request: Request,
     conversation_id: uuid.UUID,
     data: MessageCreate,
     current_user: User = Depends(get_current_user),
@@ -994,6 +999,7 @@ async def send_message_json(
 ) -> StreamingResponse:
     """Envoyer un message en JSON (sans fichier) — compatibilité."""
     return await send_message(
+        request=request,
         conversation_id=conversation_id,
         content=data.content,
         file=None,

@@ -1,5 +1,6 @@
 """Configuration de l'application via variables d'environnement."""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +43,12 @@ class Settings(BaseSettings):
     # Application
     app_version: str = "0.1.0"
     debug: bool = False
+
+    # Quotas utilisateur (dette spec 004 §3.2)
+    # ge=1 : refuse 0 au boot pour éviter les sémantiques ambigues
+    # (disabled vs unlimited) — cf. review D1.
+    quota_bytes_per_user_mb: int = Field(default=100, ge=1)
+    quota_docs_per_user: int = Field(default=50, ge=1)
 
 
 settings = Settings()

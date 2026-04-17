@@ -127,3 +127,17 @@ class ReanalyzeResponse(BaseModel):
     id: uuid.UUID
     status: DocumentStatusEnum
     message: str
+
+
+class QuotaStatus(BaseModel):
+    """Statut de quota de stockage d'un utilisateur (dette spec 004 §3.2)."""
+
+    bytes_used: int = Field(description="Octets utilisés")
+    bytes_limit: int = Field(description="Limite d'octets")
+    docs_count: int = Field(description="Nombre de documents")
+    docs_limit: int = Field(description="Limite de documents")
+    usage_percent: int = Field(
+        ge=0,
+        le=100,
+        description="Pourcentage du quota le plus contraignant",
+    )

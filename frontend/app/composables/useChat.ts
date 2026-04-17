@@ -274,6 +274,23 @@ export function useChat() {
         },
       )
 
+      // FR-013 (Story 9.1) — rate limiting 30 msg/min : afficher le delai d'attente
+      // et retirer le message utilisateur de la vue (idempotence : la requete a ete refusee).
+      if (response.status === 429) {
+        const retryAfterHeader = response.headers.get('Retry-After')
+        const retryAfter = retryAfterHeader && /^\d+$/.test(retryAfterHeader)
+          ? retryAfterHeader
+          : null
+        if (retryAfter) {
+          const suffix = Number(retryAfter) > 1 ? 's' : ''
+          error.value = `Trop de messages, réessayez dans ${retryAfter} seconde${suffix}.`
+        } else {
+          error.value = 'Trop de messages, patientez quelques instants.'
+        }
+        messages.value = messages.value.filter(m => m.id !== userMessage.id)
+        return
+      }
+
       if (!response.ok) {
         throw new Error('Erreur lors de l\'envoi du message')
       }

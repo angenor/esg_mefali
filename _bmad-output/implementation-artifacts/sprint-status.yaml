@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-15' (Story 8.3 implementation complete — status review)
+# last_updated: '2026-04-17' (Story 9.3 done — code review 8 patches appliqués, 7 defers tracés)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-15' (Story 8.3 review : parcours Aminata implemente, AC1-AC10 valides + non-regression Playwright/Vitest verts)
-last_story_created: '8-3-tests-e2e-parcours-aminata'
-last_review_completed: '7-3-resilience-sse-et-indicateur-de-reconnexion'
+last_updated: '2026-04-17' (Story 9.3 done — code review 8 patches appliqués, 7 defers tracés)
+last_story_created: '9-3-fix-4-tests-pre-existants-rouges'
+last_review_completed: '9-3-fix-4-tests-pre-existants-rouges'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -106,3 +106,12 @@ development_status:
   8-5-tests-e2e-parcours-aissatou: backlog
   8-6-tests-de-non-regression-globaux: backlog
   epic-8-retrospective: optional
+
+  # Epic 9 : Dettes techniques P1 (audits specs 001-018)
+  # Source : _bmad-output/implementation-artifacts/spec-audits/index.md §P1
+  # Chaque story adresse une dette P1 consolidee du cycle d'audit 2026-04-16/17.
+  epic-9: in-progress
+  9-1-rate-limiting-fr013-chat-endpoint: done
+  9-2-quota-cumule-stockage-par-utilisateur: done
+  9-3-fix-4-tests-pre-existants-rouges: done
+  epic-9-retrospective: optional
