@@ -101,6 +101,137 @@ class TestImageExtraction:
             assert "Contenu OCR JPEG" in text
 
 
+# ─── Tests OCR bilingue FR+EN (story 9.4) ──────────────────────────
+
+
+def _get_pytesseract_lang_arg(mock_ocr: MagicMock) -> str | None:
+    # Recupere `lang` passe a pytesseract.image_to_string (kwargs ou 2e arg positionnel).
+    call = mock_ocr.call_args
+    if "lang" in call.kwargs:
+        return call.kwargs["lang"]
+    if len(call.args) >= 2:
+        return call.args[1]
+    return None
+
+
+class TestOCRBilingual:
+    """Tests verrouillant le contrat OCR bilingue (fra+eng).
+
+    Detecte tout refactor qui reverterait silencieusement a lang="fra"
+    et casserait l'extraction des documents de bailleurs anglophones
+    (GCF, FEM, BAD — coeur de la value proposition Mefali).
+
+    Source : spec-audits/index.md §P1 #8 (reclasse P2->P1 le 2026-04-16).
+    """
+
+    def test_ocr_passes_fra_plus_eng_to_pytesseract(self) -> None:
+        """AC1 + AC6 — `lang="fra+eng"` est bien transmis a pytesseract.
+
+        Test de contrat : si un futur refactor repasse a lang="fra",
+        ce test echoue et empeche la regression metier critique.
+        """
+        from app.modules.documents.service import _extract_text_ocr
+
+        with patch("PIL.Image.open"), patch(
+            "pytesseract.image_to_string", return_value="texte mock"
+        ) as mock_ocr:
+            _extract_text_ocr("/tmp/fake.png")
+
+        assert mock_ocr.called, "pytesseract.image_to_string non appele"
+        lang = _get_pytesseract_lang_arg(mock_ocr)
+        assert lang == "fra+eng", (
+            f"lang='fra+eng' attendu, recu lang={lang!r}. "
+            "Ne jamais revenir a lang='fra' — casse les documents GCF/FEM/BAD."
+        )
+
+    def test_ocr_french_document_unchanged(self) -> None:
+        """AC1 — Extraction d'un document 100 % francais reste fonctionnelle.
+
+        Non-regression : le passage a fra+eng ne degrade pas la
+        reconnaissance des accents et mots francais.
+        """
+        from app.modules.documents.service import _extract_text_ocr
+
+        french_text = (
+            "Rapport ESG 2024 — Gouvernance d'entreprise, émissions de "
+            "gaz à effet de serre, résilience climatique. Signé à Dakar."
+        )
+        with patch("PIL.Image.open"), patch(
+            "pytesseract.image_to_string", return_value=french_text
+        ):
+            result = _extract_text_ocr("/tmp/rapport_fr.png")
+
+        assert "gouvernance" in result.lower()
+        assert "émissions" in result.lower(), (
+            "Les accents francais doivent etre preserves dans la chaine extraite."
+        )
+
+    def test_ocr_english_document_extracts_keywords(self) -> None:
+        """AC2 — Extraction d'un document GCF/FEM anglais retrouve les
+        mots-cles ESG anglais (climate, emissions, governance, etc.).
+        """
+        from app.modules.documents.service import _extract_text_ocr
+
+        gcf_extract = (
+            "Green Climate Fund — Funding Proposal Template. "
+            "Climate mitigation and adaptation. Governance arrangements. "
+            "Sustainability risk framework. Project emissions baseline."
+        )
+        with patch("PIL.Image.open"), patch(
+            "pytesseract.image_to_string", return_value=gcf_extract
+        ) as mock_ocr:
+            result = _extract_text_ocr("/tmp/gcf_proposal.png")
+
+        # Contrat bilingue (AC6) verifie meme sur document 100% anglais.
+        assert _get_pytesseract_lang_arg(mock_ocr) == "fra+eng", (
+            "Meme pour un document 100% anglais, lang='fra+eng' doit etre passe "
+            "a pytesseract (sinon regression du contrat bilingue)."
+        )
+
+        keywords = {
+            "climate", "emissions", "governance",
+            "sustainability", "mitigation", "adaptation",
+        }
+        found = {kw for kw in keywords if kw in result.lower()}
+        assert len(found) >= 4, (
+            f"Au moins 4 mots-cles ESG anglais attendus sur {len(keywords)}, "
+            f"trouves : {found}"
+        )
+
+    def test_ocr_mixed_fr_en_document_extracts_both(self) -> None:
+        """AC3 — PDF bilingue (RFP GCF partiellement traduit) : les 2
+        langues sont capturees dans une seule extraction.
+        """
+        from app.modules.documents.service import _extract_text_ocr
+
+        mixed_extract = (
+            "Executive Summary — Climate mitigation project. "
+            "Page 2: Résumé exécutif — Projet d'atténuation des émissions. "
+            "Gouvernance conforme aux exigences BCEAO."
+        )
+        with patch("PIL.Image.open"), patch(
+            "pytesseract.image_to_string", return_value=mixed_extract
+        ) as mock_ocr:
+            result = _extract_text_ocr("/tmp/mixed_rfp.png")
+
+        # Contrat bilingue (AC6) verifie meme sur document mixte.
+        assert _get_pytesseract_lang_arg(mock_ocr) == "fra+eng", (
+            "Document mixte : lang='fra+eng' doit etre passe a pytesseract."
+        )
+
+        french_hits = [
+            word for word in ("gouvernance", "atténuation", "émissions")
+            if word in result.lower()
+        ]
+        english_hits = [
+            word for word in ("climate", "mitigation", "summary")
+            if word in result.lower()
+        ]
+
+        assert french_hits, f"Aucun mot francais detecte : {result!r}"
+        assert english_hits, f"Aucun mot anglais detecte : {result!r}"
+
+
 # ─── Tests extraction Word ──────────────────────────────────────────
 
 

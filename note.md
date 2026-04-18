@@ -1,5 +1,7 @@
 test cette feature avec `agent-browser --headed`
 
+`claude --dangerously-skip-permissions`
+
 Email: `amadou@ecosolaire.sn`
 Mot de passe: `TestPass123!`
 
@@ -44,17 +46,24 @@ Souhaitez-vous que j'ouvre la page d'admissibilité du Programme Mobilité franc
 
 
 
-Les feature dévéloppés par speckit sembles fonctionner partiellement et je ne suis pas sùr de la qualité d'implementation, qu'est-ce que je peux faire avec BMAD pour regler celà, des reviews ? ou quoi ?
-de plus j'ai de nouvelles évolution pour la plateforme:
-- il arrive qu'un entrepreneurs veuil un financement pour un projet, il désir donc postuler avec un projet et non pas avec l'enreprise(je paraphrase). 
-- vu la demande précédente, un profil devrait peut-etre etre dynamique: infos entreprise, infos projet(il semblerait qu'un meme projet peut avoir des dossiers différent selon le fond où on veut postuler)
--  Esg Mefali doit pouvoir monter un dossier pour demander le financement d'un projet particulier, sans exclure qu'on doit aussi pouvoir monter un dossier pour demander le financement de l'entreprise
-- il semblerait que les Criteres ESG soit aussi relatif, il va falloir creuser
-- Esg Mefali doit pouvoir faire une étude d’impact du projet d'une entreprise ou de l’entreprise
-- le Tableau de bord peut etre plus expressif, plus grafique
 
-Comment gerer tout ca avec BMAD
 
+  Cause racine
+
+  Le hook est défini quelque part sous ~/.claude/plugins/.../gateguard-fact-force.js avec les flags      
+  standard,strict. Le mode strict force l'énoncé des 4 faits systématiquement, y compris sur des fichiers
+   markdown inertes où les questions « fichiers importeurs » ou « fonctions affectées » ne s'appliquent  
+  pas (réponses N/A), ce qui amplifie le bruit.                                                        
+
+  Options pour la suite
+
+  - Option A — Garder tel quel : utile pour des projets critiques (PII, prod), le prix à payer est la
+  verbosité.
+  - Option B — Abaisser à standard seul : supprime le mode strict, le hook ne s'active que sur des cibles
+   à risque (fichiers avec secrets, données prod, etc.).                                                 
+  - Option C — Désactiver sur les markdowns de _bmad-output/ : ajouter un filtre d'exclusion pour les
+  fichiers de tracking BMAD qui sont purement documentaires.                                             
+  - Option D — Désactiver complètement : retirer le hook si tu ne travailles pas sur du sensible. 
 
 ________________________________________________________________________
 /bmad-brainstorming TITRE : Exploration des 6 évolutions ESG Mefali avant PRD d'extension

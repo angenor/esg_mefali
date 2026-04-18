@@ -5,7 +5,8 @@ WORKDIR /app
 # Dépendances système :
 # - gcc, libpq-dev : compilation asyncpg/bcrypt
 # - libpango, libcairo, libffi : WeasyPrint (génération PDF)
-# - tesseract-ocr + langue française : OCR documents (pytesseract)
+# - tesseract-ocr + langues française ET anglaise (bilingue fra+eng pour
+#   documents GCF/FEM/BAD anglophones) : OCR documents (pytesseract)
 # - poppler-utils : conversion PDF vers images (pdf2image)
 # - fonts-liberation : rendu PDF correct
 # - curl : healthcheck
@@ -19,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     tesseract-ocr \
     tesseract-ocr-fra \
+    tesseract-ocr-eng \
     poppler-utils \
     fonts-liberation \
     curl \

@@ -36,6 +36,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("OPENROUTER_API_KEY non configurée — graphe LangGraph désactivé")
 
+    # Validation OCR bilingue (dette P1 #8 — story 9.4)
+    # Log WARNING si la traineddata anglaise (ou francaise) est absente, pour
+    # rendre le diagnostic visible au startup plutot qu'au premier upload.
+    # Non bloquant : en dev, un contributeur peut demarrer sans eng installe
+    # (seuls les appels OCR sur documents anglophones echoueront, comportement
+    # identique a aujourd'hui — on rend juste le diagnostic visible).
+    try:
+        import pytesseract
+
+        languages = set(pytesseract.get_languages(config=""))
+        missing = {"fra", "eng"} - languages
+        if missing:
+            logger.warning(
+                "Tesseract OCR : langue(s) %s absente(s) — l'OCR bilingue "
+                "(fra+eng) echouera sur les documents concernes. "
+                "Installez les paquets : %s.",
+                sorted(missing),
+                ", ".join(f"tesseract-ocr-{lang}" for lang in sorted(missing)),
+            )
+        else:
+            logger.info("Tesseract OCR : langues fra+eng disponibles")
+    except ImportError:
+        logger.warning(
+            "pytesseract non installe — OCR indisponible (echec au 1er upload image/PDF scanne). "
+            "Installez pytesseract + tesseract-ocr + tesseract-ocr-fra "
+            "+ tesseract-ocr-eng pour activer l'extraction de documents scannes."
+        )
+    except Exception as exc:  # pytesseract.TesseractNotFoundError et autres
+        logger.warning(
+            "Tesseract OCR introuvable ou non fonctionnel (%s) — installez "
+            "tesseract-ocr + tesseract-ocr-fra + tesseract-ocr-eng pour "
+            "activer l'extraction de documents scannes.",
+            exc,
+        )
+
     yield
 
     # Arrêt

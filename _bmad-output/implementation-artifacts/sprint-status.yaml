@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-17' (Story 9.3 done — code review 8 patches appliqués, 7 defers tracés)
+# last_updated: '2026-04-18' (Story 9.4 done — 2nd pass code-review: 7 patches applied + 18 defers + 25 dismissed, regression 1107/0 in 173.86s, Status → done)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-17' (Story 9.3 done — code review 8 patches appliqués, 7 defers tracés)
-last_story_created: '9-3-fix-4-tests-pre-existants-rouges'
-last_review_completed: '9-3-fix-4-tests-pre-existants-rouges'
+last_updated: '2026-04-18' (Story 9.4 done — 2nd pass code-review: 7 patches applied + 18 defers + 25 dismissed, regression 1107/0 in 173.86s, Status → done)
+last_story_created: '9-4-ocr-bilingue-fr-eng-documents-anglophones'
+last_review_completed: '9-4-ocr-bilingue-fr-eng-documents-anglophones (2nd pass)'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -114,4 +114,5 @@ development_status:
   9-1-rate-limiting-fr013-chat-endpoint: done
   9-2-quota-cumule-stockage-par-utilisateur: done
   9-3-fix-4-tests-pre-existants-rouges: done
+  9-4-ocr-bilingue-fr-eng-documents-anglophones: done
   epic-9-retrospective: optional

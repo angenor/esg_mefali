@@ -36,8 +36,10 @@
 **Stories résolues depuis l'audit** (2026-04-17) :
 - ✅ P1 #2 — Rate limiting chat (story `9-1-rate-limiting-fr013-chat-endpoint`)
 - ✅ P1 #4 — Quota stockage utilisateur (story `9-2-quota-cumule-stockage-par-utilisateur`)
+- ✅ Hygiène CI — Fix 4 tests pré-existants rouges (story `9-3-fix-4-tests-pre-existants-rouges`) — **baseline 1103/1103 verts restaurée**, principe « zero failing tests on main » opérationnel
+- ✅ P1 #8 — OCR bilingue FR+EN (story `9-4-ocr-bilingue-fr-eng-documents-anglophones`) — audit §3.6 était un **faux positif sur le code** (`lang="fra+eng"` depuis le commit initial) ; vrais fix opérationnels : `Dockerfile.prod` (ajout `tesseract-ocr-eng`), startup check `pytesseract.get_languages()` dans le lifespan FastAPI, classe `TestOCRBilingual` (4 tests) verrouillant le contrat. Voir [deferred-work.md](../deferred-work.md).
 
-**P1 restants** : 12 / 14 (2 résolus, 12 à ouvrir)
+**P1 restants** : 11 / 14 (3 résolus, 11 à ouvrir)
 
 ---
 
@@ -91,10 +93,11 @@
    - Justification P1 : confiance utilisateur (invisible côté UX, catastrophique quand ça arrive)
    - Audit additionnel requis : chercher en BDD les divergences entre `profile_update` SSE events et l'état actuel du profil — possibles écrasements passés à inventorier
 
-8. **OCR bilingue FR+EN — tesseract `lang='fra+eng'`** (source : 004) — **reclassé P2→P1 le 2026-04-16**
-   - Fichier : appel `pytesseract.image_to_string(..., lang='fra')` dans `backend/app/modules/documents/service.py`
-   - Impact : **impact métier direct**. Les bailleurs climatiques internationaux (GCF, FEM, BAD) publient majoritairement en anglais. OCR dégradé → analyse ESG fausse → matching financement biaisé → score crédit vert erroné. Un user qui teste avec un doc GCF anglais conclut « ça ne marche pas ».
-   - Justification P1 : le cœur de la value proposition (« accès aux fonds verts ») dépend de documents souvent anglophones
+8. ~~**OCR bilingue FR+EN — tesseract `lang='fra+eng'`**~~ (source : 004) — **reclassé P2→P1 le 2026-04-16** → ✅ **RÉSOLU 2026-04-17** — story `9-4-ocr-bilingue-fr-eng-documents-anglophones`
+   - **Découverte clé** : le code utilisait DÉJÀ `lang="fra+eng"` depuis le commit initial du module 004 (`86ece82`). L'audit §3.6 était un **faux positif méthodologique** (hypothèse non vérifiée par `grep` sur le code).
+   - **Vrais fix livrés** : (1) `backend/Dockerfile.prod` — ajout de `tesseract-ocr-eng` à la liste `apt-get install` (le paquet `eng.traineddata` manquait en prod, alors que le code l'exigeait → `TesseractError` silencieux au premier upload anglophone) ; (2) `backend/app/main.py` — check startup non bloquant via `pytesseract.get_languages()` avec log WARNING explicite si `fra`/`eng` manquent ; (3) `backend/tests/test_document_extraction.py` — nouvelle classe `TestOCRBilingual` (4 tests) verrouillant le contrat `kwargs["lang"] == "fra+eng"` + régression FR + extraction EN + extraction mixte.
+   - **Leçon méthodo** : un audit par lecture de la spec sans grep sur le code produit des faux positifs. Ajouté à la checklist d'audit.
+   - **Impact résiduel nul** : `service.py` n'a pas été touché (code déjà correct).
 
 9. **Compléter SECTOR_WEIGHTS pour les 11 secteurs** (source : 005) — **reclassé P2→P1 le 2026-04-16**
    - Fichier : `backend/app/modules/esg/weights.py:12`
@@ -663,6 +666,33 @@ Leçon de spec 016 US3 : la BDD des 12 fonds était dans le prompt financing →
 - `company_context` est injecté dans esg_scoring_node, carbon_node... Le LLM appelle-t-il quand même `get_company_profile` ? À instrumenter.
 - `applicable_categories` dans carbon_node — le LLM appelle-t-il `get_applicable_categories` ?
 - Plus largement : toute donnée injectée dans un prompt **doit être une donnée qui n'est pas accessible via un tool**.
+
+### 🎭 Tests qui valident le mock, pas le comportement (2 occurrences)
+
+Pattern identifié sur :
+- **Spec 015** (fix ESG tool-call timeout) : les tests T002/T007 vérifient que le prompt contient `"REGLE ABSOLUE"` mais pas que le LLM la respecte (§3.6 audit 015)
+- **Story 9.4** (OCR bilingue) 1ʳᵉ passe de review : les tests AC2/AC3 mockent `pytesseract.image_to_string` avec un texte écrit à la main contenant les mots-clés ESG, puis assertent leur présence → test de wiring, pas du moteur OCR. Corrigé en review (ajout `assert mock_ocr.call_args.kwargs.get("lang") == "fra+eng"` + seuil `>= 4`).
+
+**Cause récurrente** : quand le comportement testé dépend d'un composant externe coûteux (LLM, OCR, API tierce), on mocke pour la vitesse mais on oublie d'asserter le **contrat d'appel** — seule chose qu'on maîtrise en unit test.
+
+**Règle à appliquer systématiquement** : tout test qui mocke un appel doit au minimum asserter sur `call_args` (les arguments passés au mock). Sinon le test ne valide que l'orchestration, ce qui est rarement la vraie valeur.
+
+**Complémentaire obligatoire** : une story d'intégration `@pytest.mark.integration` en CI nightly avec le composant réel (Tesseract + fixtures PNG/PDF réelles, ou LLM + fixtures de conversation). Story 9.4 a créé une telle story P3 différée (`TestOCRBilingualIntegration`).
+
+### 🔎 Faux positifs d'audit statique (pattern observé sur story 9.4)
+
+L'audit rétrospectif spec 004 §3.6 avait identifié « OCR configuré en `lang='fra'` seulement » comme P2 (puis reclassé P1). **Faux positif** : vérification en dev-story révèle que `lang="fra+eng"` existait depuis le commit initial du module documents.
+
+La vraie dette était **opérationnelle** :
+- `Dockerfile.prod` n'installe pas `tesseract-ocr-eng`
+- Pas de startup check `pytesseract.get_languages()`
+- Pas de tests verrouillant le contrat `fra+eng`
+
+**Leçon pour les futurs audits** : la retro statique (lecture de spec.md/plan.md/tasks.md) peut identifier des dettes qui n'existent pas au moment de l'audit, ou dont la vraie forme est différente. La **phase dev-story BMAD** ajoute une vérification code effective que l'audit ne faisait pas.
+
+**Recommandation pour les audits retro** : systématiser un grep/lecture code au moment de l'audit pour valider que la dette existe vraiment. Ou accepter que ~5-10 % des P1 audit soient des faux positifs à affiner en dev-story — c'est le prix de la vitesse d'audit.
+
+**Estimation** : sur les 14 P1 audit, au moins 1 faux positif confirmé (P1 #8). Probablement 0-2 autres parmi les 12 restants. À valider par l'exécution.
 
 ### 🧰 Gouvernance CI laxiste — tolérance à la dette normalisée (spec 017)
 

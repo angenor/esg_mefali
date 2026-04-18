@@ -1,5 +1,73 @@
 # Deferred Work
 
+## Deferred from: code review of 9-4-ocr-bilingue-fr-eng-documents-anglophones (2026-04-18, second pass)
+
+Items nouveaux identifiés lors d'une **deuxième passe** `bmad-code-review` le 2026-04-18 (Blind + Edge Case + Acceptance Auditor indépendants de la 1ʳᵉ passe). La majorité des findings sont déjà couverts par la section 1ʳᵉ passe ci-dessous ; seuls les items inédits sont listés ici.
+
+- **`SystemExit` / `BaseException` non attrapés par `except Exception` du lifespan OCR** [backend/app/main.py:66-72] — si une future version de pytesseract lance `SystemExit` (hypothétique mais documenté dans son code source pour certaines erreurs de version Tesseract < 3.05), le worker Uvicorn crashe au startup au lieu de logger un WARNING non bloquant. Action : à traiter avec le narrowing `except` déjà déféré en 1ʳᵉ passe, en ajoutant explicitement `(Exception, SystemExit)` ou en gardant `BaseException` uniquement ciblé sur le bloc OCR.
+- **`pytesseract.get_languages()` invoque `subprocess.run` sans `timeout=`** — distinct du « bloquant event loop async » déjà listé : ici, risque de **hang infini** au startup si le binaire tesseract bloque (disque saturé, traineddata corrompue, init lent NFS). Action : wrapper `asyncio.wait_for(asyncio.to_thread(get_languages), timeout=5.0)` pour borner le startup.
+- **Placeholder `<short-sha>` dans `deferred-work.md:55`** — bien annoté « (a ajouter apres commit) » mais dépend d'une action opérateur hors diff ; à substituer au commit de clôture story (non bloquant, traçable).
+- **`set(pytesseract.get_languages(config=""))` plante si `get_languages` retourne `None`** — cas des wrappers pytesseract forkés (Tesseract-ARM custom, certains builds Alpine). `TypeError` absorbée par `except Exception` avec message trompeur « Tesseract introuvable » alors que le binaire fonctionne. Hypothétique mais zéro coût à guarder (`languages = set(get_languages(config="") or [])`).
+- **`pytesseract.image_to_string` sans `timeout=` dans `service.py:270-278` → DoS potentiel** — un attaquant upload un PDF scanné de plusieurs centaines de pages, l'OCR séquentiel bloque un worker pendant plusieurs minutes. Hors scope 9.4 (service.py intouché par la story), mais opportunité manquée — story sécurité/Ops dédiée à ouvrir.
+- **`.strip()` asymétrique entre branches PDF et image de `_extract_text_ocr`** [backend/app/modules/documents/service.py:274,278] — branche image : `image_to_string(img).strip()` ; branche PDF : `"\n".join(text_parts).strip()` (chaque `text_parts[i]` conserve son whitespace). Un PDF avec page blanche produit `"\n\n\n"` là où une image blanche produit `""`. Pré-existant, hors scope 9.4.
+- **Pas de `logger.debug("OCR lang=... file=...")` dans `service.py`** — impossible en prod de distinguer « lang bien `fra+eng` mais `eng.traineddata` absent » vs « lang downgradé silencieusement ». Combiné au `except Exception` qui wrap en `ValueError` opaque (ligne 285), perte totale d'observabilité per-requête. Hors scope 9.4 (service.py intouché), amélioration observabilité.
+
+---
+
+## Deferred from: code review of 9-4-ocr-bilingue-fr-eng-documents-anglophones (2026-04-18)
+
+Items différés suite à la revue adversariale 3-couches du 2026-04-18 (Blind Hunter + Edge Case Hunter + Acceptance Auditor). Ces items sont réels mais pré-existants à 9.4 ou hors périmètre ; ils ne bloquent pas la fermeture de la story.
+
+- **AC7 temps d'exécution global 390 s > 200 s** — pré-existant, delta 185→390 s accumulé entre 9.3 et 9.4, indépendant du scope OCR. Action : story P3 future — profiler les tests lents et isoler en `@pytest.mark.slow`.
+- **YAML `last_updated: '2026-04-17' (Story ...)` non parseable** — pattern pré-existant (même forme pour 9.1–9.3). Action : normaliser en un seul commit (déplacer le commentaire sur une ligne `#` dédiée).
+- **Branche PDF de `_extract_text_ocr` (`pdf2image.convert_from_path`) jamais testée** — les 4 tests 9.4 couvrent uniquement la branche image directe (`PIL.Image.open`). Action : ajouter 2 tests PDF à une story future pour fermer la couverture.
+- **`pytesseract.get_languages()` bloquant l'event loop async au startup** — acceptable pour un check one-shot, mais théoriquement à wrapper via `asyncio.to_thread` si profilage montre un impact sur le healthcheck Docker.
+- **Lifespan duplication sur multi-workers (Gunicorn/Uvicorn)** — log WARNING émis N fois (1 par worker). Non bloquant mais peut polluer les logs prod. Action : gate par `app.state.ocr_checked` lors de la prochaine intervention sur le lifespan.
+- **Aucun test unitaire n'invoque `lifespan` pour vérifier l'émission du WARNING** — le bloc OCR de `main.py` est uniquement validé par smoke-test local. Action : ajouter `test_lifespan_warns_when_eng_missing` avec `caplog` dans `tests/test_main_lifespan.py` (à créer).
+- **Docker build validation absente** : pas de test ARM64 vs x86_64, pas d'épinglage de version `tesseract-ocr-eng`, pas d'invalidation de cache layer, pas de `tesseract --list-langs | grep -q eng` post-install. Action : story Ops dédiée à la CI/CD.
+- **TESSDATA_PREFIX non validé/logué au startup** — si la variable d'env est absente ou incorrecte, `get_languages()` renvoie [] silencieusement. Action : logger explicitement la valeur au startup (ops concern).
+- ~~**Assertion `len(found) >= 2` dans `test_ocr_english_document_extracts_keywords` permet silencieusement 4 mots-clés manquants sur 6**~~ — ✅ **RÉSOLU 2026-04-18 par code-review 2ᵉ passe** : assertion renforcée à `len(found) >= 4` (marge de 2 mots-clés sur 6).
+- **`.strip()` (probable) du résultat de `image_to_string` non testé** — edge case whitespace non couvert, refactor silencieux possible.
+- **Aucun test ne simule `pytesseract.image_to_string` levant `TesseractError`** — le wrap `try/except` de `service.py:285` n'est jamais exercé par la suite. Action : ajouter `test_ocr_tesseract_error_wrapped_as_value_error`.
+- **Edge cases `get_languages` non gérés** : liste vide (binaire OK, aucune traineddata), `'osd'` seul (Tesseract sans langue réelle), variantes locales `_old`/`_best` (filtrage préfixe requis), versions pytesseract < 0.3.7 sans `get_languages` (AttributeError absorbée par `except Exception` générique, message trompeur). Action : durcir le check startup avec des branches ciblées.
+- **`pytesseract` absent en CI runner** → ajouter `pytest.importorskip("pytesseract")` en tête de `TestOCRBilingual` pour un skip propre au lieu d'une erreur d'import.
+- **Story P3 future : `TestOCRBilingualIntegration @pytest.mark.integration`** — vraies fixtures PNG/PDF (1 FR rapport ESG signé, 1 EN GCF Funding Proposal, 1 mixte RFP partiellement traduit), exécution Tesseract réelle en CI nightly avec container Docker contenant `fra+eng` installés. Les tests unitaires actuels (classe `TestOCRBilingual`) verrouillent le contrat ; ceux d'intégration valideraient la capacité réelle de Tesseract à extraire les mots-clés. Résolution decision 2/2 choix 4b code-review 9.4.
+- **`except Exception as exc` trop large au startup OCR [backend/app/main.py:66-72]** — le narrowing proposé (catcher spécifiquement `pytesseract.TesseractNotFoundError`, `FileNotFoundError`, `PermissionError`) a été différé du batch 9.4 : risque de laisser passer silencieusement `TypeError`/`AttributeError` sur incompatibilité de version pytesseract < 0.3.7 (alors que l'un des buts du check startup est justement de rendre visible ce type de problème d'env). Action : traiter avec des tests lifespan dédiés (`tests/test_main_lifespan.py` — cf. item « Aucun test unitaire n'invoque `lifespan` » ci-dessus) qui permettent de valider chaque branche d'erreur avant de narrow le except. Hors scope 9.4.
+
+---
+
+## Resolved (2026-04-17) — Story 9.4 : OCR bilingue FR+EN pour documents de bailleurs anglophones
+
+### Ecart audit / realite — faux positif partiel du spec 004 §3.6
+
+- **Constat audit** : spec-004-audit.md §3.6 supposait `pytesseract` configure en `lang='fra'` uniquement (hypothese : _« pytesseract configure **probablement** en `fra` »_).
+- **Realite code** : `grep "lang=" backend/app/modules/documents/service.py` confirme `lang="fra+eng"` depuis le commit initial du module (`86ece82 Feature 004 — Document Upload & Analysis`). Le code a **toujours** ete bilingue.
+- **Lecon methodo** : un audit par lecture de la spec sans verification du code produit des faux positifs. Ajouter systematiquement une passe `grep` sur le repo avant de classer une dette.
+
+### Vrais manques operationnels corriges par 9.4
+
+- **Dockerfile.prod incoherent** : installait `tesseract-ocr-fra` mais pas `tesseract-ocr-eng`. En prod, `pytesseract.image_to_string(img, lang="fra+eng")` levait `TesseractError: Error opening data file eng.traineddata` sur tout document anglophone, transforme en `ValueError` opaque par le try/except du service. **Fix : ajout de `tesseract-ocr-eng` a la liste `apt-get install` + commentaire bilingue actualise.**
+- **Pas de check startup** : l'absence de `eng.traineddata` n'etait detectee qu'au premier upload, avec un message d'erreur non actionnable. **Fix : validation `pytesseract.get_languages()` dans le `lifespan` FastAPI (app/main.py), log WARNING explicite si `fra` ou `eng` manque (non bloquant pour garder la DX en dev).**
+- **Pas de test de contrat bilingue** : les tests OCR existants mockaient `_extract_text_ocr` ou `pytesseract.image_to_string` sans asserter sur `kwargs["lang"]`. Un refactor revertant a `lang="fra"` passait la CI. **Fix : nouvelle classe `TestOCRBilingual` (4 tests) qui verrouille le contrat (assertion `kwargs["lang"] == "fra+eng"` + regression FR + extraction EN + extraction mixte FR+EN).**
+
+### Fichiers modifies
+
+- `backend/Dockerfile.prod` (ligne 8 commentaire + ajout `tesseract-ocr-eng`) — +2 lignes nettes.
+- `backend/app/main.py` (lifespan : ~33 lignes de check OCR non bloquant apres init LangGraph).
+- `backend/tests/test_document_extraction.py` (nouvelle classe `TestOCRBilingual`, ~115 lignes / 4 tests).
+- `_bmad-output/implementation-artifacts/deferred-work.md` (cette section).
+- `_bmad-output/implementation-artifacts/spec-audits/index.md` (marqueur `Resolu par story 9.4` sous §P1 #8).
+
+### Validation post-fix
+
+- `pytest tests/test_document_extraction.py::TestOCRBilingual -v` → 4/4 verts (0.19 s).
+- `pytest tests/test_document_extraction.py -v` → 11/11 verts (1.12 s), zero regression sur les 4 classes existantes.
+- Smoke-test lifespan : `asyncio.run(lifespan(app))` logue `INFO: Tesseract OCR : langues fra+eng disponibles` sur poste local — startup check fonctionnel.
+- Negative-control : simulation `lang="fra"` declenche bien l'assertion de contrat → regression detectable.
+- `grep "lang=" backend/app/modules/documents/service.py` → 2 occurrences `lang="fra+eng"` (inchangees, confirmation que service.py n'a pas ete touche).
+- Item P1 #8 de spec-audits/index.md marque `Resolu par story 9.4`.
+- **Commit fix** : `<short-sha>` (a ajouter apres commit).
+
 ## Resolved (2026-04-17) — Story 9.3 : fix 4 tests pre-existants rouges
 
 ### 3 tests `test_guided_tour_*` casses par le commit `8c71101` (2026-04-15)
