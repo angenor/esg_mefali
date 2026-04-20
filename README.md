@@ -30,6 +30,14 @@ make dev
 | Backend API | http://localhost:8000 |
 | Swagger Docs | http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 |
+| MinIO (mock S3 DEV) | http://localhost:9000 (API) / http://localhost:9001 (console) |
+
+## Stack locale complete (Story 10.7)
+
+- `docker-compose up` → Postgres + backend + frontend + MinIO (mock S3 local)
+- Console MinIO : http://localhost:9001 (login `minioadmin` / `minioadmin`)
+- Bascule test S3 local : `cp docker-compose.override.yml.example docker-compose.override.yml && docker-compose up`
+- Bucket DEV auto-cree au demarrage (sidecar `minio-bucket-init`) : `mefali-dev`
 
 ## Premier parcours
 

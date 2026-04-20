@@ -1,0 +1,22 @@
+# STAGING — Terraform variables template (Story 10.7)
+# ============================================================================
+# Copier en `terraform.tfvars` (JAMAIS commité) et renseigner les valeurs.
+# Secrets (RDS password) lus depuis AWS Secrets Manager — jamais ici.
+# ============================================================================
+
+aws_region      = "eu-west-3"
+container_image = "ghcr.io/<org>/mefali-backend:staging-latest"
+
+# ARN du secret Secrets Manager contenant le password RDS master
+# (créé manuellement ou via une autre Terraform stack "bootstrap")
+rds_secret_password_arn = "arn:aws:secretsmanager:eu-west-3:<account_id>:secret:mefali/staging/rds-password-XXXXXX"
+
+# Subnets privés (créer VPC hors scope Story 10.7 — déféré Phase Growth,
+# utiliser default VPC ou pré-provisionner)
+subnet_ids = [
+  "subnet-xxxxx",
+  "subnet-yyyyy",
+]
+
+rds_security_group_ids = ["sg-rds-staging"]
+ecs_security_group_ids = ["sg-ecs-staging"]

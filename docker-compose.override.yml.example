@@ -1,0 +1,29 @@
+# docker-compose.override.yml.example (Story 10.7 AC2)
+# ============================================================================
+# Exemple d'override pour activer `STORAGE_PROVIDER=s3` en DEV avec MinIO
+# (mock S3 local 100% API-compatible — aucun compte AWS requis).
+#
+# Usage :
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker-compose up
+#
+# Le `docker-compose.override.yml` est auto-loadé par docker-compose et
+# fusionné avec `docker-compose.yml` (valeurs override gagnent).
+# ============================================================================
+
+services:
+  backend:
+    environment:
+      # Bascule provider de stockage : local → s3 (MinIO)
+      STORAGE_PROVIDER: s3
+      # Endpoint S3 pointe vers MinIO container (réseau docker-compose)
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_BUCKET: mefali-dev
+      AWS_REGION: eu-west-3  # Obligatoire NFR24 même en DEV (cohérence code)
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy

@@ -130,10 +130,104 @@ AWS_REGION=eu-west-3
    FastAPI doivent utiliser `storage.local_path(key)` + `FileResponse`.
 5. **Pagination `list()` > 1000 keys** non supportée (`NotImplementedError`).
 
-## §6 Migration local → S3 (Phase Growth)
+## §6 Propriétés bucket Phase Growth (Story 10.7 AC7)
+
+Trois propriétés S3 critiques — activées ou documentées par Story 10.7 (absorbe LOW-10.6-4) :
+
+### §6.1 Versioning (activé MVP via Terraform)
+
+Active via `aws_s3_bucket_versioning` dans `infra/terraform/modules/s3/main.tf` (AC6 — prérequis CRR, **l'API S3 refuse la Replication Configuration si Versioning absent**).
+
+**Effets** :
+- Objets supprimés retenus comme « noncurrent versions » (récupération post-incident).
+- Lifecycle rule `NoncurrentVersionExpiration` à **30 jours** (budget NFR69 — pas d'accumulation illimitée).
+
+**Vérification** :
+```bash
+aws s3api get-bucket-versioning --bucket mefali-prod
+# Attendu : { "Status": "Enabled" }
+```
+
+### §6.2 MFA Delete (activation ROOT-ONLY — hors Terraform)
+
+**Limitation AWS 2026** : MFA Delete n'est activable **que via credentials ROOT account** — pas accessible à un IAM user même avec `s3:PutBucketVersioning`. Terraform ne peut pas gérer cette propriété.
+
+**Procédure documentée (root AWS CLI)** :
+```bash
+# ⚠️ Nécessite credentials ROOT account (pas IAM user)
+aws s3api put-bucket-versioning \
+  --bucket mefali-prod \
+  --versioning-configuration Status=Enabled,MFADelete=Enabled \
+  --mfa "arn:aws:iam::<account_id>:mfa/root-account-mfa-device 123456" \
+  --profile mefali-root
+```
+
+**Effet** : toute suppression d'objet ou désactivation du versioning requiert désormais un token MFA récent (< 30 secondes). **Protection anti-automation** (pod ECS compromis ne peut plus supprimer en masse, même avec policy admin).
+
+**Vérification trimestrielle** :
+```bash
+aws s3api get-bucket-versioning --bucket mefali-prod
+# Attendu post-activation : { "Status": "Enabled", "MFADelete": "Enabled" }
+```
+
+### §6.3 Object Lock WORM (différé Phase Growth)
+
+**Non activable post-création** — nécessite création bucket avec `object_lock_enabled_for_bucket = true` (flag AWS obligatoire à la création du bucket).
+
+**Hors scope MVP Story 10.7** — activation conditionnée à demande audit bailleur SGES exigeant rétention 10 ans immuable (compliance CDP, Gold Standard).
+
+**Path Phase Growth** :
+1. Créer bucket dédié `mefali-sges-worm` avec `object_lock_enabled_for_bucket=true` (nouveau bucket, pas modification du `mefali-prod` existant).
+2. Appliquer `ObjectLockRule` mode `COMPLIANCE` (pas `GOVERNANCE` qui peut être contourné) avec `DefaultRetention.Years=10`.
+3. Router les uploads SGES vers ce bucket via `StorageProvider.upload_document(key=f"sges/{...}")` — routage côté applicatif.
+
+Cf. ligne `deferred-work.md §story-10.7` pour traçabilité.
+
+## §7 IAM granulaire per-env (Story 10.7 AC4 — absorbe LOW-10.6-2)
+
+Story 10.7 remplace la policy IAM trop large de 10.6 (`s3:DeleteObject` sur `arn:aws:s3:::<bucket>/*`) par **2 rôles distincts per-env** :
+
+### §7.1 Rôle `mefali-<env>-app` (attaché ECS Fargate task)
+
+Actions autorisées (**pas de Delete**) :
+- `s3:GetObject` + `s3:PutObject` scopés `arn:aws:s3:::mefali-<env>/*`
+- `s3:ListBucket` scopé `arn:aws:s3:::mefali-<env>`
+
+**Justification** : l'application fait du **soft-delete uniquement** via `Document.deleted_at` (migration 027 RLS). Aucun code applicatif n'appelle `delete_object` directement — la suppression hard est une opération ops.
+
+### §7.2 Rôle `mefali-<env>-admin` (assumé IAM user Angenor avec MFA)
+
+Actions autorisées :
+- `s3:DeleteObject` + `s3:DeleteObjectVersion` scopés `arn:aws:s3:::mefali-<env>/*`
+- **Condition obligatoire** : `aws:MultiFactorAuthPresent == "true"` — AWS refuse l'action si session STS sans token MFA récent.
+
+### §7.3 Procédure assumption rôle admin
+
+```bash
+# Token MFA + assume-role → credentials temporaires STS (15 min)
+aws sts assume-role \
+  --role-arn arn:aws:iam::<account_id>:role/mefali-<env>-admin \
+  --role-session-name angenor-ops-$(date +%s) \
+  --serial-number arn:aws:iam::<account_id>:mfa/angenor \
+  --token-code <mfa-token-6digits> \
+  --profile mefali-admin
+# Export les 3 variables AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN
+```
+
+### §7.4 Garde-fou CI anti-wildcard
+
+`.github/workflows/deploy-staging.yml` + `deploy-prod.yml` exécutent :
+```bash
+! rg 'Resource.*"\*"' infra/terraform/
+```
+→ **Fail CI** si une future PR réintroduit un wildcard IAM (régression anti-LOW-10.6-2).
+
+**Source unique de vérité** : `infra/terraform/modules/iam/main.tf` (Story 10.7 AC4).
+
+## §8 Migration local → S3 (Phase Growth)
 
 1. Provisionner bucket EU-West-3 + IAM role + CRR EU-West-3 → EU-West-1
-   (Story 10.7 Terraform).
+   (Story 10.7 Terraform done).
 2. Déployer script `scripts/migrate_local_to_s3.py` (écrit `documents/*`
    et `reports/*` de `backend/uploads/` vers S3, conserve les clés
    opaques identiques — aucune migration BDD requise).

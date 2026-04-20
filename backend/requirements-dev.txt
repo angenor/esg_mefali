@@ -12,5 +12,8 @@ psycopg2-binary>=2.9.9  # driver sync requis par tests migrations Story 10.1 + s
 # Mock AWS (Story 10.6 — marker @pytest.mark.s3)
 moto[s3]>=5.0,<6.0
 
+# HCL parsing (Story 10.7 — tests IAM policies Terraform)
+python-hcl2>=4.3,<5
+
 # Linting
 ruff>=0.8.0

@@ -1,6 +1,6 @@
 """Configuration de l'application via variables d'environnement."""
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Zones UE/UK autorisées NFR24 — data residency Mefali (Story 10.6 post-review
@@ -17,6 +17,10 @@ ALLOWED_EU_REGIONS: frozenset[str] = frozenset({
     "eu-south-2",   # Espagne
     "eu-north-1",   # Stockholm
 })
+
+# Environnements autorisés NFR73 — ségrégation stricte (Story 10.7 AC1).
+# Pattern miroir `ALLOWED_EU_REGIONS` + `field_validator` fail-fast boot.
+ALLOWED_ENV_NAMES: frozenset[str] = frozenset({"dev", "staging", "prod"})
 
 
 class Settings(BaseSettings):
@@ -58,6 +62,45 @@ class Settings(BaseSettings):
     # Application
     app_version: str = "0.1.0"
     debug: bool = False
+
+    # --- Environnement (Story 10.7 AC1) ---
+    # dev (local docker-compose), staging (AWS minimal), prod (AWS full).
+    # Fail-fast au boot si valeur hors whitelist (NFR73 isolation).
+    env_name: str = Field(
+        default="dev",
+        description="Environnement courant (dev/staging/prod) — NFR73",
+    )
+    # Namespace AWS Secrets Manager (vide en DEV, "mefali/staging" ou
+    # "mefali/prod" en AWS). Défense en profondeur contre fuite cross-env.
+    aws_secrets_manager_namespace: str = ""
+
+    @field_validator("env_name")
+    @classmethod
+    def _validate_env_name(cls, v: str) -> str:
+        """NFR73 — fail-fast si ENV_NAME non reconnu (empêche boot accidentel
+        avec secrets génériques). Aligné pattern `aws_region` (Story 10.6)."""
+        if v not in ALLOWED_ENV_NAMES:
+            raise ValueError(
+                f"env_name must be one of {sorted(ALLOWED_ENV_NAMES)} "
+                f"(NFR73 isolation). Got: {v!r}"
+            )
+        return v
+
+    def is_production(self) -> bool:
+        """True uniquement si `env_name == "prod"`. Consommé par code qui
+        doit se comporter différemment en PROD (guards MFA, no debug, etc.)."""
+        return self.env_name == "prod"
+
+    @model_validator(mode="after")
+    def _forbid_debug_in_production(self) -> "Settings":
+        """Garde-fou boot : PROD avec debug=True interdit (fuite traces stack,
+        leak secrets dans logs, timing attacks exposées). NFR73."""
+        if self.env_name == "prod" and self.debug:
+            raise ValueError(
+                "Production cannot run with debug=True (NFR73 isolation). "
+                "Set DEBUG=false or change ENV_NAME."
+            )
+        return self
 
     # Quotas utilisateur (dette spec 004 §3.2)
     # ge=1 : refuse 0 au boot pour éviter les sémantiques ambigues

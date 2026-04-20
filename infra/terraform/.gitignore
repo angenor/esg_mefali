@@ -1,0 +1,19 @@
+# Terraform state + lock (remote state S3 — jamais commité local)
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+
+# Plans
+*.tfplan
+
+# Module cache + providers
+.terraform/
+.terraform.lock.hcl
+
+# Secrets (tfvars) — garder uniquement .tfvars.example dans git
+*.tfvars
+!*.tfvars.example
+
+# OS / IDE
+.DS_Store
+*.swp

@@ -1,0 +1,21 @@
+# PROD — Terraform variables template (Story 10.7)
+# ============================================================================
+# Copier en `terraform.tfvars` (JAMAIS commité) et renseigner les valeurs.
+# Secrets (RDS password) lus depuis AWS Secrets Manager — jamais ici.
+# ============================================================================
+
+aws_region             = "eu-west-3"
+crr_destination_region = "eu-west-1"
+container_image        = "ghcr.io/<org>/mefali-backend:prod-v1.0.0"
+
+rds_secret_password_arn = "arn:aws:secretsmanager:eu-west-3:<account_id>:secret:mefali/prod/rds-password-XXXXXX"
+
+# Subnets privés multi-AZ (NFR33 backup 2 AZ — au moins 2 subnets en zones
+# différentes pour RDS multi_az=true)
+subnet_ids = [
+  "subnet-aaaaa", # AZ eu-west-3a
+  "subnet-bbbbb", # AZ eu-west-3b
+]
+
+rds_security_group_ids = ["sg-rds-prod"]
+ecs_security_group_ids = ["sg-ecs-prod"]

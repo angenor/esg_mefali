@@ -218,7 +218,9 @@ Migrer les données Mefali hors de AWS EU-West-3 (Paris) vers une juridiction al
 
 ---
 
-## 4. Copie anonymisée PROD → STAGING mensuelle
+## 4. Copie anonymisée PROD → STAGING mensuelle 🟢
+
+**Status** : 🟢 Procédure opérationnelle complète (Story 10.7 done).
 
 ### Purpose
 
@@ -229,56 +231,104 @@ Refresh mensuel du dataset STAGING à partir d'une copie anonymisée de PROD pou
 
 ### Triggers
 
-- **Programmé** : 1er samedi du mois, 02:00 UTC (cron AWS EventBridge)
-- **Ad-hoc** : Angenor déclenche manuellement avant un test critique (ex: avant migration majeure, avant pilote PME)
+- **Programmé** : 1er du mois, 02:00 UTC — GitHub Actions `schedule: cron '0 2 1 * *'` (Q4 tranchée Story 10.7, EventBridge différé Phase Growth)
+- **Ad-hoc** : Angenor déclenche manuellement via `workflow_dispatch` avant un test critique (migration majeure, pilote PME)
 
 ### Prerequisites
 
-- Script `backend/scripts/anonymize_prod_to_staging.py` (à créer Story 10.7)
-- Règles d'anonymisation dans `backend/app/core/anonymization.py` (D8 architecture)
-- Env STAGING provisionné (Story 10.7 envs ségrégués)
-- Backup PROD du jour confirmé (RPO 24h)
-- Fenêtre STAGING inutilisée (usually week-end early morning)
+- Script `backend/scripts/anonymize_prod_to_staging.py` (Story 10.7 AC5 done)
+- Module `backend/app/core/anonymization.py` (15 patterns PII FR/AO, fail-fast D8.2)
+- Env STAGING provisionné via `infra/terraform/envs/staging/` (Story 10.7 AC3)
+- Backup PROD du jour confirmé (RPO 24h, `aws rds describe-db-snapshots`)
+- Secret `ANONYMIZATION_SALT` dispo dans AWS Secrets Manager namespace `mefali/ops` (lu par script fail-fast si absent)
+- Fenêtre STAGING inutilisée (typiquement week-end early morning)
+
+### Prerequisites CRR S3 (Story 10.7 AC6)
+
+Pour que le bucket destination EU-West-1 reçoive la réplication :
+
+1. **Bucket source EU-West-3** (`mefali-prod`) : Versioning `Enabled` (prérequis CRR — l'API S3 refuse la Replication Configuration sans Versioning actif).
+2. **Bucket destination EU-West-1** (`mefali-prod-backup-eu-west-1`) : Versioning `Enabled` + tag `Purpose=crr-destination`.
+3. **IAM role `mefali-<env>-s3-replication`** : `s3:GetReplicationConfiguration`, `s3:ListBucket`, `s3:GetObjectVersionForReplication`.
+4. **Vérification opérationnelle** :
+   ```bash
+   aws s3api get-bucket-replication --bucket mefali-prod --profile mefali-admin
+   # Attendu : ReplicationConfiguration avec Status=Enabled, Destination EU-West-1
+   ```
+
+### Prerequisites ops Phase Growth (post-pilote PME)
+
+- [ ] **MFA Delete** activé sur `mefali-prod` (root AWS CLI — cf. `docs/CODEMAPS/storage.md §6.2`)
+- [ ] **MFA Delete** activé sur `mefali-prod-backup-eu-west-1`
+- [ ] **Object Lock WORM** évalué pour bucket SGES dédié si audit bailleur l'exige (rétention 10 ans immuable — nécessite création bucket avec flag `object_lock_enabled_for_bucket=true`)
+- [ ] Tabletop exercise trimestriel incluant scénario « MFA token compromis — rotation root »
 
 ### Decision tree
 
 1. **Copie complète ou incrémentale ?**
-   - Complète (monthly) : full refresh, drop + reload all tables
-   - Incrémentale (hebdo future) : seulement delta depuis last refresh
+   - Complète (monthly) : full refresh, drop + reload all tables → DEFAULT MVP
+   - Incrémentale (hebdo future) : seulement delta depuis last refresh — Phase Growth
 2. **Anonymisation strict ou preserving ?**
-   - Strict : tous les PII (email, nom, téléphone, RCCM, NINEA) remplacés par faker FR (recommandé)
-   - Preserving (shapes) : garder les statistiques (ex: distribution secteurs) mais anonymiser identifiants
+   - Strict : tous les PII (email, nom, téléphone, RCCM, NINEA, IFU, CNI, IBAN, etc.) remplacés par `anonymize_deterministic(value, salt)` (SHA256 tronqué) — DEFAULT MVP
+   - Preserving (shapes) : garder stats agrégées mais anonymiser identifiants — Phase Growth si besoin QA métier
 
 ### Step-by-step procedure
 
-**TODO Story 10.7 à préciser** :
-- [ ] **1. Snapshot RDS PROD** via AWS console ou `aws rds create-db-snapshot`
-- [ ] **2. Restore snapshot** dans une instance STAGING temporaire
-- [ ] **3. Run anonymization script** :
-  - Tables PII : `users`, `company_profiles`, `documents` (métadonnées), `fund_applications` (contenu)
-  - Règles : voir `backend/app/core/anonymization.py` (à créer)
-  - Preserve : structure, relations, stats agrégées
-- [ ] **4. Fail-fast validation** : scan regex + NER pour détecter PII résiduels (si match → abort + alert ops)
-- [ ] **5. Swap** l'instance STAGING avec la nouvelle (DNS switch ou ENV update)
-- [ ] **6. Smoke tests** : 3 journeys test users (aminata, moussa, akissi)
-- [ ] **7. Decommission** l'ancienne instance STAGING
-- [ ] **8. Log** dans `staging-refresh-log.md` (taille, durée, errors detected)
+1. **Snapshot RDS PROD** :
+   ```bash
+   aws rds create-db-snapshot --db-instance-identifier mefali-prod \
+     --db-snapshot-identifier refresh-staging-$(date +%Y%m%d) \
+     --profile mefali-admin
+   ```
+2. **Restore snapshot vers instance temporaire** :
+   ```bash
+   aws rds restore-db-instance-from-db-snapshot \
+     --db-instance-identifier mefali-staging-temp \
+     --db-snapshot-identifier refresh-staging-$(date +%Y%m%d)
+   ```
+3. **Dump SQL filtré** (exclure BLOB documents/reports selon `EXCLUDED_TABLES`) :
+   ```bash
+   pg_dump -h <temp-endpoint> -U postgres mefali_staging_temp \
+     --exclude-table=documents --exclude-table=reports \
+     -f /tmp/prod_dump.sql
+   ```
+4. **Anonymisation fail-fast** :
+   ```bash
+   export ANONYMIZATION_SALT=$(aws secretsmanager get-secret-value \
+     --secret-id mefali/ops/anonymization_salt --query SecretString --output text)
+   python -m scripts.anonymize_prod_to_staging \
+     --source /tmp/prod_dump.sql \
+     --output /tmp/staging_anonymized.sql
+   # Exit code 0 = OK, 2 = PII résiduel détecté (FAIL-FAST abort)
+   ```
+5. **Restore dump anonymisé vers STAGING** :
+   ```bash
+   psql -h <staging-endpoint> -U postgres mefali_staging \
+     -f /tmp/staging_anonymized.sql
+   ```
+6. **Smoke tests** : 3 journeys test users (aminata, moussa, akissi) via pytest `--base-url=https://staging.mefali.example`.
+7. **Decommission** instance RDS temporaire.
+8. **Log** dans `docs/runbooks/staging-refresh-log-YYYY-MM-DD.md` (taille dump, durée anonymisation, nb substitutions par pattern).
 
 ### Rollback procedure
 
-Si smoke tests échouent : rollback au snapshot STAGING précédent (conservé 2 cycles).
+Si smoke tests échouent : rollback au snapshot STAGING précédent (conservé 2 cycles — 2 mois).
 
 ### Post-incident actions
 
-- [ ] Compte-rendu du refresh (durée, volume, anomalies)
-- [ ] Alert si PII détecté pendant validation fail-fast (bug anonymization)
-- [ ] Update règles anonymization si nouveaux champs PII ajoutés au schema
+- [ ] Compte-rendu du refresh (durée, volume, anomalies détectées)
+- [ ] Alert immédiat si PII détecté pendant validation fail-fast (bug anonymization — enrichir `PII_PATTERNS` avant retry)
+- [ ] Update `PII_PATTERNS` si nouveaux champs PII ajoutés au schema (toute migration Alembic touchant un champ sensible doit inclure un test anonymisation du champ)
 
 ### References
 
 - `architecture.md §D8` (DEV/STAGING/PROD ségrégés + anonymisation fail-fast)
-- Story 10.7 (envs segregated + pipeline anonymisation)
-- `business-decisions-2026-04-19.md §NFR69` (budget STAGING minimal Phase 0)
+- `architecture.md §D9` (CRR EU-West-3 → EU-West-1 + ordre Versioning-first)
+- Story 10.7 done (envs segregated + pipeline anonymisation + CRR + IAM granulaire)
+- `business-decisions-2026-04-19.md §NFR69` (budget infra ≤ 1000 €/mois)
+- `backend/app/core/anonymization.py` (15 PII patterns FR/AO)
+- `backend/scripts/anonymize_prod_to_staging.py` (CLI fail-fast exit 2)
+- `docs/CODEMAPS/storage.md §6 Propriétés bucket` (Versioning + MFA Delete + Object Lock)
 
 ---
 
@@ -416,10 +466,68 @@ Si le rollback lui-même casse quelque chose :
 - [ ] Runbook 1 (incident response) — procédure complète avec contacts
 - [ ] Runbook 2 (LLM switch) — dépend de Story 10.13 bench pour provider primaire
 - [ ] Runbook 3 (data residency) — squelette suffisant MVP, détails Phase Growth
-- [ ] Runbook 4 (staging refresh) — dépend de Story 10.7 (envs + anonymisation)
+- [x] Runbook 4 (staging refresh) — 🟢 Story 10.7 done (envs + anonymisation + CRR)
 - [ ] Runbook 5 (migration blocked) — dépend de Story 13.8c
 
-**Status global Phase 0** : squelettes prêts (2026-04-20), détails opérationnels à compléter au fil des stories qui les référencent (Story 10.7, 10.13, 13.8c).
+**Status global Phase 0** : squelettes prêts (2026-04-20), détails opérationnels à compléter au fil des stories qui les référencent (Story 10.13, 13.8c).
+
+---
+
+## 7. Déploiement nouveau environnement (Story 10.7 AC8)
+
+### Purpose
+
+Checklist standard pour un déploiement de feature depuis `main` → STAGING → PROD via les 3 workflows GitHub Actions ségrégués.
+
+### Workflows
+
+| Workflow | Trigger | Approval | Target env |
+|----------|---------|----------|------------|
+| `.github/workflows/deploy-dev.yml` | `push: main` auto | — | DEV (smoke tests uniquement en MVP) |
+| `.github/workflows/deploy-staging.yml` | `push: staging` | GitHub Environment `staging` (1 reviewer) | STAGING AWS EU-West-3 |
+| `.github/workflows/deploy-prod.yml` | `workflow_dispatch` + `confirmation_phrase="DEPLOY TO PRODUCTION"` | GitHub Environment `prod` (1 reviewer min) | PROD AWS EU-West-3 + CRR EU-West-1 |
+
+### Branch protection rules (configuration manuelle GitHub UI)
+
+- **`main`** : require PR + 1 approval + tous tests verts + branches up-to-date.
+- **`staging`** : require PR + 1 approval + tous tests verts.
+- **`prod`** : **pas de push direct** — `deploy-prod.yml` uniquement via `workflow_dispatch` (source = commit SHA pinné depuis `main`).
+
+### Step-by-step procedure `main → staging → prod`
+
+1. [ ] PR mergée dans `main` (CI verte, 1 approval, tests verts)
+2. [ ] `deploy-dev.yml` auto-exécuté → smoke tests verts (optionnel en MVP — pas de cluster DEV partagé)
+3. [ ] Cherry-pick ou merge sélectif commits `main` → branche `staging`
+4. [ ] `deploy-staging.yml` auto-déclenché sur push `staging` → `test` → `terraform-plan` → approval GitHub Environment → `terraform-apply` → `deploy-ecs` → smoke tests STAGING
+5. [ ] UAT manuelle STAGING (journeys fatou/moussa/aminata)
+6. [ ] Trigger `deploy-prod.yml` : `gh workflow run deploy-prod.yml -f confirmation_phrase="DEPLOY TO PRODUCTION" -f ref=<sha-main>`
+7. [ ] Approval GitHub Environment `prod` (required reviewers) → `terraform-apply-prod` → smoke tests PROD
+8. [ ] Documenter dans `docs/runbooks/deployment-log-YYYY-MM-DD.md` (commit SHA déployé, durée, anomalies)
+
+### GitHub Environments configuration (hors Terraform)
+
+À configurer **manuellement** dans repo Settings → Environments (limitation AWS/GitHub 2026, pas d'API Terraform complète pour Environments) :
+
+- Environment `staging` : required reviewers = 1 (Angenor), deployment branches = `staging` only
+- Environment `prod` : required reviewers = 1 min, deployment branches = `main` only, wait timer = 5 min recommandé
+
+### Secrets namespace (per-env)
+
+Chaque env a ses secrets scopés dans GitHub Secrets :
+- `AWS_ACCESS_KEY_ID_STAGING`, `AWS_SECRET_ACCESS_KEY_STAGING`, `AWS_ROLE_TO_ASSUME_STAGING`
+- `AWS_ACCESS_KEY_ID_PROD`, `AWS_SECRET_ACCESS_KEY_PROD`, `AWS_ROLE_TO_ASSUME_PROD`
+- **Jamais** de secret réutilisé cross-env (défense profondeur).
+
+### Post-incident actions
+
+- [ ] Si deploy-prod échoue : rollback via Terraform `terraform apply` sur tag précédent
+- [ ] Post-mortem + update de ce runbook si procédure divergée
+
+### References
+
+- `.github/workflows/deploy-dev.yml` / `deploy-staging.yml` / `deploy-prod.yml`
+- `infra/terraform/envs/staging/` + `infra/terraform/envs/prod/`
+- `architecture.md §NFR73` (environnements isolés) + `§NFR76` (code review obligatoire)
 
 ---
 

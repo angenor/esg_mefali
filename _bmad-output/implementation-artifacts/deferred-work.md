@@ -605,15 +605,17 @@ livraison pour éviter perte de traçabilité.
   Phase Growth. [backend/app/core/storage/keys.py:19-30]
   [10-6-code-review-2026-04-20.md#low-10.6-5]
 
-- **LOW-10.6-2 — IAM `s3:DeleteObject` trop large** — la policy documentée
-  grant DeleteObject sur `arn:aws:s3:::<bucket>/*` → un pod compromis
-  (RCE via CVE LangChain/FastAPI) peut supprimer en masse via
-  `storage.delete` + `list`. Mitigation : séparer rôle app (GetObject +
-  PutObject) du rôle admin (DeleteObject avec MFA) ; soft-delete
-  applicatif via flag `Document.deleted_at` + purge offline. **Cible** :
-  **Story 10.7 environnements DEV/STAGING/PROD** (IaC Terraform IAM
-  granulaire). [docs/CODEMAPS/storage.md:79]
-  [10-6-code-review-2026-04-20.md#low-10.6-6]
+- **LOW-10.6-2 — IAM `s3:DeleteObject` trop large** — ✅ **RÉSOLU Story 10.7
+  AC4** (absorbed). Module `infra/terraform/modules/iam/main.tf` crée 2 rôles
+  distincts per-env : (a) `mefali-<env>-app` (ECS Fargate task) — actions
+  `s3:GetObject` + `s3:PutObject` + `s3:ListBucket`, **pas** `DeleteObject` —
+  soft-delete applicatif via `Document.deleted_at` ; (b) `mefali-<env>-admin`
+  (assumé par IAM user Angenor avec MFA) — `s3:DeleteObject` scopé
+  `arn:aws:s3:::mefali-<env>/*` avec `Condition.aws:MultiFactorAuthPresent=true`.
+  Anti-wildcard garanti par CI guard (`rg 'Resource.*"\*"' infra/terraform/`
+  dans `.github/workflows/deploy-*.yml`). Tests :
+  `backend/tests/test_infra/test_iam_policies.py` (4 tests).
+  Documentation : `docs/CODEMAPS/storage.md §7 IAM granulaire`.
 
 - **LOW-10.6-3 — `LocalStorageProvider.exists()` silencieux sur path-traversal** —
   en capturant `StoragePermissionError` et retournant False, l'implémentation
@@ -625,13 +627,17 @@ livraison pour éviter perte de traçabilité.
   [10-6-code-review-2026-04-20.md#low-10.6-7]
 
 - **LOW-10.6-4 — Bucket versioning + MFA delete + Object Lock non documentés** —
-  `storage.md §4` décrit SSE-S3, CRR, retry, presigned TTL, mais omet
-  3 propriétés essentielles Phase Growth : versioning (récupération
-  post-incident), MFA delete (blocage suppressions de masse
-  automatisées), Object Lock WORM (immutabilité pour documents
-  réglementaires SGES/audits). **Cible** : **Story 10.7 runbook storage
-  deployment** (section « Propriétés bucket Phase Growth »).
-  [docs/CODEMAPS/storage.md:62-112] [10-6-code-review-2026-04-20.md#low-10.6-8]
+  ✅ **RÉSOLU Story 10.7 AC7** (absorbed). Nouvelle section
+  `docs/CODEMAPS/storage.md §6 Propriétés bucket Phase Growth` documente :
+  (§6.1) Versioning activé MVP via Terraform `aws_s3_bucket_versioning`
+  (prérequis CRR AC6) + lifecycle rule `NoncurrentVersionExpiration` 30 jours ;
+  (§6.2) MFA Delete procédure root-only via `aws s3api put-bucket-versioning`
+  + MFA serial (limitation AWS — pas activable via Terraform) ; (§6.3) Object
+  Lock WORM différé Phase Growth (nécessite création bucket avec
+  `object_lock_enabled_for_bucket=true`, audit bailleur SGES trigger). Runbook
+  4 enrichi avec « Prerequisites ops Phase Growth » + checklist trimestrielle.
+  Test documentaire : `backend/tests/test_docs/test_runbook_4_has_mfa_section.py`
+  (6 tests — Versioning, MFA Delete, Object Lock, CRR, ANONYMIZATION_SALT).
 
 - **LOW-10.6-5 — `ThrottlingException` dans `_TRANSIENT_ERROR_CODES` (code mort)** —
   canonique pour DynamoDB/Lambda/API Gateway mais jamais émis par S3
@@ -651,3 +657,65 @@ livraison pour éviter perte de traçabilité.
   Phase Growth montre saturation thread pool. **Cible** : **optimisation
   Phase Growth** (micro-optim post-10.7). [backend/app/core/storage/s3.py:269-275]
   [10-6-code-review-2026-04-20.md#low-10.6-10]
+
+
+## Deferred from: story-10.7
+
+Les items ci-dessous ont été identifiés comme hors scope MVP dans la Story 10.7 (tranchés Q1-Q4) et sont référencés pour traçabilité Phase Growth.
+
+- **DEF-10.7-1 — Object Lock WORM pour bucket SGES dédié** — rétention 10 ans
+  immuable pour documents réglementaires SGES/audits bailleurs. **Non activable
+  post-création** (nécessite bucket créé avec `object_lock_enabled_for_bucket=true`).
+  **Cible** : **Phase Growth** — trigger = 1er bailleur exigeant rétention WORM
+  dans son audit. Path : nouveau bucket dédié `mefali-sges-worm` + routage
+  applicatif via `StorageProvider.upload_document(key="sges/...")`.
+  [docs/CODEMAPS/storage.md §6.3]
+
+- **DEF-10.7-2 — NER spaCy `fr_core_news_lg` pour anonymisation texte libre** —
+  Q2 tranchée Story 10.7 → regex-only MVP (15 patterns PII FR/AO couvrent 95%
+  des identifiants structurés). Le module `fr_core_news_lg` (500 MB) alourdit
+  image Docker et CI time +2-3 min/run. **Trigger Phase Growth** : fuite PII
+  détectée dans un pilote PME (nom propre en commentaire libre non-formaté
+  dans `bio` ou `contact_person`). **Path** : modèle `fr_core_news_sm` (15 MB
+  plus léger) + cache `actions/cache@v4` sur `~/.cache/spacy/` + image Docker
+  pré-loadée. [backend/app/core/anonymization.py — PII_PATTERNS name_composed]
+
+- **DEF-10.7-3 — AWS EventBridge cron trigger refresh STAGING** — Q4 tranchée
+  Story 10.7 → GitHub Actions `schedule: cron '0 2 1 * *'` MVP (observabilité
+  unifiée, coût zéro). **Trigger Phase Growth** : coordination avec events AWS
+  (ex. post-backup RDS auto trigger refresh). **Path** : créer CloudWatch
+  Events Rule + Lambda triggerer + IAM role dédié. Coût ~0.5 €/mois mais
+  complexité ajoutée (2 resources AWS à manager hors Terraform workflows).
+
+- **DEF-10.7-4 — Cross-account role separation admin/ops** — MVP : 1 IAM user
+  Angenor avec MFA + assume-role. **Phase Growth** : compte AWS séparé
+  `mefali-security` avec role `admin` assumé cross-account pour isoler
+  credentials production des credentials dev solo. Trigger = 2ᵉ dev rejoint
+  le projet ou audit SOC 2.
+
+- **DEF-10.7-5 — Terragrunt bootstrap remote state automatisé** — MVP :
+  procédure manuelle 3 étapes dans `infra/terraform/README.md` (bucket state
+  + DynamoDB lock + init). **Phase Growth** : Terragrunt pour automatiser
+  bootstrap + gérer envs multiples avec moins de duplication HCL. Trigger
+  = 4ᵉ env (ex. `prod-eu-west-2` DR failover). Absorbe LOW-10.7-8 (duplication
+  staging/prod main.tf ~90%).
+
+## Deferred from: code review of story-10.7 (2026-04-20)
+
+Findings **non bloquants** tracés lors du patch round 1. HIGH + 5 MEDIUM déjà traités (HIGH-10.7-1 workflow anonymize-refresh.yml, MEDIUM-10.7-1 CRR depends_on policy attach, MEDIUM-10.7-2 confused deputy replication, MEDIUM-10.7-3 regex wildcard stricte 9 patterns, MEDIUM-10.7-4 test assertions strictes + adversariaux, MEDIUM-10.7-5 state bucket isolé staging/prod).
+
+- **LOW-10.7-1 — `test_failfast_raises_on_residual_pii` marqué `@pytest.mark.postgres` à tort** — le test utilise uniquement `tmp_path` + fichiers SQL locaux, aucun accès PG réel. Le marker le fait skipper en CI quick mode. **Drive-by** : retirer le marker lors de la prochaine passe sur ce fichier (test restera vert sans PG). [backend/tests/test_scripts/test_anonymize_prod_to_staging.py:142-166]
+
+- **LOW-10.7-2 — `test_cli_requires_salt_env` teste une fonction privée `_require_salt`** — couplage fort à l'implémentation (underscore = privé). API internal acceptable MVP (le CLI CLI lui-même est testé via la fonction publique `anonymize_dump`). **Drive-by** : convertir en test subprocess E2E quand le CLI gagne des commandes supplémentaires. [backend/tests/test_scripts/test_anonymize_prod_to_staging.py:174-184]
+
+- **LOW-10.7-3 — Bucket PROD sans `lifecycle { prevent_destroy = true }`** — un `terraform destroy` accidentel sur PROD supprime le bucket S3. Protection actuelle : `deletion_protection = true` sur RDS + MFA Condition sur delete objets S3. **Cible** : **Epic 20 Release Engineering hardening** — ajouter `prevent_destroy = true` conditionnel via module `s3_protected/` ou workflow force override contrôlé. **Important — à ne pas oublier avant premier client PROD**. [infra/terraform/modules/s3/main.tf:13-22]
+
+- **LOW-10.7-4 — `container_image` accepte tag mutable (pas digest immuable)** — actuellement `ghcr.io/.../backend:staging-${sha}`. Rollback ECS non bit-exact si la tag est repoussée. **Cible** : **Phase Growth supply chain hardening** — digest `@sha256:...` exporté post-docker-push via `docker inspect --format='{{.RepoDigests}}'`. Aligné avec SLSA Level 2 roadmap. [infra/terraform/modules/ecs/main.tf:42-43]
+
+- **LOW-10.7-5 — `SystemExit` sans exit code explicite dans `_require_salt`** — actuellement `raise SystemExit(f"...")` string → exit code 1 (Python default), confondu avec I/O error. **Drive-by** : `raise SystemExit(3)` pour salt missing + JSON audit log stderr. Mettre à jour docstring CLI. Trivial 5 lignes. [backend/scripts/anonymize_prod_to_staging.py:50-57]
+
+- **LOW-10.7-6 — `phone_cedeao` exige `+` obligatoire (perd numéros locaux sans préfixe)** — compromis documenté Debug Log story (évite faux positifs sur hash SHA256 tronqué). Risque faux négatifs PII sur dumps qui stockent `77 123 45 67` sans `+221`. **Absorption** : **DEF-10.7-2 NER spaCy** couvrira les téléphones contextualisés (champ `mobile_local` détecté par NER) + ajout pattern `phone_local_sn` stricte opérateurs SN 70/77/78/76 sur premier dump PROD si régression détectée. [backend/app/core/anonymization.py:50-52]
+
+- **LOW-10.7-7 — `name_composed` liste fermée 16 prénoms FR/AO** — absents fréquents CEDEAO : Marieme, Rokhaya, Awa, Binta, Bakary, Demba, Pape. Faux négatifs PII sur vrais dumps. **Absorption** : **DEF-10.7-2 NER spaCy** couvrira entity NER `PER` naturellement. **Entre-temps** : élargir à 30+ prénoms via review utilisateur pilote AO (drive-by trivial) ou constituer un dictionnaire étendu via dataset open source prénoms africains. [backend/app/core/anonymization.py:71-75]
+
+- **LOW-10.7-8 — Duplication `staging/main.tf` ↔ `prod/main.tf` ~90%** — 109 lignes quasi-identiques (diff sur task_count/multi_az/crr_destination uniquement). Risque d'oubli backport (ex. ajout container_env en staging non répliqué prod). **Absorption** : **DEF-10.7-5 Terragrunt bootstrap** — factorisation native. **Entre-temps** : ajouter test `test_env_parity` qui compare les clés `container_env` des 2 fichiers (drive-by +1 test). [infra/terraform/envs/staging/main.tf ↔ infra/terraform/envs/prod/main.tf]
