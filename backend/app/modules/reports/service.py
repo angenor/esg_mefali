@@ -18,6 +18,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.llm_guards import (
+    MAX_SUMMARY_LEN,
+    MIN_SUMMARY_LEN,
+    assert_language_fr,
+    assert_length,
+    assert_no_forbidden_vocabulary,
+    assert_numeric_coherence,
+    run_guarded_llm_call,
+)
 from app.models.esg import ESGAssessment, ESGStatusEnum
 from app.models.report import Report, ReportStatusEnum, ReportTypeEnum
 from app.models.user import User
@@ -70,8 +79,9 @@ async def generate_executive_summary(
     strengths: list[dict],
     gaps: list[dict],
     benchmark_position: str,
+    user_id: str | None = None,
 ) -> str:
-    """Generer le resume executif via LLM (Claude via OpenRouter)."""
+    """Generer le resume executif via LLM avec guards (story 9.6)."""
     strengths_text = "\n".join(
         f"- {s.get('title', 'N/A')} ({s.get('score', 0)}/10)" for s in (strengths or [])
     ) or "Aucun point fort identifie"
@@ -80,7 +90,7 @@ async def generate_executive_summary(
         f"- {g.get('title', 'N/A')} ({g.get('score', 0)}/10)" for g in (gaps or [])
     ) or "Aucun axe d'amelioration identifie"
 
-    prompt_text = ESG_REPORT_EXECUTIVE_SUMMARY_PROMPT.format(
+    base_prompt = ESG_REPORT_EXECUTIVE_SUMMARY_PROMPT.format(
         company_name=company_name,
         sector=SECTOR_LABELS.get(sector, sector),
         overall_score=overall_score,
@@ -91,20 +101,61 @@ async def generate_executive_summary(
         gaps_text=gaps_text,
         benchmark_position=BENCHMARK_POSITION_LABELS.get(benchmark_position, benchmark_position),
     )
-
-    llm = ChatOpenAI(
-        model=settings.openrouter_model,
-        base_url=settings.openrouter_base_url,
-        api_key=settings.openrouter_api_key,
-        temperature=0.3,
+    hardened_prompt = base_prompt + (
+        "\n\nCONTRAINTES STRICTES :"
+        "\n- Redige exclusivement en francais."
+        f"\n- Utilise uniquement ces valeurs numeriques : "
+        f"overall={overall_score}/100, E={environment_score}/100, "
+        f"S={social_score}/100, G={governance_score}/100."
+        "\n- Interdiction d'utiliser les mots : garanti, certifie, valide par, "
+        "homologue, accredite."
+        f"\n- Longueur : entre {MIN_SUMMARY_LEN} et {MAX_SUMMARY_LEN} caracteres."
     )
 
-    response = await llm.ainvoke([
-        SystemMessage(content="Tu es un consultant ESG senior."),
-        HumanMessage(content=prompt_text),
-    ])
+    # Filtrer None et 0 des sources pour eviter les faux drifts (review 9.6).
+    raw_sources = {
+        "overall_score": overall_score,
+        "environment_score": environment_score,
+        "social_score": social_score,
+        "governance_score": governance_score,
+    }
+    source_values: dict[str, float] = {
+        name: float(v)
+        for name, v in raw_sources.items()
+        if v is not None and float(v) != 0.0
+    }
 
-    return response.content.strip()
+    def guards(text: str) -> None:
+        # Ordre deterministe AC7 : length -> langue -> vocab -> numerique
+        assert_length(text, MIN_SUMMARY_LEN, MAX_SUMMARY_LEN, "executive_summary")
+        assert_language_fr(text, "executive_summary")
+        assert_no_forbidden_vocabulary(text, "executive_summary")
+        assert_numeric_coherence(text, source_values, "executive_summary")
+
+    async def llm_call(prompt_to_send: str) -> str:
+        llm = ChatOpenAI(
+            model=settings.openrouter_model,
+            base_url=settings.openrouter_base_url,
+            api_key=settings.openrouter_api_key,
+            temperature=0.3,
+        )
+        # Placer le prompt dans SystemMessage (coherent avec action_plan)
+        # pour que le hardened_prompt soit effectif au retry (review 9.6).
+        response = await llm.ainvoke([
+            SystemMessage(content=prompt_to_send),
+            HumanMessage(content="Redige le resume executif demande."),
+        ])
+        content = response.content if hasattr(response, "content") else str(response)
+        return content.strip() if isinstance(content, str) else str(content).strip()
+
+    return await run_guarded_llm_call(
+        llm_call=llm_call,
+        guards=guards,
+        base_prompt=base_prompt,
+        hardened_prompt=hardened_prompt,
+        target="executive_summary",
+        user_id=user_id or "anonymous",
+    )
 
 
 def _extract_criteria_by_pillar(assessment_data: dict) -> dict[str, list[dict]]:
@@ -288,6 +339,7 @@ async def generate_report(
             strengths=assessment.strengths or [],
             gaps=assessment.gaps or [],
             benchmark_position=(benchmark or {}).get("position", "unknown"),
+            user_id=str(user_id),
         )
 
         # 6. Rendre le template HTML

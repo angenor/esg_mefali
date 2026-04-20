@@ -181,9 +181,9 @@ const {
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 1.5]
-- [Source: _bmad-output/planning-artifacts/architecture.md#Decision 1 — module-level state]
-- [Source: _bmad-output/planning-artifacts/architecture.md#Regles d'enforcement]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Story 1.5]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Decision 1 — module-level state]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Regles d'enforcement]
 - [Source: _bmad-output/planning-artifacts/prd.md#FR2, FR3, FR9, FR10, FR35]
 - [Source: _bmad-output/implementation-artifacts/1-4-en-tete-du-widget-et-historique-des-conversations.md#Review findings]
 - [Source: _bmad-output/implementation-artifacts/1-3-bouton-flottant-et-conteneur-du-widget.md#Deferred items]

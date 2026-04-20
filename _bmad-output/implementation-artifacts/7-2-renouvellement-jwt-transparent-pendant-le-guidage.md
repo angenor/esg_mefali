@@ -417,17 +417,17 @@ Points actionnables herites :
 
 ### References
 
-- Source epic : `_bmad-output/planning-artifacts/epics.md:1112-1145` (Epic 7 Story 7.2 avec BDD + exigences techniques)
+- Source epic : `_bmad-output/planning-artifacts/epics-019-floating-copilot.md:1112-1145` (Epic 7 Story 7.2 avec BDD + exigences techniques)
 - Source PRD :
   - `_bmad-output/planning-artifacts/prd.md:150` (guidage + scores + auth existante)
   - `_bmad-output/planning-artifacts/prd.md:164` (matrice risque JWT expire → FR32/NFR9)
   - `_bmad-output/planning-artifacts/prd.md:362` (FR32 — renouvellement automatique)
   - `_bmad-output/planning-artifacts/prd.md:386` (NFR9 — aucune interruption visible)
 - Source architecture :
-  - `_bmad-output/planning-artifacts/architecture.md:38` (FR29-FR35 resilience + renouvellement JWT)
-  - `_bmad-output/planning-artifacts/architecture.md:45` (NFR8-NFR11 securite + renouvellement transparent)
-  - `_bmad-output/planning-artifacts/architecture.md:1003` (couverture NFR)
-  - `_bmad-output/planning-artifacts/architecture.md:1014` (**gap identifie** : logique refresh "a completer")
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:38` (FR29-FR35 resilience + renouvellement JWT)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:45` (NFR8-NFR11 securite + renouvellement transparent)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:1003` (couverture NFR)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:1014` (**gap identifie** : logique refresh "a completer")
 - Story precedente impactant la logique :
   - `_bmad-output/implementation-artifacts/7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement.md` (pattern constantes module-level, pattern import dynamique useChat dans catch, pattern tests avec mocks composables)
   - `_bmad-output/implementation-artifacts/5-4-interruption-du-parcours-et-popover-custom.md` (`cancelTour`, `interruptTour`, cleanup proprement — dependance AC2)

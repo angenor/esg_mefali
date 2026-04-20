@@ -414,10 +414,10 @@ b7314e2 2-1-suppression-de-la-page-chat-et-de-chatpanel: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 4, Story 4.1]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR7 Lazy loading Driver.js, lignes 534-578]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Overrides CSS dark mode, lignes 569-578]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Arborescence fichiers, lignes 786-868]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 4, Story 4.1]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR7 Lazy loading Driver.js, lignes 534-578]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Overrides CSS dark mode, lignes 569-578]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Arborescence fichiers, lignes 786-868]
 - [Source: _bmad-output/planning-artifacts/prd.md — NFR2 (chargement < 500ms), NFR4 (0 Ko bundle), NFR14 (prefers-reduced-motion), NFR23 (dark mode)]
 - [Source: _bmad-output/implementation-artifacts/3-2-injection-de-la-page-courante-dans-les-prompts-et-adaptation-des-reponses.md — Completion Notes, Project Structure Notes]
 - [Source: frontend/app/assets/css/main.css — Structure @theme existante]

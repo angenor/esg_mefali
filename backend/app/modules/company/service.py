@@ -1,6 +1,8 @@
 """Service de gestion du profil entreprise."""
 
+import logging
 import uuid
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +14,8 @@ from app.modules.company.schemas import (
     CompletionResponse,
     FieldStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 # Champs d'identité et localisation (seuil 70%)
 IDENTITY_FIELDS = [
@@ -164,31 +168,94 @@ async def update_profile(
     db: AsyncSession,
     profile: CompanyProfile,
     updates: CompanyProfileUpdate,
-) -> tuple[CompanyProfile, list[dict]]:
+    source: Literal["manual", "llm"] = "manual",
+) -> tuple[CompanyProfile, list[dict], list[dict]]:
     """Mettre à jour le profil avec les champs non-null.
 
-    Retourne le profil mis à jour et la liste des champs modifiés.
+    Story 9.5 (P1 #7) : le parametre `source` discrimine l'origine de l'ecriture.
+    - `source="manual"` : appel via PATCH /api/company/profile. Le champ est
+      systematiquement ecrit et ajoute a `profile.manually_edited_fields`.
+    - `source="llm"` : appel via le tool LangChain `update_company_profile`.
+      Les champs deja presents dans `manually_edited_fields` sont ignores
+      (log WARNING + entree dans `skipped_fields` renvoyee) pour garantir
+      que « l'edition manuelle prevaut » (spec 003 §3.6).
+
+    Retourne un 3-uplet `(profile, changed_fields, skipped_fields)` :
+    - `changed_fields` : champs effectivement modifies.
+    - `skipped_fields` : champs skippes car proteges manuel (toujours vide
+      si `source="manual"` — le chemin manuel n'est jamais bloque).
     """
     changed_fields: list[dict] = []
+    skipped_fields: list[dict] = []
     update_data = updates.model_dump(exclude_unset=True)
+    # Copie defensive : jamais muter la liste de la BDD en place (immutabilite).
+    existing_manual = list(profile.manually_edited_fields or [])
 
     for field, value in update_data.items():
         if field not in UPDATABLE_FIELDS:
             continue
-        if value is not None:
-            old_value = getattr(profile, field)
+        if value is None:
+            continue
+
+        old_value = getattr(profile, field)
+
+        # Chemin LLM : skip si le champ a deja ete edite manuellement.
+        if source == "llm" and field in existing_manual:
             if old_value != value:
-                setattr(profile, field, value)
-                # Convertir les enums en string pour la sérialisation
-                display_value = value.value if hasattr(value, "value") else value
-                changed_fields.append({
+                # Borner la valeur loggee a 200 chars : evite de polluer les logs
+                # avec les contenus Text (governance_structure, social_practices,
+                # notes, etc.) et reduit le risque d'exposition PII (review 9.5 P8).
+                old_repr = repr(old_value)
+                attempted_repr = repr(value)
+                if len(old_repr) > 200:
+                    old_repr = old_repr[:200] + "...(truncated)"
+                if len(attempted_repr) > 200:
+                    attempted_repr = attempted_repr[:200] + "...(truncated)"
+                logger.warning(
+                    "Tool LLM tente d'ecraser un champ edite manuellement "
+                    "(skip) : field=%s old=%s attempted=%s profile_id=%s",
+                    field, old_repr, attempted_repr, profile.id,
+                )
+                display_attempted = value.value if hasattr(value, "value") else value
+                display_current = (
+                    old_value.value if hasattr(old_value, "value") else old_value
+                )
+                skipped_fields.append({
                     "field": field,
-                    "value": display_value,
+                    "attempted_value": display_attempted,
+                    "current_value": display_current,
                     "label": FIELD_LABELS.get(field, field),
                 })
+            # IMPORTANT : continue pour ne pas executer la branche d'ecriture.
+            continue
 
-    if changed_fields:
+        # Chemin manuel OU chemin LLM sur champ non-protege : ecriture normale.
+        if old_value != value:
+            setattr(profile, field, value)
+            display_value = value.value if hasattr(value, "value") else value
+            changed_fields.append({
+                "field": field,
+                "value": display_value,
+                "label": FIELD_LABELS.get(field, field),
+            })
+
+        # Chemin manuel : marquer le champ comme protege (idempotent), meme si
+        # la valeur n'a pas change. Un PATCH explicite sur /profile vaut
+        # validation manuelle de l'utilisateur (cf. review 9.5 D1).
+        if source == "manual" and field not in existing_manual:
+            existing_manual.append(field)
+
+    # Persister la liste manually_edited_fields si elle a evolue (AC2).
+    manual_list_changed = False
+    if source == "manual":
+        new_manual = sorted(existing_manual)  # ordre stable pour les tests
+        current_manual = sorted(profile.manually_edited_fields or [])
+        if new_manual != current_manual:
+            profile.manually_edited_fields = new_manual
+            manual_list_changed = True
+
+    if changed_fields or manual_list_changed:
         await db.flush()
         await db.refresh(profile)
 
-    return profile, changed_fields
+    return profile, changed_fields, skipped_fields

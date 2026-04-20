@@ -3,8 +3,8 @@ stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step
 status: 'complete'
 completedAt: '2026-04-12'
 inputDocuments:
-  - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/architecture.md
+  - _bmad-output/planning-artifacts/prd-019-floating-copilot.md
+  - _bmad-output/planning-artifacts/architecture-019-floating-copilot.md
   - _bmad-output/planning-artifacts/product-brief-esg-mefali-copilot.md
   - CLAUDE.md
 featureId: '019-floating-copilot-guided-nav'

@@ -1,7 +1,12 @@
-"""Tests unitaires pour le tool trigger_guided_tour (feature 019)."""
+"""Tests unitaires pour le tool trigger_guided_tour (feature 019).
+
+Note (post-review 9.7 — H3) : le log inline `log_tool_call` a ete retire
+du tool (couvert desormais par le wrapper `with_retry`). La journalisation
+est validee sur `GUIDED_TOUR_TOOLS[0]` dans
+`tests/test_graph/test_tools_instrumentation.py`.
+"""
 
 import json
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -79,40 +84,17 @@ class TestTriggerGuidedTour:
         assert "<!--SSE:" not in result
 
     @pytest.mark.asyncio
-    async def test_trigger_logs_tool_call(self, mock_config, mock_db):
-        """L'appel est journalise dans tool_call_logs."""
-        with patch("app.graph.tools.guided_tour_tools.log_tool_call", new_callable=AsyncMock) as mock_log:
-            await trigger_guided_tour.ainvoke(
-                {"tour_id": "show_esg_results"},
-                config=mock_config,
-            )
+    async def test_trigger_with_active_module_does_not_crash(
+        self, mock_db, mock_user_id, mock_conversation_id
+    ):
+        """Le module actif passe dans la config n'empeche pas l'emission du marker SSE.
 
-            mock_log.assert_awaited_once()
-            call_kwargs = mock_log.call_args
-            assert call_kwargs.kwargs["tool_name"] == "trigger_guided_tour"
-            assert call_kwargs.kwargs["tool_args"]["tour_id"] == "show_esg_results"
-            assert call_kwargs.kwargs["status"] == "success"
-
-    @pytest.mark.asyncio
-    async def test_trigger_log_failure_non_blocking(self, mock_config):
-        """Une erreur de journalisation ne bloque pas le tool."""
-        with patch(
-            "app.graph.tools.guided_tour_tools.log_tool_call",
-            new_callable=AsyncMock,
-            side_effect=Exception("DB unavailable"),
-        ):
-            result = await trigger_guided_tour.ainvoke(
-                {"tour_id": "show_esg_results"},
-                config=mock_config,
-            )
-
-            # Le tool retourne quand meme le marker
-            assert "<!--SSE:" in result
-            assert "show_esg_results" in result
-
-    @pytest.mark.asyncio
-    async def test_trigger_with_active_module(self, mock_db, mock_user_id, mock_conversation_id):
-        """Le module actif est utilise pour la journalisation."""
+        H3 post-review 9.7 : la journalisation est desormais faite par le wrapper ;
+        ce test verifie uniquement que le tool accepte un `active_module` custom
+        sans crasher. La verification de `node_name="esg_scoring"` dans
+        `tool_call_logs` est faite via `GUIDED_TOUR_TOOLS[0]` dans
+        `tests/test_graph/test_tools_instrumentation.py`.
+        """
         config = {
             "configurable": {
                 "db": mock_db,
@@ -121,14 +103,12 @@ class TestTriggerGuidedTour:
                 "active_module": "esg_scoring",
             },
         }
-
-        with patch("app.graph.tools.guided_tour_tools.log_tool_call", new_callable=AsyncMock) as mock_log:
-            await trigger_guided_tour.ainvoke(
-                {"tour_id": "show_esg_results"},
-                config=config,
-            )
-
-            assert mock_log.call_args.kwargs["node_name"] == "esg_scoring"
+        result = await trigger_guided_tour.ainvoke(
+            {"tour_id": "show_esg_results"},
+            config=config,
+        )
+        assert "<!--SSE:" in result
+        assert "show_esg_results" in result
 
     @pytest.mark.asyncio
     async def test_trigger_returns_user_facing_message(self, mock_config):

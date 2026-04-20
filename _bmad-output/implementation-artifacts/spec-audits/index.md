@@ -33,13 +33,16 @@
 
 **Cumul dettes final (audit 2026-04-16)** : 14 P1 · 28 P2 · 56 P3
 
-**Stories résolues depuis l'audit** (2026-04-17) :
+**Stories résolues depuis l'audit** (2026-04-17 / 2026-04-18) :
 - ✅ P1 #2 — Rate limiting chat (story `9-1-rate-limiting-fr013-chat-endpoint`)
 - ✅ P1 #4 — Quota stockage utilisateur (story `9-2-quota-cumule-stockage-par-utilisateur`)
 - ✅ Hygiène CI — Fix 4 tests pré-existants rouges (story `9-3-fix-4-tests-pre-existants-rouges`) — **baseline 1103/1103 verts restaurée**, principe « zero failing tests on main » opérationnel
 - ✅ P1 #8 — OCR bilingue FR+EN (story `9-4-ocr-bilingue-fr-eng-documents-anglophones`) — audit §3.6 était un **faux positif sur le code** (`lang="fra+eng"` depuis le commit initial) ; vrais fix opérationnels : `Dockerfile.prod` (ajout `tesseract-ocr-eng`), startup check `pytesseract.get_languages()` dans le lifespan FastAPI, classe `TestOCRBilingual` (4 tests) verrouillant le contrat. Voir [deferred-work.md](../deferred-work.md).
+- ✅ P1 #7 — Flag `manually_edited_fields` sur `CompanyProfile` (story `9-5-flag-manually-edited-fields-companyprofile`) — protection contre perte de données silencieuse (extraction LLM n'écrase plus les champs marqués manuellement). Migration Alembic + colonne JSONB + skip en service + event SSE `profile_skipped` + badge UI ambre discret sur `/profile`. **Cluster 1 (sécurité / data loss) complet.**
 
-**P1 restants** : 11 / 14 (3 résolus, 11 à ouvrir)
+**P1 restants** : 10 / 14 (4 résolus, 10 à ouvrir)
+
+**Cluster 1 (sécurité / data loss) : ✅ COMPLET** (P1 #2, #4, #7, #8 + hygiène CI story 9.3)
 
 ---
 
@@ -87,11 +90,9 @@
    - Pattern identique, même fix structurel — une seule story transverse « queue async pour opérations longues » couvre les 2 modules.
    - À étendre si d'autres modules génèrent du LLM synchrone (ex. dossiers spec 009 à vérifier).
 
-7. **Flag `manually_edited_fields: JSONB` — édition manuelle prévaut** (source : 003) — **reclassé P2→P1 le 2026-04-16**
-   - Fichier : `backend/app/models/company.py`
-   - Impact : **perte de données utilisateur silencieuse**. Une extraction LLM peut écraser sans trace une correction manuelle faite via `/profile`. Règle documentée dans spec 003 mais jamais implémentée.
-   - Justification P1 : confiance utilisateur (invisible côté UX, catastrophique quand ça arrive)
-   - Audit additionnel requis : chercher en BDD les divergences entre `profile_update` SSE events et l'état actuel du profil — possibles écrasements passés à inventorier
+7. ~~**Flag `manually_edited_fields: JSONB` — édition manuelle prévaut**~~ (source : 003) — **reclassé P2→P1 le 2026-04-16** → ✅ **RÉSOLU 2026-04-18** — story `9-5-flag-manually-edited-fields-companyprofile`
+   - Fix livré : colonne JSONB `manually_edited_fields` + paramètre `source: Literal["manual", "llm"]` sur `update_profile()` + event SSE `profile_skipped` + badge frontend « ✎ manuel » sur `/profile`. Migration Alembic 019. 9 nouveaux tests backend, zero régression.
+   - Audit historique T0 (détection d'écrasements passés via `tool_call_logs`) **non exécuté** faute d'instrumentation suffisante (cf. P1 #14) — documenté dans `deferred-work.md`.
 
 8. ~~**OCR bilingue FR+EN — tesseract `lang='fra+eng'`**~~ (source : 004) — **reclassé P2→P1 le 2026-04-16** → ✅ **RÉSOLU 2026-04-17** — story `9-4-ocr-bilingue-fr-eng-documents-anglophones`
    - **Découverte clé** : le code utilisait DÉJÀ `lang="fra+eng"` depuis le commit initial du module 004 (`86ece82`). L'audit §3.6 était un **faux positif méthodologique** (hypothèse non vérifiée par `grep` sur le code).
@@ -104,7 +105,7 @@
    - Impact : **5 secteurs sur 11 (textile, agroalimentaire, commerce, artisanat, construction) retombent sur `general`** alors qu'ils sont dans le profil. L'agroalimentaire, le commerce et l'artisanat sont **les secteurs dominants** des PME africaines francophones UEMOA/CEDEAO (>60% des PME en agro selon BCEAO). Scoring ESG dégradé pour ~50 % du marché cible.
    - Justification P1 : alignement métier avec le public cible — une PME agroalimentaire sénégalaise reçoit un score non contextualisé, le bailleur voit une note biaisée, la recommandation financement est approximative.
 
-10. **Guards sur tous les contenus LLM persistés** (résumé exécutif spec 006 + fiche de préparation spec 008 + plan d'action JSON spec 011) — **reclassé P2→P1 le 2026-04-16, élargi progressivement**
+10. ~~**Guards sur tous les contenus LLM persistés**~~ (résumé exécutif spec 006 + fiche de préparation spec 008 + plan d'action JSON spec 011) — **reclassé P2→P1 le 2026-04-16, élargi progressivement** → ✅ **RÉSOLU 2026-04-19** — story `9-6-guards-llm-persistes-documents-bailleurs` (module partagé `backend/app/core/llm_guards.py` + intégration résumé exécutif ESG + plan d'action JSON, 43 nouveaux tests, coverage 99 %, 1159 tests verts. Fiche préparation hors scope — actuellement 100 % template Jinja2 sans LLM direct).
     - Fichiers : `backend/app/modules/reports/service.py` (`generate_executive_summary`), `backend/app/modules/financing/service.py` (fiche de préparation + template), `backend/app/modules/action_plan/service.py` (`generate_action_plan` — génère 10+ actions JSON via Claude)
     - Impact : **hallucinations possibles dans tous les contenus LLM persistés par Mefali** : documents PDF (ESG + financement) ET données structurées (plan d'action en BDD, affiché en timeline, exporté).
     - Risques : compliance, crédibilité, juridique — même gravité que le rate limiting (invisible tant que ça n'arrive pas, catastrophique quand ça arrive).
@@ -134,11 +135,14 @@
     - Justification P1 : c'est précisément ce qui différencierait un dossier "personnalisé Mefali" d'un dossier générique.
     - **Consolidation avec action P2 #6** (RAG sous-exploité) — cette exploitation fait partie du cluster "RAG dans 7 modules restants".
 
-14. **Appliquer `with_retry` + `log_tool_call` aux 9 modules tools** (source : 012) — **absorbe P2 #2**
-    - Fichiers : `backend/app/graph/tools/` (profiling_tools, esg_tools, carbon_tools, financing_tools, credit_tools, application_tools, document_tools, action_plan_tools, chat_tools)
-    - Impact : **FR-021 (retry) + FR-022 (journalisation) non câblés** sur 9/11 modules. L'infrastructure `with_retry()` + `log_tool_call()` existe dans `common.py` mais n'est consommée que par `interactive_tools` + `guided_tour_tools`. Conséquences observées : investigations bugs 2026-04-15 (feature 019) **ralenties par absence de logs** sur les tools métier ; échecs BDD transients non retryés silencieusement → user voit l'erreur.
-    - Justification P1 : 5ème cas systémique de discordance speckit, observabilité critique en prod, PR de 50-100 lignes seulement.
-    - Consolidation : cette action **fusionne** P2 #2 ("Instrumenter `log_tool_call`") en le transformant en P1 + ajoute le retry FR-021.
+14. ✅ **RÉSOLU** — **Appliquer `with_retry` + `log_tool_call` aux 9 modules tools** (source : 012) — **absorbe P2 #2**
+    - **Résolu par** : story [`9-7-observabilite-with-retry-log-tool-call`](../9-7-observabilite-with-retry-log-tool-call.md) (review 2026-04-20).
+    - **Portée livrée** : primitive `with_retry` étendue (3 tentatives, backoff `[1,3,9]`, classification transient/non-transient via `is_transient_error`, circuit breaker 60 s / 10 erreurs 5xx), instrumentation des **11 modules** (9 métier + interactive + guided_tour) → **34 tools** wrappés, registre `INSTRUMENTED_TOOLS` dans `app/graph/tools/__init__.py`.
+    - **Tests ajoutés** : 56 nouveaux tests (24 primitives + 30 instrumentation transverse + 2 E2E retry/breaker). Baseline 1172 tests verts (post-9.6) → **1228 tests verts** (+56). Coverage `common.py` = **96%** (cible ≥ 85%).
+    - **Documentation** : `backend/app/graph/tools/README.md` (4 sections : inventaire, pattern ajout, configuration, schéma logs).
+    - **Anti-régression Epic 10** : garde `test_no_tool_escapes_wrapping` scanne dynamiquement tous les `@tool` pour détecter tout oubli d'enregistrement dans `INSTRUMENTED_TOOLS`.
+    - Impact initial : **FR-021 (retry) + FR-022 (journalisation) non câblés** sur 9/11 modules ; investigations bugs 2026-04-15 (feature 019) ralenties par absence de logs ; échecs BDD transients non retryés → user voyait l'erreur.
+    - Consolidation : a **fusionné** P2 #2 ("Instrumenter `log_tool_call`") en le transformant en P1 + ajouté le retry FR-021.
 
 ### Priorité P2 (à ouvrir en story BMAD)
 

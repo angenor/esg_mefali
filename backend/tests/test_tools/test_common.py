@@ -1,5 +1,6 @@
 """Tests unitaires pour les helpers partagés des tools."""
 
+import asyncio
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -123,15 +124,20 @@ class TestWithRetry:
         assert result == "ok"
 
     @pytest.mark.asyncio
-    async def test_retry_on_failure(self, mock_config):
-        """Échec puis succès au retry — retourne le résultat du retry."""
+    async def test_retry_on_failure(self, mock_config, monkeypatch):
+        """Échec transient puis succès au retry — retourne le résultat du retry.
+
+        Story 9.7 : `ValueError` est désormais non-transient. On utilise
+        `asyncio.TimeoutError` (classé transient) pour valider la boucle retry.
+        """
+        monkeypatch.setattr("app.graph.tools.common.asyncio.sleep", AsyncMock())
         call_count = 0
 
         async def flaky_tool(config=None):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise ValueError("Temporary failure")
+                raise asyncio.TimeoutError("Temporary failure")
             return "recovered"
 
         wrapped = with_retry(flaky_tool, max_retries=1, node_name="test_node")
@@ -141,7 +147,7 @@ class TestWithRetry:
 
     @pytest.mark.asyncio
     async def test_all_retries_exhausted(self, mock_config):
-        """Échec persistant — retourne message d'erreur."""
+        """Échec non-transient persistant — retourne message d'erreur (AC3)."""
         async def always_fail(config=None):
             raise ValueError("Permanent failure")
 

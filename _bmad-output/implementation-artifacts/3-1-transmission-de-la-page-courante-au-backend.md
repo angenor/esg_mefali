@@ -208,8 +208,8 @@ e27120c 1-3 + 1-4 + 1-5: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 3, Story 3.1]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Conscience contextuelle FR11-FR13, ConversationState, ui.ts currentPage]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 3, Story 3.1]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Conscience contextuelle FR11-FR13, ConversationState, ui.ts currentPage]
 - [Source: _bmad-output/planning-artifacts/prd.md — FR11, NFR19, NFR22]
 - [Source: _bmad-output/implementation-artifacts/2-2-mise-a-jour-de-la-navigation-et-des-liens-internes.md — Dev Notes, Pattern watcher]
 - [Source: backend/app/graph/state.py — ConversationState actuel (36 lignes)]

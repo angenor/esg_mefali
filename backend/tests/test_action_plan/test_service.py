@@ -544,12 +544,14 @@ class TestGenerateActionPlan:
         db_session.add(profile)
         await db_session.commit()
 
-        # JSON simulant la réponse LLM avec 4 catégories différentes
+        # JSON simulant la réponse LLM avec 5+ catégories différentes
+        # (story 9.6 : MIN_ACTION_COUNT=5)
         llm_json = """[
             {"title":"Audit eau","description":"Réaliser un audit","category":"environment","priority":"high","due_date":"2026-06-30","estimated_cost_xof":200000,"estimated_benefit":"Réduction 20% conso eau","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},
             {"title":"Formation RSE","description":"Former les équipes","category":"social","priority":"medium","due_date":"2026-09-30","estimated_cost_xof":150000,"estimated_benefit":"+10 pts ESG social","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},
             {"title":"Politique ESG","description":"Rédiger la politique","category":"governance","priority":"high","due_date":"2026-07-31","estimated_cost_xof":0,"estimated_benefit":"Conformité UEMOA","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},
-            {"title":"Dossier SUNREF","description":"Préparer le dossier","category":"financing","priority":"high","due_date":"2026-08-31","estimated_cost_xof":0,"estimated_benefit":"Financement 50 M FCFA","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}
+            {"title":"Dossier SUNREF","description":"Préparer le dossier","category":"financing","priority":"high","due_date":"2026-08-31","estimated_cost_xof":0,"estimated_benefit":"Financement 50 M FCFA","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},
+            {"title":"Bilan carbone","description":"Calculer empreinte","category":"carbon","priority":"medium","due_date":"2026-10-31","estimated_cost_xof":50000,"estimated_benefit":"Mesure CO2e annuelle","fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}
         ]"""
 
         mock_response = MagicMock()
@@ -566,7 +568,7 @@ class TestGenerateActionPlan:
 
         assert plan is not None
         assert plan.status == PlanStatus.active
-        assert plan.total_actions == 4
+        assert plan.total_actions == 5
         assert plan.timeframe == 12
         categories = {item.category for item in plan.items}
         assert len(categories) >= 4
@@ -593,8 +595,17 @@ class TestGenerateActionPlan:
         await db_session.commit()
 
         # Créer un plan archivé (pas actif pour éviter la contrainte SQLite)
-        # Vérifier que le service appelle bien la logique d'archivage
-        llm_json = '[{"title":"Nouvelle action","description":"Desc","category":"environment","priority":"medium","due_date":"2026-12-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}]'
+        # Vérifier que le service appelle bien la logique d'archivage.
+        # Story 9.6 : minimum 5 actions requises (MIN_ACTION_COUNT).
+        llm_json = (
+            "["
+            '{"title":"Action environnement 1","description":"Desc","category":"environment","priority":"medium","due_date":"2026-12-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action sociale 2","description":"Desc","category":"social","priority":"medium","due_date":"2026-11-30","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action gouvernance 3","description":"Desc","category":"governance","priority":"low","due_date":"2026-10-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action financing 4","description":"Desc","category":"financing","priority":"medium","due_date":"2026-09-30","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action carbone 5","description":"Desc","category":"carbon","priority":"high","due_date":"2026-08-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}'
+            "]"
+        )
         mock_response = MagicMock()
         mock_response.content = llm_json
 
@@ -606,7 +617,7 @@ class TestGenerateActionPlan:
 
         # Le nouveau plan doit être actif
         assert new_plan.status == PlanStatus.active
-        assert new_plan.total_actions == 1
+        assert new_plan.total_actions == 5
 
         # Vérifier qu'il n'existe bien qu'un seul plan actif (le nouveau)
         result = await db_session.execute(
@@ -648,7 +659,16 @@ class TestGenerateActionPlan:
         await db_session.commit()
 
         inter_id = str(inter.id)
-        llm_json = f'[{{"title":"Contact SIB","description":"Prendre contact","category":"intermediary_contact","priority":"high","due_date":"2026-07-31","estimated_cost_xof":0,"estimated_benefit":"Financement vert","fund_id":null,"intermediary_id":"{inter_id}","intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}}]'
+        # Story 9.6 : minimum 5 actions ; on teste le snapshot sur la 1re.
+        llm_json = (
+            "["
+            f'{{"title":"Contact SIB","description":"Prendre contact","category":"intermediary_contact","priority":"high","due_date":"2026-07-31","estimated_cost_xof":0,"estimated_benefit":"Financement vert","fund_id":null,"intermediary_id":"{inter_id}","intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}},'
+            '{"title":"Action carbone filler","description":"Desc","category":"carbon","priority":"medium","due_date":"2026-08-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action social filler","description":"Desc","category":"social","priority":"medium","due_date":"2026-09-30","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action gouvernance filler","description":"Desc","category":"governance","priority":"low","due_date":"2026-10-31","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null},'
+            '{"title":"Action environnement filler","description":"Desc","category":"environment","priority":"medium","due_date":"2026-11-30","estimated_cost_xof":null,"estimated_benefit":null,"fund_id":null,"intermediary_id":null,"intermediary_name":null,"intermediary_address":null,"intermediary_phone":null,"intermediary_email":null}'
+            "]"
+        )
         mock_response = MagicMock()
         mock_response.content = llm_json
 
@@ -658,10 +678,163 @@ class TestGenerateActionPlan:
             mock_llm_class.return_value = mock_instance
             plan = await generate_action_plan(db_session, user.id, 12)
 
-        assert len(plan.items) == 1
-        item = plan.items[0]
-        assert item.category == ActionItemCategory.intermediary_contact
-        assert item.intermediary_name == "SIB"
-        assert item.intermediary_phone == "+225 27 20 20 20 20"
-        assert item.intermediary_email == "contact@sib.ci"
-        assert item.intermediary_address == "Abidjan Plateau"
+        assert len(plan.items) == 5
+        # La 1re action (sort_order=0) porte le snapshot intermediary
+        contact_item = next(i for i in plan.items if i.sort_order == 0)
+        assert contact_item.category == ActionItemCategory.intermediary_contact
+        assert contact_item.intermediary_name == "SIB"
+        assert contact_item.intermediary_phone == "+225 27 20 20 20 20"
+        assert contact_item.intermediary_email == "contact@sib.ci"
+        assert contact_item.intermediary_address == "Abidjan Plateau"
+
+
+# --- Tests integration guards LLM plan d'action (story 9.6 / AC5, AC6, AC8, AC10) ---
+
+
+def _make_plan_json(n: int = 8, category: str = "environment") -> str:
+    """Generer un payload JSON LLM valide a n actions."""
+    import json
+
+    items = []
+    for i in range(n):
+        items.append({
+            "title": f"Action {i + 1} valide pour test",
+            "description": f"Description action {i + 1}",
+            "category": category,
+            "priority": "medium",
+            "due_date": "2026-09-30",
+            "estimated_cost_xof": 100_000,
+            "estimated_benefit": None,
+            "fund_id": None,
+            "intermediary_id": None,
+            "intermediary_name": None,
+            "intermediary_address": None,
+            "intermediary_phone": None,
+            "intermediary_email": None,
+        })
+    return json.dumps(items)
+
+
+def _make_hallucinated_plan_json(n: int = 8) -> str:
+    """Generer un payload hallucine (schema invalide)."""
+    import json
+
+    items = []
+    for i in range(n):
+        items.append({
+            "title": f"Action hallucinee {i + 1}",
+            "description": "Desc",
+            "category": "hallucinated_category",  # hors enum
+            "priority": "CRITICAL",  # hors enum
+            "due_date": "2099-12-31",  # trop loin
+            "estimated_cost_xof": 10 ** 18,  # depasse MAX_COST_XOF
+            "extra_field_hallucine": 42,  # extra='forbid'
+        })
+    return json.dumps(items)
+
+
+@pytest.mark.asyncio
+class TestActionPlanGuardsIntegration:
+    """AC5, AC6, AC8, AC10 : pipeline plan d'action complet avec guards."""
+
+    async def _setup_minimal_profile(self, db_session):
+        """Creer un user + CompanyProfile minimal pour appeler generate_action_plan."""
+        from app.models.company import CompanyProfile
+        from app.models.user import User
+
+        user = User(
+            email=f"test-{uuid.uuid4().hex[:6]}@test.com",
+            hashed_password="x",
+            full_name="Test",
+            company_name="TestCo",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = CompanyProfile(
+            user_id=user.id,
+            company_name="TestCo",
+            sector="services",
+            country="Sénégal",
+        )
+        db_session.add(profile)
+        await db_session.commit()
+        return user
+
+    async def test_valid_plan_creates_actions(self, db_session):
+        """AC10 : plan LLM valide -> ActionPlan + N ActionItems, 1 seul appel LLM."""
+        from app.modules.action_plan.service import generate_action_plan
+
+        user = await self._setup_minimal_profile(db_session)
+        mock_response = MagicMock()
+        mock_response.content = _make_plan_json(n=8)
+
+        with patch("langchain_openai.ChatOpenAI") as mock_cls:
+            mock_instance = MagicMock()
+            mock_instance.ainvoke = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_instance
+
+            plan = await generate_action_plan(db_session, user.id, 12)
+
+        assert plan.status == PlanStatus.active
+        assert plan.total_actions == 8
+        assert len(plan.items) == 8
+        # AC5 : toutes les actions ont category ∈ enum
+        for item in plan.items:
+            assert item.category == ActionItemCategory.environment
+            assert item.priority == ActionItemPriority.medium
+        # 1 seul appel LLM (pas de retry)
+        assert mock_instance.ainvoke.call_count == 1
+
+    async def test_hallucinated_plan_triggers_retry_then_500(
+        self, db_session, caplog
+    ):
+        """AC5 + AC8 + AC9 : schema invalide -> retry -> HTTPException(500) + logs."""
+        from fastapi import HTTPException
+
+        from app.modules.action_plan.service import generate_action_plan
+
+        user = await self._setup_minimal_profile(db_session)
+        mock_response = MagicMock()
+        mock_response.content = _make_hallucinated_plan_json(n=8)
+
+        with patch("langchain_openai.ChatOpenAI") as mock_cls:
+            mock_instance = MagicMock()
+            mock_instance.ainvoke = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_instance
+
+            with caplog.at_level("WARNING"):
+                with pytest.raises(HTTPException) as exc:
+                    await generate_action_plan(db_session, user.id, 12)
+                assert exc.value.status_code == 500
+
+        # 2 appels LLM : base + retry
+        assert mock_instance.ainvoke.call_count == 2
+        # AC9 : log llm_guard_failure present avec target=action_plan
+        guard_logs = [
+            r for r in caplog.records
+            if getattr(r, "metric", None) == "llm_guard_failure"
+        ]
+        assert len(guard_logs) >= 2
+        assert guard_logs[-1].final_outcome == "failed"
+        assert guard_logs[-1].target == "action_plan"
+
+    async def test_too_few_actions_triggers_retry_and_recovers(self, db_session):
+        """AC6 : 2 actions -> retry avec prompt renforce -> succes si 8 actions."""
+        from app.modules.action_plan.service import generate_action_plan
+
+        user = await self._setup_minimal_profile(db_session)
+        too_few = MagicMock()
+        too_few.content = _make_plan_json(n=2)
+        ok = MagicMock()
+        ok.content = _make_plan_json(n=8)
+
+        with patch("langchain_openai.ChatOpenAI") as mock_cls:
+            mock_instance = MagicMock()
+            mock_instance.ainvoke = AsyncMock(side_effect=[too_few, ok])
+            mock_cls.return_value = mock_instance
+
+            plan = await generate_action_plan(db_session, user.id, 12)
+
+        assert plan.total_actions == 8
+        assert mock_instance.ainvoke.call_count == 2

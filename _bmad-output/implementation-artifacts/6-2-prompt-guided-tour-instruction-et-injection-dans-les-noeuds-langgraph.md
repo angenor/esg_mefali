@@ -405,8 +405,8 @@ Suivre le pattern de `test_style_instruction.py` (~110 lignes actuellement). Uti
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Epic-6-Story-6.2] — Exigences de la story (lignes 950-986)
-- [Source: _bmad-output/planning-artifacts/architecture.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Epic-6-Story-6.2] — Exigences de la story (lignes 950-986)
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour
 - [Source: _bmad-output/planning-artifacts/prd.md#FR14-FR17] — Consentement et declenchement du guidage
 - [Source: backend/app/prompts/widget.py] — Pattern de reference `WIDGET_INSTRUCTION`
 - [Source: backend/app/prompts/system.py#L80-L106] — Pattern `STYLE_INSTRUCTION`

@@ -233,8 +233,8 @@ Le `context` peut contenir des donnees numeriques de personnalisation (ex: `{"to
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/architecture.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour
-- [Source: _bmad-output/planning-artifacts/epics.md#Epic-6-Story-6.1] — Exigences story
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Epic-6-Story-6.1] — Exigences story
 - [Source: _bmad-output/planning-artifacts/prd.md#FR14-FR17] — Consentement et declenchement
 - [Source: backend/app/graph/tools/interactive_tools.py] — Pattern de reference tool + marker SSE
 - [Source: backend/app/api/chat.py#L212-L232] — Detection markers SSE existante

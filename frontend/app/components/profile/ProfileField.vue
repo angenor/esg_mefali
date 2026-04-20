@@ -6,6 +6,9 @@ const props = defineProps<{
   type?: 'text' | 'number' | 'boolean' | 'select'
   options?: { value: string; label: string }[]
   placeholder?: string
+  // Story 9.5 : affiche un badge « ✎ manuel » si le champ a ete edite
+  // manuellement via /profile (protege contre l'ecrasement LLM).
+  isManuallyEdited?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -74,6 +77,24 @@ function cancelEdit() {
         />
         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ label }}
+        </span>
+        <!-- Story 9.5 : badge protection manuel contre ecrasement LLM.
+             Couleur ambre discrete (review 9.5 D3) : signale la protection
+             sans crier a l'alerte. Accessibilite : aria-label explicite car
+             `title` ne s'affiche pas sur mobile (review 9.5 P6). -->
+        <span
+          v-if="isManuallyEdited"
+          class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded
+                 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300
+                 border border-amber-200 dark:border-amber-800"
+          title="Édité manuellement — protégé contre l'écrasement automatique"
+          role="status"
+          aria-label="Champ édité manuellement, protégé contre l'écrasement automatique par l'assistant"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+          </svg>
+          manuel
         </span>
       </div>
 

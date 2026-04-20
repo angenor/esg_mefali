@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="fr" class="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ESG Mefali — Direction UX retenue (feature 5 clusters)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          'brand-green':   '#10B981',
+          'brand-blue':    '#3B82F6',
+          'brand-purple':  '#8B5CF6',
+          'brand-orange':  '#F59E0B',
+          'brand-red':     '#EF4444',
+          'surface-bg':    '#F9FAFB',
+          'surface-text':  '#111827',
+          'dark-bg':       '#111827',
+          'dark-text':     '#F9FAFB',
+          'dark-card':     '#1F2937',
+          'dark-border':   '#374151',
+          'dark-hover':    '#374151',
+          'dark-input':    '#1F2937',
+          'verdict-pass':         '#10B981',
+          'verdict-pass-soft':    '#D1FAE5',
+          'verdict-fail':         '#EF4444',
+          'verdict-fail-soft':    '#FEE2E2',
+          'verdict-reported':     '#F59E0B',
+          'verdict-reported-soft':'#FEF3C7',
+          'verdict-na':           '#9CA3AF',
+          'verdict-na-soft':      '#F3F4F6',
+          'fa-draft':              '#9CA3AF',
+          'fa-snapshot-frozen':    '#3B82F6',
+          'fa-signed':             '#8B5CF6',
+          'fa-exported':           '#F59E0B',
+          'fa-submitted':          '#06B6D4',
+          'fa-in-review':          '#EAB308',
+          'fa-accepted':           '#10B981',
+          'fa-rejected':           '#EF4444',
+          'fa-withdrawn':          '#6B7280',
+          'admin-n1': '#10B981',
+          'admin-n2': '#F59E0B',
+          'admin-n3': '#EF4444',
+          'deliverable-bg':     '#FFFFFF',
+          'deliverable-text':   '#0F172A',
+          'deliverable-muted':  '#475569',
+          'deliverable-border': '#E2E8F0',
+          'deliverable-accent': '#334155'
+        },
+        fontFamily: {
+          'deliverable': ['Source Serif Pro', 'Noto Serif', 'Georgia', 'serif']
+        }
+      }
+    }
+  };
+</script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .screen-frame { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+  .phone-frame { max-width: 380px; margin: 0 auto; border-radius: 36px; border: 10px solid #1F2937; padding: 4px; }
+  .caption-qarb { font-style: italic; font-size: 0.8rem; line-height: 1.4; }
+  .token-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-family: ui-monospace, monospace; margin-right: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body class="bg-gray-100 text-surface-text dark:bg-dark-bg dark:text-dark-text">
+
+<header class="sticky top-0 z-50 bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border px-6 py-4">
+  <div class="max-w-7xl mx-auto flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold">ESG Mefali — Direction UX retenue</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">Feature 5 clusters · 6 écrans clés · traçabilité Q-arbitrages</p>
+    </div>
+    <button id="themeToggle" class="px-4 py-2 rounded-md bg-brand-green text-white text-sm font-semibold hover:opacity-90">
+      Basculer thème
+    </button>
+  </div>
+</header>
+
+<section class="max-w-7xl mx-auto px-6 py-8">
+  <div class="bg-white dark:bg-dark-card p-6 rounded-lg border border-gray-200 dark:border-dark-border">
+    <h2 class="text-lg font-semibold mb-3">Direction unique arbitrée</h2>
+    <p class="text-sm leading-relaxed mb-3">
+      <strong>« Copilote ESG conversationnel à dual-face visuel, avec adaptation invisible selon persona et sobriété institutionnelle sur les moments juridiques. »</strong>
+    </p>
+    <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+      Cette page montre 6 écrans clés de la direction retenue, issus de la convergence de 22 arbitrages collaboratifs (Q1 à Q22) documentés dans
+      <code class="text-xs bg-gray-100 dark:bg-dark-input px-1 py-0.5 rounded">ux-design-specification.md</code>.
+      Chaque écran est accompagné d'une caption listant les arbitrages matérialisés.
+    </p>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 1 — Landing Aminata mobile (chat + FormalizationPlan inline)</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        Q12 discipline Wave (typo ≥ 16 px, hiérarchie extrême, touch ≥ 44 px) · Q1/Q9 tonalité pédagogue-sage (formalization_level 0) · Q7 first-wow niveau 0 = FormalizationPlan chiffré FCFA + coordonnées locales · Q18 top bar compact ≤ 48 px avec 2 indicateurs · Q13 Perplexity citations inline · Q2 chat primaire · Q8 reconnexion SSE gracieuse + bouton « Enregistrer brouillon »
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="phone-frame bg-white dark:bg-dark-card">
+        <div class="bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border px-3 py-2 flex items-center justify-between text-xs" style="height:48px;">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white font-bold text-xs">M</div>
+            <div>
+              <div class="font-semibold text-sm">Mefali</div>
+              <div class="text-green-600 dark:text-green-400 text-xs flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> en ligne
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="px-2 py-1 rounded bg-brand-green/10 text-brand-green font-semibold">Niv. 0/4</div>
+            <div class="px-2 py-1 rounded bg-brand-blue/10 text-brand-blue font-semibold">2 fonds</div>
+          </div>
+        </div>
+
+        <div class="px-4 py-4 space-y-3" style="height: 520px; overflow-y: auto;">
+
+          <div class="flex items-start gap-2">
+            <div class="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white font-bold text-xs shrink-0">M</div>
+            <div class="bg-gray-100 dark:bg-dark-input rounded-lg px-3 py-2 max-w-[85%]">
+              <p class="text-base leading-relaxed">Bonjour Aminata. J'ai identifié votre situation : transformation de mangues séchées à Ziguinchor, client export français EUDR. Voici le chemin concret pour vous formaliser.</p>
+            </div>
+          </div>
+
+          <div class="ml-9 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+            <div class="bg-brand-green/10 px-3 py-2 text-sm font-semibold text-brand-green">Plan de formalisation</div>
+            <table class="w-full text-sm">
+              <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
+                <tr><td class="px-3 py-2">RCCM Ziguinchor</td><td class="px-3 py-2 text-right font-semibold">125 000 FCFA</td></tr>
+                <tr><td class="px-3 py-2">NINEA</td><td class="px-3 py-2 text-right font-semibold">15 000 FCFA</td></tr>
+                <tr><td class="px-3 py-2">Durée totale estimée</td><td class="px-3 py-2 text-right font-semibold">3 semaines</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex items-start gap-2">
+            <div class="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white font-bold text-xs shrink-0">M</div>
+            <div class="bg-gray-100 dark:bg-dark-input rounded-lg px-3 py-2 max-w-[85%]">
+              <p class="text-base leading-relaxed">Rendez-vous au Tribunal de commerce de Ziguinchor <sup class="text-brand-blue font-semibold cursor-pointer">[1]</sup> pour le RCCM, et au bureau NINEA local <sup class="text-brand-blue font-semibold cursor-pointer">[2]</sup> pour votre identifiant fiscal. Quand ce sera fait, 2 fonds FEM SGP s'ouvriront pour vous.</p>
+              <div class="mt-2 pt-2 border-t border-gray-200 dark:border-dark-border text-xs text-gray-600 dark:text-gray-400">Sources : [1] Tribunal Ziguinchor · [2] Direction Générale des Impôts SN · [3] OHADA Acte uniforme</div>
+            </div>
+          </div>
+
+          <div class="ml-9 flex flex-col gap-2">
+            <button class="bg-brand-green text-white font-semibold py-3 px-4 rounded-md text-base min-h-[44px]">Je commence le RCCM cette semaine</button>
+            <button class="bg-transparent border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 py-3 px-4 rounded-md text-base min-h-[44px]">Plus tard</button>
+          </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-dark-border px-3 py-2 flex items-center gap-2">
+          <input type="text" placeholder="Votre message…" class="flex-1 bg-gray-100 dark:bg-dark-input rounded-md px-3 py-2 text-base min-h-[44px]" />
+          <button class="bg-brand-green text-white rounded-md px-4 py-2 text-sm font-semibold min-h-[44px]">Envoyer</button>
+        </div>
+        <div class="border-t border-gray-200 dark:border-dark-border px-3 py-2 text-xs text-gray-600 dark:text-gray-400 text-center">
+          <span class="underline cursor-pointer">Enregistrer brouillon</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-brand-green text-white">--color-brand-green</span>
+        <span class="token-chip bg-brand-blue text-white">--color-brand-blue</span>
+        <span class="token-chip bg-gray-100 text-gray-900">body ≥ 16 px</span>
+        <span class="token-chip bg-gray-100 text-gray-900">touch ≥ 44 px</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 2 — Chat Moussa desktop + Cube 4D inline + sidebar 3 indicateurs</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        Q3 desktop-primary · Q1/Q9 tonalité factuelle-expert (formalization_level 2) · Q7 first-wow niveau 2 = Cube 4D 3-5 fonds concrets + voies directe/intermédiée · Q18 sidebar persistant droite 3 indicateurs · Q13 Linear AI drawer expandable · NFR1 Cube 4D ≤ 2 s p95
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="screen-frame bg-white dark:bg-dark-card grid grid-cols-12 gap-0" style="height: 640px;">
+
+        <aside class="col-span-2 bg-gray-50 dark:bg-dark-input border-r border-gray-200 dark:border-dark-border p-3 text-sm">
+          <div class="font-bold text-base mb-4">COOPRACA</div>
+          <nav class="space-y-1">
+            <div class="px-2 py-1.5 rounded bg-brand-green/10 text-brand-green font-semibold">Chat</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-hover cursor-pointer">Dashboard</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-hover cursor-pointer">Mes projets (2)</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-hover cursor-pointer">Fonds</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-hover cursor-pointer">Documents</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-dark-hover cursor-pointer">Plan d'action</div>
+          </nav>
+        </aside>
+
+        <main class="col-span-7 border-r border-gray-200 dark:border-dark-border flex flex-col">
+          <div class="px-5 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-sm">Projet : Unité de fermentation cacao</div>
+              <div class="text-xs text-gray-600 dark:text-gray-400">Budget 380 M FCFA · Voie intermédiée</div>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+              <span class="text-green-600 dark:text-green-400">SSE en ligne</span>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-5 space-y-3">
+            <div class="flex justify-end">
+              <div class="bg-brand-green text-white rounded-lg px-3 py-2 max-w-[70%] text-sm">Je veux financer l'unité de fermentation pour 380 M FCFA. Quelles sont mes voies ?</div>
+            </div>
+
+            <div class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 italic">
+              <svg class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="30 30"/></svg>
+              Mefali consulte le Cube 4D…
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white text-xs font-bold shrink-0">M</div>
+              <div class="bg-gray-100 dark:bg-dark-input rounded-lg p-3 flex-1">
+                <p class="text-sm mb-3">J'ai trouvé 3 voies possibles pour votre projet. Deux intermédiaires conviennent à votre ancienneté COOPRACA (12 ans) :</p>
+                <table class="w-full text-xs border-collapse">
+                  <thead class="bg-gray-200 dark:bg-dark-border">
+                    <tr>
+                      <th class="px-2 py-1.5 text-left font-semibold">Fonds</th>
+                      <th class="px-2 py-1.5 text-left font-semibold">Voie</th>
+                      <th class="px-2 py-1.5 text-left font-semibold">Intermédiaire</th>
+                      <th class="px-2 py-1.5 text-left font-semibold">Prérequis</th>
+                      <th class="px-2 py-1.5 text-left font-semibold">Délai</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
+                    <tr>
+                      <td class="px-2 py-2 font-semibold">GCF</td>
+                      <td class="px-2 py-2"><span class="token-chip bg-brand-purple text-white">Intermédiée</span></td>
+                      <td class="px-2 py-2">BOAD</td>
+                      <td class="px-2 py-2 text-gray-600 dark:text-gray-400">Projet &gt; 5 M USD</td>
+                      <td class="px-2 py-2">18 mois</td>
+                    </tr>
+                    <tr>
+                      <td class="px-2 py-2 font-semibold">BOAD Ligne Verte</td>
+                      <td class="px-2 py-2"><span class="token-chip bg-brand-purple text-white">Intermédiée</span></td>
+                      <td class="px-2 py-2">Ecobank CI</td>
+                      <td class="px-2 py-2 text-gray-600 dark:text-gray-400">Ancienneté ≥ 5 ans</td>
+                      <td class="px-2 py-2">9 mois</td>
+                    </tr>
+                    <tr class="bg-brand-green/5">
+                      <td class="px-2 py-2 font-semibold">SUNREF</td>
+                      <td class="px-2 py-2"><span class="token-chip bg-brand-purple text-white">Intermédiée</span></td>
+                      <td class="px-2 py-2">SIB</td>
+                      <td class="px-2 py-2 text-gray-600 dark:text-gray-400">Ancienneté ≥ 2 ans ✓</td>
+                      <td class="px-2 py-2">12 mois</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="mt-2 pt-2 border-t border-gray-200 dark:border-dark-border text-xs text-gray-600 dark:text-gray-400">Sources : [1] GCF Funding Proposal · [2] BOAD catalogue intermédiaires 2026 · [3] SIB conditions PME</div>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-2">
+              <div class="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white text-xs font-bold shrink-0">M</div>
+              <div class="bg-gray-100 dark:bg-dark-input rounded-lg px-3 py-2 max-w-[70%] text-sm">Quelle voie souhaitez-vous approfondir ? SIB a le délai le plus court compatible avec votre ancienneté.</div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-200 dark:border-dark-border px-5 py-3 flex items-center gap-2">
+            <input type="text" placeholder="Votre message…" class="flex-1 bg-gray-100 dark:bg-dark-input rounded-md px-3 py-2 text-sm" />
+            <button class="bg-brand-green text-white rounded-md px-4 py-2 text-sm font-semibold">Envoyer</button>
+          </div>
+        </main>
+
+        <aside class="col-span-3 p-4 space-y-4 bg-white dark:bg-dark-card">
+          <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Votre situation</div>
+
+          <div class="border border-gray-200 dark:border-dark-border rounded-md p-3">
+            <div class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-2">
+              <span>Formalisation</span><span class="font-semibold text-sm text-surface-text dark:text-dark-text">2 / 4</span>
+            </div>
+            <div class="h-2 bg-gray-200 dark:bg-dark-input rounded-full overflow-hidden"><div class="h-2 bg-brand-green rounded-full" style="width: 50%;"></div></div>
+            <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">OHADA audité accessible</div>
+          </div>
+
+          <div class="border border-gray-200 dark:border-dark-border rounded-md p-3">
+            <div class="text-xs text-gray-600 dark:text-gray-400">Fonds éligibles</div>
+            <div class="text-2xl font-bold text-brand-green">3</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">sur 2 projets actifs</div>
+          </div>
+
+          <div class="border border-gray-200 dark:border-dark-border rounded-md p-3">
+            <div class="text-xs text-gray-600 dark:text-gray-400 mb-2">Dossier SIB — Fermentation</div>
+            <div class="flex items-center gap-1 text-[10px]">
+              <span class="flex-1 h-1.5 rounded bg-fa-snapshot-frozen"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+              <span class="flex-1 h-1.5 rounded bg-fa-draft"></span>
+            </div>
+            <div class="text-xs mt-2 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-fa-snapshot-frozen"></span>
+              <span class="text-gray-600 dark:text-gray-400">Snapshot figé · 15 mai 2026</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-brand-green text-white">--color-brand-green</span>
+        <span class="token-chip bg-brand-purple text-white">--color-brand-purple</span>
+        <span class="token-chip bg-fa-snapshot-frozen text-white">--color-fa-snapshot-frozen</span>
+        <span class="token-chip bg-fa-draft text-white">--color-fa-draft</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 3 — ReferentialComparisonView (Akissi FR26, 4 verdicts simultanés)</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        FR26 vue comparative multi-référentiels · Q7 first-wow niveau 3 = même fait → 4 verdicts différents · Q21 tokens sémantiques distincts verdict PASS/FAIL/REPORTED/N/A + badge PASS conditionnel small italic · Q13 Perplexity drawer SourceCitationDrawer au clic cellule · Q15 Reka UI Tabs + ScrollArea · Q17 widget batch composite (BOD+COD+volume+système saisis ensemble)
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="screen-frame bg-white dark:bg-dark-card p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-bold">Effluents — Palmoil Côte d'Ivoire SARL</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Fait saisi le 15 mai 2026 · valid_until 31 mai 2027</p>
+          </div>
+          <span class="token-chip bg-brand-green/10 text-brand-green font-semibold">Niveau 3 audité</span>
+        </div>
+
+        <div class="border-b border-gray-200 dark:border-dark-border flex gap-6 text-sm mb-4">
+          <div class="pb-2 border-b-2 border-brand-green text-brand-green font-semibold">Vue comparative</div>
+          <div class="pb-2 text-gray-600 dark:text-gray-400 cursor-pointer">Détail par règle</div>
+          <div class="pb-2 text-gray-600 dark:text-gray-400 cursor-pointer">Historique</div>
+        </div>
+
+        <div class="bg-gray-50 dark:bg-dark-input rounded-md p-3 mb-4 text-sm">
+          <div class="font-semibold mb-2">Faits saisis (batch composite)</div>
+          <div class="grid grid-cols-4 gap-4">
+            <div><span class="text-gray-600 dark:text-gray-400 text-xs">BOD</span><div class="font-semibold">45 mg/L</div></div>
+            <div><span class="text-gray-600 dark:text-gray-400 text-xs">COD</span><div class="font-semibold">380 mg/L</div></div>
+            <div><span class="text-gray-600 dark:text-gray-400 text-xs">Volume</span><div class="font-semibold">1 200 m³/j</div></div>
+            <div><span class="text-gray-600 dark:text-gray-400 text-xs">Système</span><div class="font-semibold">Lagunage anaérobie</div></div>
+          </div>
+        </div>
+
+        <table class="w-full text-sm border-collapse">
+          <thead>
+            <tr class="border-b border-gray-200 dark:border-dark-border">
+              <th class="text-left py-3 px-3 font-semibold">Référentiel</th>
+              <th class="text-left py-3 px-3 font-semibold">Critère évalué</th>
+              <th class="text-left py-3 px-3 font-semibold">Verdict</th>
+              <th class="text-left py-3 px-3 font-semibold">Source</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
+            <tr>
+              <td class="py-3 px-3 font-semibold">IFC PS3</td>
+              <td class="py-3 px-3 text-gray-600 dark:text-gray-400">BOD effluents ≤ 30 mg/L</td>
+              <td class="py-3 px-3"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-verdict-fail-soft text-verdict-fail font-semibold text-xs">✗ FAIL</span></td>
+              <td class="py-3 px-3 text-xs"><span class="text-brand-blue cursor-pointer hover:underline">[1] IFC EHS Guidelines</span></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-3 font-semibold">RSPO 5.3</td>
+              <td class="py-3 px-3 text-gray-600 dark:text-gray-400">BOD effluents ≤ 100 mg/L si lagunage</td>
+              <td class="py-3 px-3">
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-verdict-pass-soft text-verdict-pass font-semibold text-xs">✓ PASS</span>
+                <span class="ml-2 italic text-xs text-gray-600 dark:text-gray-400">PASS conditionnel</span>
+              </td>
+              <td class="py-3 px-3 text-xs"><span class="text-brand-blue cursor-pointer hover:underline">[2] RSPO P&amp;C 2024 v4.0</span></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-3 font-semibold">ISO 14001</td>
+              <td class="py-3 px-3 text-gray-600 dark:text-gray-400">Système de management environnemental documenté</td>
+              <td class="py-3 px-3"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-verdict-reported-soft text-verdict-reported font-semibold text-xs">! REPORTED</span></td>
+              <td class="py-3 px-3 text-xs"><span class="text-brand-blue cursor-pointer hover:underline">[3] ISO 14001:2015</span></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-3 font-semibold">GRI 303</td>
+              <td class="py-3 px-3 text-gray-600 dark:text-gray-400">Disclosure water effluents</td>
+              <td class="py-3 px-3"><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-verdict-na-soft text-verdict-na font-semibold text-xs">— N/A</span></td>
+              <td class="py-3 px-3 text-xs text-gray-600 dark:text-gray-400">hors périmètre pack actif</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="mt-4 bg-brand-orange/10 border border-brand-orange/30 rounded-md p-3 text-sm">
+          <div class="font-semibold text-brand-orange mb-1">Action recommandée</div>
+          <p class="text-gray-700 dark:text-gray-300">Pour atteindre IFC PS3, un lagunage complémentaire estimé à 35 M FCFA permettrait de passer BOD sous 30 mg/L. Mefali peut générer le plan d'action correctif.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-verdict-pass text-white">--color-verdict-pass</span>
+        <span class="token-chip bg-verdict-fail text-white">--color-verdict-fail</span>
+        <span class="token-chip bg-verdict-reported text-white">--color-verdict-reported</span>
+        <span class="token-chip bg-verdict-na text-white">--color-verdict-na</span>
+        <span class="token-chip bg-verdict-pass-soft text-verdict-pass">*-soft</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 4 — SignatureModal FR40 (page dédiée juridique)</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        FR40 signature électronique obligatoire · Q2 page dédiée hors chat · Q10 restraint institutionnel (statut factuel + hash snapshot, zéro animation) · Q8 bouton « Enregistrer brouillon » · Risque 10 disclaimer IA explicite · Q13 inspiration DocuSign rituel 3 phases · Q15 Reka UI Dialog base technique · Gravité sereine (Step 4 Principle #4)
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="screen-frame bg-white dark:bg-dark-card max-w-3xl mx-auto">
+        <div class="px-8 py-6 border-b border-gray-200 dark:border-dark-border">
+          <div class="flex items-center gap-2 text-xs text-brand-purple font-semibold uppercase tracking-wider mb-2">
+            <span class="w-2 h-2 rounded-full bg-brand-purple"></span> Signature électronique — Acte engageant
+          </div>
+          <h3 class="text-2xl font-semibold">Attestation de relecture et engagement de soumission</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Dossier SIB — Fermentation cacao COOPRACA · destinataire : Société Ivoirienne de Banque</p>
+        </div>
+
+        <div class="px-8 py-6 space-y-5">
+          <div class="bg-gray-50 dark:bg-dark-input border border-gray-200 dark:border-dark-border rounded-md p-4">
+            <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-3">Snapshot figé</div>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+              <div><dt class="text-gray-600 dark:text-gray-400 text-xs">Horodatage</dt><dd class="font-mono">2026-05-15 14:32 GMT</dd></div>
+              <div><dt class="text-gray-600 dark:text-gray-400 text-xs">Faits figés</dt><dd>42 faits atomiques</dd></div>
+              <div><dt class="text-gray-600 dark:text-gray-400 text-xs">Verdicts</dt><dd>28 dérivés multi-référentiels</dd></div>
+              <div><dt class="text-gray-600 dark:text-gray-400 text-xs">Référentiels actifs</dt><dd>IFC PS 2012, RSPO 2024 v4.0, BCEAO</dd></div>
+              <div class="col-span-2"><dt class="text-gray-600 dark:text-gray-400 text-xs">Hash cryptographique</dt><dd class="font-mono text-xs break-all">sha256:a3f9e4c1d7b2…6e8f2a</dd></div>
+            </dl>
+          </div>
+
+          <div class="bg-brand-orange/10 border-l-4 border-brand-orange rounded-r-md p-4">
+            <div class="font-semibold text-sm text-brand-orange mb-1">Rappel important</div>
+            <p class="text-sm text-gray-700 dark:text-gray-300">Mefali est un assistant IA. Le contenu de ce dossier a été généré avec votre participation. La responsabilité finale du contenu soumis au bailleur vous incombe. Tout document exporté porte un audit trail complet consultable par vous et le bailleur.</p>
+          </div>
+
+          <div class="text-sm leading-relaxed">
+            <p class="mb-2">Je, <span class="font-semibold underline">Moussa Kouakou</span>, en ma qualité de président de COOPRACA, atteste :</p>
+            <ul class="list-disc list-inside space-y-1 ml-2 text-gray-700 dark:text-gray-300">
+              <li>avoir relu l'ensemble du contenu du dossier de financement destiné à SIB</li>
+              <li>valider l'exactitude des faits déclarés et des preuves associées</li>
+              <li>comprendre que ce dossier sera figé par snapshot cryptographique à la signature</li>
+              <li>assumer l'entière responsabilité de sa soumission au bailleur</li>
+            </ul>
+          </div>
+
+          <label class="flex items-start gap-3 cursor-pointer p-3 border border-gray-200 dark:border-dark-border rounded-md hover:bg-gray-50 dark:hover:bg-dark-hover">
+            <input type="checkbox" class="mt-1 w-5 h-5 accent-brand-green" />
+            <span class="text-sm font-semibold">J'ai relu et je valide l'ensemble du dossier pour soumission à SIB.</span>
+          </label>
+        </div>
+
+        <div class="px-8 py-5 bg-gray-50 dark:bg-dark-input border-t border-gray-200 dark:border-dark-border flex items-center justify-between">
+          <button class="text-sm text-gray-600 dark:text-gray-400 underline">Enregistrer brouillon et revenir plus tard</button>
+          <div class="flex gap-3">
+            <button class="px-4 py-2 rounded-md text-sm border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300">Annuler</button>
+            <button class="px-5 py-2 rounded-md text-sm font-semibold bg-brand-purple text-white">Signer et figer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-brand-purple text-white">--color-brand-purple</span>
+        <span class="token-chip bg-brand-orange text-white">--color-brand-orange</span>
+        <span class="token-chip bg-gray-100 text-gray-900">aucune animation GSAP</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 5 — ImpactProjectionPanel Mariam admin N3 (ReferentialMigration)</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        Q11 maîtrise responsable admin (projection d'impact + checklist bloquante) · Q14 Terraform Plan + GitHub PR + CMS versioning · Q3 desktop-primary admin · Q10 restraint institutionnel (statut factuel) · FR25 ReferentialMigration avec plan de transition · D6 test rétroactif stratifié ≥ 50 snapshots + seuil blocage 20 %
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="screen-frame bg-white dark:bg-dark-card">
+        <div class="px-6 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between bg-admin-n3/5">
+          <div>
+            <div class="text-xs text-admin-n3 font-bold uppercase tracking-wider">Administration · Niveau 3 · Versioning strict</div>
+            <h3 class="text-lg font-semibold">Publication — RSPO_PC@2024_v4.0</h3>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-600 dark:text-gray-400">État workflow :</span>
+            <span class="px-2 py-1 rounded bg-brand-orange/10 text-brand-orange font-semibold">tested_retroactively</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12">
+          <div class="col-span-8 p-6 border-r border-gray-200 dark:border-dark-border space-y-5">
+            <h4 class="text-sm font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">Projection d'impact</h4>
+
+            <div class="grid grid-cols-3 gap-4">
+              <div class="border border-gray-200 dark:border-dark-border rounded-md p-4">
+                <div class="text-xs text-gray-600 dark:text-gray-400">FundApplications concernées</div>
+                <div class="text-3xl font-bold mt-1">17</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">dossiers actifs non-soumis</div>
+              </div>
+              <div class="border border-gray-200 dark:border-dark-border rounded-md p-4">
+                <div class="text-xs text-gray-600 dark:text-gray-400">Verdicts changés</div>
+                <div class="text-3xl font-bold mt-1">142</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">sur 1 284 recalculés</div>
+              </div>
+              <div class="border border-gray-200 dark:border-dark-border rounded-md p-4">
+                <div class="text-xs text-gray-600 dark:text-gray-400">% vs seuil blocage 20 %</div>
+                <div class="text-3xl font-bold mt-1 text-brand-green">11 %</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">✓ publication autorisée</div>
+              </div>
+            </div>
+
+            <div class="border border-gray-200 dark:border-dark-border rounded-md p-4">
+              <div class="text-xs text-gray-600 dark:text-gray-400 mb-3 font-semibold uppercase tracking-wider">Distribution des bascules</div>
+              <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-3">
+                  <div class="w-28 text-xs">PASS → FAIL</div>
+                  <div class="flex-1 h-3 bg-gray-100 dark:bg-dark-input rounded-full overflow-hidden"><div class="h-3 bg-verdict-fail" style="width: 18%"></div></div>
+                  <div class="w-14 text-xs text-right font-semibold">26</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-28 text-xs">PASS → REPORTED</div>
+                  <div class="flex-1 h-3 bg-gray-100 dark:bg-dark-input rounded-full overflow-hidden"><div class="h-3 bg-verdict-reported" style="width: 40%"></div></div>
+                  <div class="w-14 text-xs text-right font-semibold">57</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-28 text-xs">FAIL → PASS</div>
+                  <div class="flex-1 h-3 bg-gray-100 dark:bg-dark-input rounded-full overflow-hidden"><div class="h-3 bg-verdict-pass" style="width: 28%"></div></div>
+                  <div class="w-14 text-xs text-right font-semibold">39</div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-28 text-xs">Autres bascules</div>
+                  <div class="flex-1 h-3 bg-gray-100 dark:bg-dark-input rounded-full overflow-hidden"><div class="h-3 bg-verdict-na" style="width: 14%"></div></div>
+                  <div class="w-14 text-xs text-right font-semibold">20</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="border border-gray-200 dark:border-dark-border rounded-md p-4">
+              <div class="text-xs text-gray-600 dark:text-gray-400 mb-2 font-semibold uppercase tracking-wider">Échantillon test rétroactif stratifié</div>
+              <p class="text-sm">54 snapshots sélectionnés (stratification : secteur × pays × maturité × projet). Recalcul effectué le 14 mai 2026 à 14:02 GMT. Rapport complet : <span class="text-brand-blue cursor-pointer underline">retrospective_test_RSPO_v4_2026-05-14.pdf</span></p>
+            </div>
+          </div>
+
+          <aside class="col-span-4 p-6 bg-gray-50 dark:bg-dark-input space-y-4">
+            <h4 class="text-sm font-bold uppercase tracking-wider text-admin-n3">Checklist N3 bloquante</h4>
+
+            <div class="space-y-3 text-sm">
+              <label class="flex items-start gap-2"><input type="checkbox" checked class="mt-1 accent-brand-green" /><span>Test rétroactif ≥ 50 snapshots effectué</span></label>
+              <label class="flex items-start gap-2"><input type="checkbox" checked class="mt-1 accent-brand-green" /><span>Seuil &lt; 20 % verdicts changés respecté</span></label>
+              <label class="flex items-start gap-2"><input type="checkbox" checked class="mt-1 accent-brand-green" /><span>Peer review N2 validé par 2<sup>e</sup> admin</span></label>
+              <label class="flex items-start gap-2"><input type="checkbox" class="mt-1 accent-brand-green" /><span>Date d'effet choisie</span></label>
+              <label class="flex items-start gap-2"><input type="checkbox" class="mt-1 accent-brand-green" /><span>Plan de transition préparé pour notification</span></label>
+              <label class="flex items-start gap-2"><input type="checkbox" class="mt-1 accent-brand-green" /><span>Procédure de rollback documentée</span></label>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-dark-border pt-4">
+              <label class="block text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400">Date d'effet</label>
+              <input type="date" value="2026-05-31" class="w-full bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 text-sm" />
+              <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Obligatoire RSPO : 31 mai 2026</p>
+            </div>
+
+            <div class="pt-4 space-y-2">
+              <button class="w-full px-4 py-2 rounded-md bg-admin-n3 text-white text-sm font-semibold">Planifier la publication</button>
+              <button class="w-full px-4 py-2 rounded-md border border-gray-300 dark:border-dark-border text-sm">Annuler</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-admin-n3 text-white">--color-admin-n3</span>
+        <span class="token-chip bg-verdict-pass text-white">--color-verdict-pass</span>
+        <span class="token-chip bg-verdict-fail text-white">--color-verdict-fail</span>
+        <span class="token-chip bg-verdict-reported text-white">--color-verdict-reported</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="max-w-7xl mx-auto px-6 py-6 pb-16">
+  <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <h2 class="text-lg font-semibold">Écran 6 — Export bailleur PDF preview (layer tokens livraison sobre)</h2>
+      <p class="caption-qarb text-gray-600 dark:text-gray-400 mt-1">
+        Q4 dual-face visuel (layer livraison bailleur sobre institutionnel) · Q19 Source Serif Pro self-hosted pour PDF · Q10 restraint institutionnel · Cluster C moteur livrables (FR36–FR44) · WeasyPrint + Jinja2 · Pas de dark mode (contexte imprimé) · Pas de couleur brand Mefali intrusive · Disclaimer IA tête + pied (Risque 10)
+      </p>
+    </div>
+
+    <div class="p-6 bg-gray-50 dark:bg-dark-bg">
+      <div class="mx-auto bg-deliverable-bg border border-deliverable-border p-10 font-deliverable text-deliverable-text" style="max-width: 700px; min-height: 900px;">
+        <div class="text-xs italic text-deliverable-muted text-center border-b border-deliverable-border pb-3 mb-6">
+          Document généré avec l'assistance de Mefali (IA). La responsabilité du contenu incombe au signataire. Hash du snapshot : sha256:a3f9e4c1d7b2…6e8f2a
+        </div>
+
+        <div class="mb-8">
+          <div class="text-xs text-deliverable-muted uppercase tracking-widest mb-2">Fonds SUNREF · Dossier de financement</div>
+          <h1 class="text-2xl font-bold" style="font-weight: 600;">Unité de fermentation centralisée — COOPRACA</h1>
+          <div class="text-sm text-deliverable-muted mt-2">Coopérative des producteurs de cacao de Bouaflé · Côte d'Ivoire · Montant : 380 000 000 FCFA</div>
+          <div class="w-full border-t-2 border-deliverable-accent mt-4"></div>
+        </div>
+
+        <section class="mb-6">
+          <h2 class="text-base font-bold uppercase tracking-wider mb-3" style="font-weight: 600;">Résumé exécutif</h2>
+          <p class="text-sm leading-relaxed mb-2">COOPRACA, coopérative OHADA de 152 producteurs de cacao, sollicite un financement de 380 millions FCFA pour la construction d'une unité de fermentation centralisée visant à améliorer la qualité des fèves et à atteindre la certification Rainforest Alliance.</p>
+          <p class="text-sm leading-relaxed">Le projet répond aux critères d'éligibilité SUNREF (voie intermédiée via SIB) et s'inscrit dans la politique de soutien à la filière cacao durable de la Côte d'Ivoire.</p>
+        </section>
+
+        <section class="mb-6">
+          <h2 class="text-base font-bold uppercase tracking-wider mb-3" style="font-weight: 600;">Conformité ESG — Verdicts multi-référentiels</h2>
+          <table class="w-full text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-deliverable-accent">
+                <th class="text-left py-2 px-2" style="font-weight: 600;">Référentiel</th>
+                <th class="text-left py-2 px-2" style="font-weight: 600;">Verdict</th>
+                <th class="text-left py-2 px-2" style="font-weight: 600;">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-deliverable-border">
+                <td class="py-2 px-2">IFC Performance Standards PS1</td>
+                <td class="py-2 px-2">PASS</td>
+                <td class="py-2 px-2 text-deliverable-muted">IFC Sustainability Framework 2012</td>
+              </tr>
+              <tr class="border-b border-deliverable-border">
+                <td class="py-2 px-2">Rainforest Alliance 2020</td>
+                <td class="py-2 px-2">PASS conditionnel (audit prévu)</td>
+                <td class="py-2 px-2 text-deliverable-muted">RA Sustainable Agriculture Standard</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-2">EUDR (UE 2023/1115)</td>
+                <td class="py-2 px-2">PASS</td>
+                <td class="py-2 px-2 text-deliverable-muted">Règlement UE 2023/1115 modifié 2025/2650</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="mb-6">
+          <h2 class="text-base font-bold uppercase tracking-wider mb-3" style="font-weight: 600;">Plan de financement</h2>
+          <p class="text-sm leading-relaxed">Montant total sollicité : 380 000 000 FCFA sur 7 ans, taux préférentiel SUNREF. Apport coopérative : 45 000 000 FCFA (12 %). Garanties : cautionnement mutualiste intra-coopérative + aval SIB.</p>
+        </section>
+
+        <section class="border-t-2 border-deliverable-accent pt-4 mt-8">
+          <div class="grid grid-cols-2 gap-6 text-sm">
+            <div>
+              <div class="text-xs text-deliverable-muted uppercase tracking-wider mb-2">Signataire</div>
+              <div style="font-weight: 600;">Moussa Kouakou</div>
+              <div class="text-deliverable-muted">Président, COOPRACA</div>
+              <div class="text-xs text-deliverable-muted mt-2">Signé électroniquement le 15 mai 2026 à 14:32 GMT</div>
+            </div>
+            <div>
+              <div class="text-xs text-deliverable-muted uppercase tracking-wider mb-2">Destinataire</div>
+              <div style="font-weight: 600;">SIB — Société Ivoirienne de Banque</div>
+              <div class="text-deliverable-muted">Conseiller PME Abidjan</div>
+            </div>
+          </div>
+        </section>
+
+        <div class="text-xs italic text-deliverable-muted text-center border-t border-deliverable-border pt-3 mt-10">
+          Mefali — Document généré avec l'assistance d'une IA. Audit trail : FundApplicationGenerationLog ID #7A3F9. Page 1/42.
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 dark:bg-dark-bg border-t border-gray-200 dark:border-dark-border">
+      <p class="text-xs text-gray-600 dark:text-gray-400"><strong>Tokens :</strong>
+        <span class="token-chip bg-deliverable-bg text-deliverable-text border border-gray-300">--color-deliverable-bg</span>
+        <span class="token-chip bg-deliverable-accent text-white">--color-deliverable-accent</span>
+        <span class="token-chip bg-gray-100 text-gray-900">font-deliverable Source Serif Pro</span>
+        <span class="token-chip bg-gray-100 text-gray-900">aucune brand color</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer class="max-w-7xl mx-auto px-6 py-8 text-xs text-gray-600 dark:text-gray-400 text-center">
+  <p>ESG Mefali — Direction UX retenue · Généré par le workflow <code>bmad-create-ux-design</code> · Source : ux-design-specification.md</p>
+  <p class="mt-1">Ce document est une référence visuelle statique. Il ne remplace pas les wireframes de parcours (Step 10) ni la stratégie de composants (Step 11).</p>
+</footer>
+
+<script>
+  const toggle = document.getElementById('themeToggle');
+  const html = document.documentElement;
+  toggle.addEventListener('click', () => {
+    html.classList.toggle('dark');
+    html.classList.toggle('light');
+  });
+</script>
+
+</body>
+</html>

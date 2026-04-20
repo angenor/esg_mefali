@@ -548,15 +548,15 @@ Points actionnables herites :
 
 ### References
 
-- Source epic : `_bmad-output/planning-artifacts/epics.md:1148-1186` (Epic 7 Story 7.3 avec BDD + exigences techniques)
+- Source epic : `_bmad-output/planning-artifacts/epics-019-floating-copilot.md:1148-1186` (Epic 7 Story 7.3 avec BDD + exigences techniques)
 - Source PRD :
   - `_bmad-output/planning-artifacts/prd.md:155-157` (coupures reseau + indicateur reconnexion)
   - `_bmad-output/planning-artifacts/prd.md:363` (FR33 — SSE perdue + indicateur)
   - `_bmad-output/planning-artifacts/prd.md:404` (NFR17 — parcours continue + indicateur)
 - Source architecture :
-  - `_bmad-output/planning-artifacts/architecture.md:183-218` (Decision 2 — SSE POST-based + AbortController + `isConnected` ref specifie)
-  - `_bmad-output/planning-artifacts/architecture.md:58-60` (pattern SSE existant `data: {JSON}\n\n`)
-  - `_bmad-output/planning-artifacts/architecture.md:210-213` (pattern POST-based preservation)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:183-218` (Decision 2 — SSE POST-based + AbortController + `isConnected` ref specifie)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:58-60` (pattern SSE existant `data: {JSON}\n\n`)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:210-213` (pattern POST-based preservation)
 - Stories precedentes impactant la logique :
   - `_bmad-output/implementation-artifacts/7-1-gestion-des-elements-dom-absents-et-timeout-de-chargement.md` (pattern constants + messages FR + invariant `if (!cancelled)` — reutilise pour la structure)
   - `_bmad-output/implementation-artifacts/7-2-renouvellement-jwt-transparent-pendant-le-guidage.md` (pattern classification erreurs via sentinel class + singleton module-level + mapping AC→test — reutilise comme modele)

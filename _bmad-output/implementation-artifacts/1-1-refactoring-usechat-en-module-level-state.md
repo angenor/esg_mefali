@@ -158,8 +158,8 @@ Ce pattern est la base de toute la feature 019 (widget flottant). Si l'état n'e
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 1, Story 1.1]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR1: module-level state, SSE cross-routes]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 1, Story 1.1]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR1: module-level state, SSE cross-routes]
 - [Source: _bmad-output/planning-artifacts/prd.md — FR34 SSE cross-routes, NFR7 latence SSE, NFR19 zéro régression]
 - [Source: frontend/app/composables/useChat.ts — 640 lignes, état actuel]
 

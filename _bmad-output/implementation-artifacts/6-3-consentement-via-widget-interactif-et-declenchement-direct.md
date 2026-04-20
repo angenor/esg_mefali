@@ -325,10 +325,10 @@ Aucune divergence avec la structure unified : les tests prompt vont dans `backen
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Epic-6-Story-6.3] — Exigences (lignes 989-1024)
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Epic-6-Story-6.3] — Exigences (lignes 989-1024)
 - [Source: _bmad-output/planning-artifacts/prd.md#FR14-FR17] — Consentement et declenchement du guidage (lignes 332-335)
-- [Source: _bmad-output/planning-artifacts/architecture.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour (lignes 286-354)
-- [Source: _bmad-output/planning-artifacts/architecture.md#L934-L958] — Flux de donnees parcours guide complet
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Decision-4] — ADR4 Tool LangChain trigger_guided_tour (lignes 286-354)
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#L934-L958] — Flux de donnees parcours guide complet
 - [Source: backend/app/prompts/guided_tour.py] — Prompt GUIDED_TOUR_INSTRUCTION (story 6.2)
 - [Source: backend/app/graph/tools/guided_tour_tools.py] — Tool trigger_guided_tour (story 6.1)
 - [Source: backend/app/graph/tools/interactive_tools.py:53] — Tool ask_interactive_question (feature 018)

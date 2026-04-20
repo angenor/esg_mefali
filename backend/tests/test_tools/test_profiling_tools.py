@@ -93,9 +93,11 @@ class TestUpdateCompanyProfile:
         """Mise à jour d'un seul champ retourne le champ modifié et la complétion."""
         profile = _make_profile(company_name="Solaris")
         mock_get_or_create.return_value = profile
+        # Story 9.5 : update_profile retourne un 3-uplet (profile, changed, skipped).
         mock_update.return_value = (
             profile,
             [{"field": "company_name", "value": "Solaris", "label": "Nom de l'entreprise"}],
+            [],
         )
         mock_compute.return_value = _make_completion(
             identity_pct=25.0, overall_pct=12.5,
@@ -129,6 +131,7 @@ class TestUpdateCompanyProfile:
         """Mise à jour de plusieurs champs retourne tous les champs modifiés."""
         profile = _make_profile(company_name="EcoAfrik", sector="agriculture", city="Abidjan")
         mock_get_or_create.return_value = profile
+        # Story 9.5 : update_profile retourne un 3-uplet (profile, changed, skipped).
         mock_update.return_value = (
             profile,
             [
@@ -136,6 +139,7 @@ class TestUpdateCompanyProfile:
                 {"field": "sector", "value": "agriculture", "label": "Secteur"},
                 {"field": "city", "value": "Abidjan", "label": "Ville"},
             ],
+            [],
         )
         mock_compute.return_value = _make_completion(identity_pct=50.0, overall_pct=25.0)
 
@@ -167,7 +171,8 @@ class TestUpdateCompanyProfile:
         """Valeurs identiques retourne un message 'aucun changement'."""
         profile = _make_profile(company_name="Solaris")
         mock_get_or_create.return_value = profile
-        mock_update.return_value = (profile, [])
+        # Story 9.5 : update_profile retourne un 3-uplet (profile, changed, skipped).
+        mock_update.return_value = (profile, [], [])
 
         result = await update_company_profile.ainvoke(
             {"company_name": "Solaris"},

@@ -17,7 +17,7 @@ from langchain_core.tools import tool
 from pydantic import ValidationError
 from sqlalchemy import select, update
 
-from app.graph.tools.common import get_db_and_user, log_tool_call
+from app.graph.tools.common import get_db_and_user, with_retry
 from app.models.interactive_question import (
     InteractiveQuestion,
     InteractiveQuestionState,
@@ -158,24 +158,8 @@ async def ask_interactive_question(
         sse_payload = _serialize_for_sse(question)
         sse_marker = json.dumps({"__sse_interactive_question__": True, **sse_payload})
 
-        try:
-            await log_tool_call(
-                db,
-                user_id=_user_id,
-                conversation_id=conversation_id,
-                node_name=module_name,
-                tool_name="ask_interactive_question",
-                tool_args={
-                    "question_type": question_type,
-                    "prompt": prompt[:200],
-                    "options_count": len(options),
-                },
-                tool_result={"question_id": str(question.id), "state": "pending"},
-                status="success",
-            )
-        except Exception:  # pragma: no cover - journalisation defensive
-            logger.debug("Echec journalisation tool ask_interactive_question", exc_info=True)
-
+        # H3 (post-review 9.7) : log inline supprime ; le wrapper `with_retry`
+        # emet deja la ligne success avec les 12 colonnes (AC4).
         return (
             "Question posee a l'utilisateur."
             f"\n\n<!--SSE:{sse_marker}-->"
@@ -186,4 +170,4 @@ async def ask_interactive_question(
         return f"Erreur lors de la creation de la question interactive : {exc}"
 
 
-INTERACTIVE_TOOLS = [ask_interactive_question]
+INTERACTIVE_TOOLS = [with_retry(ask_interactive_question, max_retries=2, node_name="")]

@@ -552,8 +552,8 @@ Aucun conflit detecte vs. stories precedentes.
 
 ### References
 
-- Epic 8 : [Source: _bmad-output/planning-artifacts/epics.md:1189-1254]
-- Story 8.3 (origine) : [Source: _bmad-output/planning-artifacts/epics.md:1258-1285]
+- Epic 8 : [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md:1189-1254]
+- Story 8.3 (origine) : [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md:1258-1285]
 - Stories precedentes 8.1 / 8.2 : [Source: _bmad-output/implementation-artifacts/8-1-tests-e2e-parcours-fatou.md, 8-2-tests-e2e-parcours-moussa.md]
 - Validation live agent-browser 8.2 : [Source: _bmad-output/implementation-artifacts/8-2-tests-e2e-parcours-moussa.md:5-23]
 - Dette feature 019 : [Source: _bmad-output/implementation-artifacts/spec-019-guided-tour-post-fix-debts.md]

@@ -333,10 +333,10 @@ c489a6c 2-2-mise-a-jour-de-la-navigation: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 5, Story 5.1 (lignes 717-763)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR3 Decision 3, machine a etats useGuidedTour]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR5 Decision 5, registre data-guide-target]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR7 Decision 7, lazy loading Driver.js]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 5, Story 5.1 (lignes 717-763)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR3 Decision 3, machine a etats useGuidedTour]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR5 Decision 5, registre data-guide-target]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR7 Decision 7, lazy loading Driver.js]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md — 4 issues deferees resolues dans cette story]
 - [Source: _bmad-output/implementation-artifacts/4-3-marquage-data-guide-target-sur-les-composants-existants.md — Review findings, 19 selectors, v-if pattern]
 - [Source: _bmad-output/implementation-artifacts/4-2-types-et-registre-de-parcours-guides.md — Registry complete, conventions]

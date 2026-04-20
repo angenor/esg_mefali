@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SectorEnum(str, Enum):
@@ -45,6 +45,14 @@ class CompanyProfileResponse(BaseModel):
     environmental_practices: str | None = None
     social_practices: str | None = None
     notes: str | None = None
+    # Story 9.5 : champs edites manuellement, proteges contre l'ecrasement LLM.
+    manually_edited_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Champs edites manuellement via PATCH /profile, proteges contre "
+            "les ecrasements automatiques par le tool LLM."
+        ),
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -52,7 +60,14 @@ class CompanyProfileResponse(BaseModel):
 
 
 class CompanyProfileUpdate(BaseModel):
-    """Mise à jour partielle du profil entreprise."""
+    """Mise à jour partielle du profil entreprise.
+
+    `extra="forbid"` : rejette tout champ inconnu (422). Durcissement
+    anti-tampering contre une tentative client de manipuler directement
+    `manually_edited_fields` ou autres champs backend-only (review 9.5 P5).
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     company_name: str | None = Field(None, max_length=255)
     sector: SectorEnum | None = None

@@ -258,6 +258,10 @@ async def stream_graph_events(
                         if sse_data.get("__sse_profile__"):
                             for field_update in sse_data.get("changed_fields", []):
                                 yield {"type": "profile_update", **field_update}
+                            # Story 9.5 : emettre un event profile_skipped par
+                            # champ protege que le LLM a tente d'ecraser.
+                            for skipped in sse_data.get("skipped_fields", []):
+                                yield {"type": "profile_skipped", **skipped}
                             completion = sse_data.get("completion")
                             if completion:
                                 yield {"type": "profile_completion", **completion}
@@ -870,7 +874,7 @@ async def send_message(
                         "tool_call_start", "tool_call_end", "tool_call_error",
                         "interactive_question", "interactive_question_resolved",
                         "guided_tour",
-                        "profile_update", "profile_completion",
+                        "profile_update", "profile_completion", "profile_skipped",
                     ):
                         if event_type == "guided_tour":
                             guided_tour_emitted = True

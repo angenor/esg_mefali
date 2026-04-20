@@ -194,7 +194,8 @@ class TestUpdateProfile:
         updates = CompanyProfileUpdate(
             company_name="EcoPlast", sector="recyclage"
         )
-        updated_profile, changed = await update_profile(
+        # Story 9.5 : update_profile retourne un 3-uplet (profile, changed, skipped).
+        updated_profile, changed, _skipped = await update_profile(
             db_session, profile, updates
         )
 
@@ -227,7 +228,8 @@ class TestUpdateProfile:
         await db_session.flush()
 
         updates = CompanyProfileUpdate(city="Abidjan")
-        _, changed = await update_profile(db_session, profile, updates)
+        # Story 9.5 : update_profile retourne un 3-uplet (profile, changed, skipped).
+        _, changed, _skipped = await update_profile(db_session, profile, updates)
 
         assert len(changed) == 0
 
@@ -245,3 +247,233 @@ class TestGetProfile:
         """Retourne None si le profil n'existe pas."""
         result = await get_profile(db_session, uuid.uuid4())
         assert result is None
+
+
+# ── Story 9.5 — TestManualEdit (P1 #7) ──────────────────────────────
+
+
+class TestManualEdit:
+    """Story 9.5 : flag manually_edited_fields — edition manuelle prevaut.
+
+    Couvre AC1 (skip LLM + log WARNING + event skip), AC2 (pas de verrou manuel,
+    idempotence du flag), AC3 (champ non-touche = comportement normal), AC4
+    (retro-compatibilite liste vide).
+    """
+
+    @pytest.mark.asyncio
+    async def test_manual_edit_marks_field(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC2 partie 1 : edition manuelle ajoute le champ a la liste protegee."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual1@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        assert profile.manually_edited_fields == []
+
+        updates = CompanyProfileUpdate(sector="textile", city="Dakar")
+        updated, changed, skipped = await update_profile(
+            db_session, profile, updates, source="manual",
+        )
+
+        assert updated.sector.value == "textile"
+        assert updated.city == "Dakar"
+        assert sorted(updated.manually_edited_fields) == ["city", "sector"]
+        assert len(changed) == 2
+        assert skipped == []
+
+    @pytest.mark.asyncio
+    async def test_llm_update_skips_manually_edited_fields(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC1 : tool LLM ne doit pas ecraser un champ deja edite manuellement."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual2@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        # Phase 1 : edition manuelle sector=textile
+        await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="textile"), source="manual",
+        )
+        assert profile.sector.value == "textile"
+        assert "sector" in profile.manually_edited_fields
+
+        # Phase 2 : tentative ecrasement par LLM
+        updated, changed, skipped = await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="agriculture"), source="llm",
+        )
+
+        assert updated.sector.value == "textile"  # NON ecrase
+        assert changed == []
+        assert len(skipped) == 1
+        assert skipped[0]["field"] == "sector"
+        assert skipped[0]["attempted_value"] == "agriculture"
+        assert skipped[0]["current_value"] == "textile"
+        assert skipped[0]["label"] == "Secteur"
+
+    @pytest.mark.asyncio
+    async def test_llm_update_logs_warning_on_skip(
+        self, db_session: AsyncSession, user_id: uuid.UUID, caplog
+    ) -> None:
+        """AC1 partie 2 : un log WARNING est emis sur chaque skip LLM."""
+        import logging
+
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual3@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="textile"), source="manual",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="app.modules.company.service"):
+            await update_profile(
+                db_session, profile,
+                CompanyProfileUpdate(sector="agriculture"), source="llm",
+            )
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "sector" in warnings[0].getMessage()
+        assert "edite manuellement" in warnings[0].getMessage()
+
+    @pytest.mark.asyncio
+    async def test_second_manual_edit_keeps_mark(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC2 partie 2 : edition manuelle 2 = mise a jour OK + flag idempotent."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual4@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="textile"), source="manual",
+        )
+        await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="agroalimentaire"), source="manual",
+        )
+
+        assert profile.sector.value == "agroalimentaire"
+        # Idempotence : le champ n'apparait qu'une seule fois
+        assert profile.manually_edited_fields.count("sector") == 1
+
+    @pytest.mark.asyncio
+    async def test_non_edited_field_updates_normally(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC3 : champ jamais edite manuellement -> LLM update passe normalement."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual5@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        assert profile.manually_edited_fields == []
+
+        updated, changed, skipped = await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(city="Dakar"), source="llm",
+        )
+
+        assert updated.city == "Dakar"
+        assert len(changed) == 1
+        assert skipped == []
+        # IMPORTANT : le chemin LLM ne doit PAS marquer le champ comme manuel
+        assert "city" not in updated.manually_edited_fields
+
+    @pytest.mark.asyncio
+    async def test_llm_partial_update_skips_only_protected(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC1+AC3 mixte : LLM update sur 2 champs dont 1 protege -> skip 1, applique 1."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual6@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        profile = await get_or_create_profile(db_session, user_id)
+        await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="textile"), source="manual",
+        )
+
+        updated, changed, skipped = await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="agriculture", city="Bamako"),
+            source="llm",
+        )
+
+        assert updated.sector.value == "textile"  # protege
+        assert updated.city == "Bamako"  # passe
+        assert len(changed) == 1
+        assert changed[0]["field"] == "city"
+        assert len(skipped) == 1
+        assert skipped[0]["field"] == "sector"
+
+    @pytest.mark.asyncio
+    async def test_legacy_profile_with_empty_manual_list(
+        self, db_session: AsyncSession, user_id: uuid.UUID
+    ) -> None:
+        """AC4 : profil pre-existant (manually_edited_fields=[]) -> comportement inchange."""
+        from app.models.user import User
+
+        user = User(
+            id=user_id, email="manual7@example.com",
+            hashed_password="hashed", full_name="X", company_name="X",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        # Simuler un profil « legacy » avec liste vide explicite (post-migration)
+        profile = await get_or_create_profile(db_session, user_id)
+        profile.manually_edited_fields = []
+        await db_session.flush()
+
+        # Tout LLM update doit passer normalement
+        updated, changed, skipped = await update_profile(
+            db_session, profile,
+            CompanyProfileUpdate(sector="agriculture", city="Lome"),
+            source="llm",
+        )
+
+        assert updated.sector.value == "agriculture"
+        assert updated.city == "Lome"
+        assert len(changed) == 2
+        assert skipped == []

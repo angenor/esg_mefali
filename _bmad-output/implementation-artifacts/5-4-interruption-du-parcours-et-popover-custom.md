@@ -346,10 +346,10 @@ import GuidedTourPopover from '~/components/copilot/GuidedTourPopover.vue'
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 5, Story 5.4]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 3 (machine a etats useGuidedTour)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 5 (registre data-guide-target)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 7 (lazy loading Driver.js)]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 5, Story 5.4]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 3 (machine a etats useGuidedTour)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 5 (registre data-guide-target)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 7 (lazy loading Driver.js)]
 - [Source: _bmad-output/implementation-artifacts/5-3-navigation-multi-pages-avec-decompteur.md — Review: CountdownBadge.vue supprime]
 - [Source: frontend/app/composables/useGuidedTour.ts — code actuel complet, 471 lignes]
 - [Source: frontend/app/types/guided-tour.ts — TourState, GuidedTourPopover, GuidedTourStep]

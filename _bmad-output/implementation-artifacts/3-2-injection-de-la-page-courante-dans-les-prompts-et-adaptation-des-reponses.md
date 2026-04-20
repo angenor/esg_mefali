@@ -333,9 +333,9 @@ e27120c 1-3 + 1-4 + 1-5: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 3, Story 3.2, lignes 552-582]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 3, Story 3.2, lignes 552-582]
 - [Source: _bmad-output/planning-artifacts/prd.md — FR11, FR12, FR13, NFR19, NFR22]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Conscience contextuelle lignes 719-732, regles enforcement lignes 759-768]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Conscience contextuelle lignes 719-732, regles enforcement lignes 759-768]
 - [Source: _bmad-output/implementation-artifacts/3-1-transmission-de-la-page-courante-au-backend.md — Dev Notes, Review Findings, Completion Notes]
 - [Source: backend/app/prompts/system.py — build_system_prompt(), STYLE_INSTRUCTION, BASE_PROMPT]
 - [Source: backend/app/graph/nodes.py — chat_node (~1092), esg_scoring_node (~554), carbon_node (~706), financing_node (~853), application_node (~1187), credit_node (~1026), action_plan_node (~1247)]

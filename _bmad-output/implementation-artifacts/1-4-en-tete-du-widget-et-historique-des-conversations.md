@@ -291,8 +291,8 @@ Le projet utilise des SVG inline (pas de librairie d'icones). Voici les icones a
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 1, Story 1.4]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR1 module-level state, Enforcement rules, FloatingChatWidget architecture]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 1, Story 1.4]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR1 module-level state, Enforcement rules, FloatingChatWidget architecture]
 - [Source: _bmad-output/planning-artifacts/prd.md — FR5, FR6, NFR12, NFR19, NFR23, NFR24]
 - [Source: _bmad-output/implementation-artifacts/1-3-bouton-flottant-et-conteneur-du-widget.md — Pattern styling, GSAP, header temporaire, conventions test, review findings]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md — W1/W6 story 1-3]

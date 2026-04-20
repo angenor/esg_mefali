@@ -467,9 +467,9 @@ Aucune divergence avec la structure unified :
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Epic-6-Story-6.4](../planning-artifacts/epics.md) — Exigences (lignes 1027-1063)
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Epic-6-Story-6.4](../planning-artifacts/epics-019-floating-copilot.md) — Exigences (lignes 1027-1063)
 - [Source: _bmad-output/planning-artifacts/prd.md#FR17](../planning-artifacts/prd.md) — Frequence adaptative (ligne 335)
-- [Source: _bmad-output/planning-artifacts/architecture.md#Section-fréquence-adaptative](../planning-artifacts/architecture.md) — Recommandation compteur frontend (ligne 1018)
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#Section-fréquence-adaptative](../planning-artifacts/architecture-019-floating-copilot.md) — Recommandation compteur frontend (ligne 1018)
 - [Source: _bmad-output/implementation-artifacts/6-3-consentement-via-widget-interactif-et-declenchement-direct.md](./6-3-consentement-via-widget-interactif-et-declenchement-direct.md) — Story precedente (pattern tests + labels canoniques)
 - [Source: _bmad-output/implementation-artifacts/6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph.md](./6-2-prompt-guided-tour-instruction-et-injection-dans-les-noeuds-langgraph.md) — Injection dans 6 noeuds
 - [Source: _bmad-output/implementation-artifacts/6-1-tool-langchain-trigger-guided-tour-et-marker-sse.md](./6-1-tool-langchain-trigger-guided-tour-et-marker-sse.md) — Tool + garde pending + validator `_VALID_TOUR_ID`

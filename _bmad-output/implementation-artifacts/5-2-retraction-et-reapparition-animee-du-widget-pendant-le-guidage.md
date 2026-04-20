@@ -303,11 +303,11 @@ Le watcher `chatWidgetMinimized` doit etre **prioritaire** sur le watcher `chatW
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 5, Story 5.2]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR6 Decision 6, orchestration retraction/reapparition GSAP + Driver.js]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR3 Decision 3, machine a etats useGuidedTour]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Enforcement Rules for Agents, lignes 759-768]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Widget ↔ Guidage Communication Boundary, lignes 883-893]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 5, Story 5.2]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR6 Decision 6, orchestration retraction/reapparition GSAP + Driver.js]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR3 Decision 3, machine a etats useGuidedTour]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Enforcement Rules for Agents, lignes 759-768]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Widget ↔ Guidage Communication Boundary, lignes 883-893]
 - [Source: _bmad-output/implementation-artifacts/5-1-composable-useguidedtour-machine-a-etats-et-execution-mono-page.md — Review findings, patterns module-level state, GSAP usage]
 - [Source: frontend/app/stores/ui.ts — Store Pinia existant, champs chatWidgetOpen, prefersReducedMotion]
 - [Source: frontend/app/composables/useGuidedTour.ts — Composable existant, startTour(), cancelTour(), module-level state]

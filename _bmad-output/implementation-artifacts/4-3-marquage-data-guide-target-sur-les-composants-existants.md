@@ -276,8 +276,8 @@ b7314e2 2-1-suppression-de-la-page-chat-et-de-chatpanel: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 4, Story 4.3]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR5 Decision 5, registre data-guide-target, conventions naming]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 4, Story 4.3]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR5 Decision 5, registre data-guide-target, conventions naming]
 - [Source: _bmad-output/implementation-artifacts/4-2-types-et-registre-de-parcours-guides.md — Registre complet, 19 selectors, conventions]
 - [Source: frontend/app/lib/guided-tours/registry.ts — Selectors exacts a matcher]
 - [Source: frontend/app/components/layout/AppSidebar.vue — Structure v-for navItems]

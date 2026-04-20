@@ -546,11 +546,11 @@ Alignement avec la structure unifiee (story 8.1) :
 ### References
 
 - PRD (parcours Moussa) : [Source: _bmad-output/planning-artifacts/prd.md#FR-* — chercher section "Moussa"]
-- Epic 8 : [Source: _bmad-output/planning-artifacts/epics.md:1189-1254]
-- Story 8.2 (origine) : [Source: _bmad-output/planning-artifacts/epics.md:1228-1254]
+- Epic 8 : [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md:1189-1254]
+- Story 8.2 (origine) : [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md:1228-1254]
 - Story precedente 8.1 : [Source: _bmad-output/implementation-artifacts/8-1-tests-e2e-parcours-fatou.md]
 - Dette feature 019 (contexte) : [Source: _bmad-output/implementation-artifacts/spec-019-guided-tour-post-fix-debts.md]
-- Architecture E2E : [Source: _bmad-output/planning-artifacts/architecture.md:96, 1022]
+- Architecture E2E : [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md:96, 1022]
 - Registre parcours `show_financing_catalog` : [Source: frontend/app/lib/guided-tours/registry.ts:98-120]
 - Widget glassmorphism : [Source: frontend/app/components/copilot/FloatingChatWidget.vue:517 (aria-hidden), 520 (.widget-glass), 643-667 (CSS)]
 - Page financing + selector `financing-fund-list` : [Source: frontend/app/pages/financing/index.vue:187]

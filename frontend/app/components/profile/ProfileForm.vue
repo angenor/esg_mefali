@@ -92,6 +92,7 @@ function handleUpdate(field: string, value: string | number | boolean | null) {
           :value="getFieldValue(f.field)"
           :type="f.type"
           :options="f.type === 'select' ? f.options : undefined"
+          :is-manually-edited="profile.manually_edited_fields?.includes(f.field) ?? false"
           @update="handleUpdate"
         />
       </div>
@@ -113,6 +114,7 @@ function handleUpdate(field: string, value: string | number | boolean | null) {
           :field="f.field"
           :value="getFieldValue(f.field)"
           :type="f.type"
+          :is-manually-edited="profile.manually_edited_fields?.includes(f.field) ?? false"
           @update="handleUpdate"
         />
       </div>

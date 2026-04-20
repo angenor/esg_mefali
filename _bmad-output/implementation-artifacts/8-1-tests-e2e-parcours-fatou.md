@@ -684,9 +684,9 @@ Aucune variance ou conflit detecte.
 ### References
 
 - PRD : [Source: _bmad-output/planning-artifacts/prd.md#FR14, FR20, FR22, FR23, NFR17]
-- Architecture E2E : [Source: _bmad-output/planning-artifacts/architecture.md:96 (stack), ligne 1022 (lacune documentee)]
-- Epic 8 + Story 8.1 : [Source: _bmad-output/planning-artifacts/epics.md:1189-1225]
-- Parcours Fatou (PRD) : [Source: _bmad-output/planning-artifacts/architecture.md:83-93]
+- Architecture E2E : [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md:96 (stack), ligne 1022 (lacune documentee)]
+- Epic 8 + Story 8.1 : [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md:1189-1225]
+- Parcours Fatou (PRD) : [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md:83-93]
 - Registre tours : [Source: frontend/app/lib/guided-tours/registry.ts:58-96 (show_carbon_results)]
 - Selectors existants : [Source: frontend/app/components/copilot/FloatingChatButton.vue:15, components/copilot/GuidedTourPopover.vue:100-137, components/layout/AppSidebar.vue:61, pages/carbon/results.vue:219,280,337]
 - Pattern SSE POST-based : [Source: frontend/app/composables/useChat.ts:216-224, 604-614, 828-860]

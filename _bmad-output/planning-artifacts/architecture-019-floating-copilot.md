@@ -4,7 +4,7 @@ lastStep: 8
 status: 'complete'
 completedAt: '2026-04-12'
 inputDocuments:
-  - _bmad-output/planning-artifacts/prd.md
+  - _bmad-output/planning-artifacts/prd-019-floating-copilot.md
   - _bmad-output/planning-artifacts/product-brief-esg-mefali-copilot.md
   - docs/architecture-frontend.md
   - docs/architecture-backend.md

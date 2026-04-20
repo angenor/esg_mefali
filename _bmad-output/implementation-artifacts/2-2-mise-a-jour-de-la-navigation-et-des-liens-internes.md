@@ -249,8 +249,8 @@ e27120c 1-3 + 1-4 + 1-5: done
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 2, Story 2.2]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR1 (module-level state), Arborescence (ChatPanel SUPPRIME)]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 2, Story 2.2]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR1 (module-level state), Arborescence (ChatPanel SUPPRIME)]
 - [Source: _bmad-output/implementation-artifacts/2-1-suppression-de-la-page-chat-et-de-chatpanel.md — Dev Notes, File List, Review Findings]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md — D1 dead code chatPanelOpen/toggleChatPanel]
 

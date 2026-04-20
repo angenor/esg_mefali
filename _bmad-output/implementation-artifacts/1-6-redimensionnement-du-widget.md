@@ -196,9 +196,9 @@ Le fichier `FloatingChatWidget.test.ts` (695 lignes) assert explicitement les cl
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 1, Story 1.6]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 1, Story 1.6]
 - [Source: _bmad-output/planning-artifacts/prd.md — Must-Have #3 : Redimensionnement]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR1 module-level state, stores Pinia]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR1 module-level state, stores Pinia]
 - [Source: _bmad-output/implementation-artifacts/1-5-integration-du-chat-complet-dans-le-widget.md — structure widget actuelle]
 - [Source: _bmad-output/implementation-artifacts/1-3-bouton-flottant-et-conteneur-du-widget.md — W6 viewport overflow]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md — W6 et constantes de dimension]

@@ -291,8 +291,8 @@ Le FAB utilise `bg-brand-green` comme couleur principale (coherent avec le brand
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 1, Story 1.3]
-- [Source: _bmad-output/planning-artifacts/architecture.md — ADR1 module-level state, FloatingChatWidget architecture, GSAP specs, Z-index, Glassmorphism, Enforcement rules]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 1, Story 1.3]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — ADR1 module-level state, FloatingChatWidget architecture, GSAP specs, Z-index, Glassmorphism, Enforcement rules]
 - [Source: _bmad-output/planning-artifacts/prd.md — FR1-FR10, FR29-FR30, FR35, NFR1, NFR5-NFR8, NFR12, NFR14-NFR15, NFR23-NFR24]
 - [Source: _bmad-output/implementation-artifacts/1-1-refactoring-usechat-en-module-level-state.md — Pattern module-level, deferred F10/F11]
 - [Source: _bmad-output/implementation-artifacts/1-2-composable-usedevicedetection.md — API isDesktop/isMobile, pattern tests, guard SSR]

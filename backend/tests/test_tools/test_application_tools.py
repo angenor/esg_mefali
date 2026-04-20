@@ -171,7 +171,7 @@ class TestApplicationToolsExport:
         """Les tools ont les bons noms."""
         names = {t.name for t in APPLICATION_TOOLS}
         assert names == {
-            "create_fund_application",
+            "submit_fund_application_draft",
             "generate_application_section",
             "update_application_section",
             "get_application_checklist",

@@ -61,7 +61,11 @@ def _extract_json_array(text: str) -> list:
 
 
 def _parse_action_date(raw: str | None, timeframe_months: int) -> date | None:
-    """Valider et convertir une date d'action."""
+    """Valider et convertir une date d'action.
+
+    Defense en profondeur apres Pydantic (story 9.6) : si ce fallback est
+    atteint apres validation, cela signale un drift schema / persistence.
+    """
     if not raw:
         return None
     try:
@@ -69,25 +73,54 @@ def _parse_action_date(raw: str | None, timeframe_months: int) -> date | None:
         # Borner la date dans l'horizon du plan
         max_date = date.today() + timedelta(days=timeframe_months * 31)
         if parsed > max_date:
+            logger.warning(
+                "Pydantic drift: due_date=%r tronquee a %s (timeframe=%d)",
+                raw,
+                max_date.isoformat(),
+                timeframe_months,
+                extra={"metric": "pydantic_drift", "field": "due_date"},
+            )
             return max_date
         return parsed
     except (ValueError, TypeError):
+        logger.warning(
+            "Pydantic drift: due_date=%r non parsable, fallback None",
+            raw,
+            extra={"metric": "pydantic_drift", "field": "due_date"},
+        )
         return None
 
 
 def _safe_category(raw: str | None) -> ActionItemCategory:
-    """Convertir une chaîne en ActionItemCategory (fallback governance)."""
+    """Convertir une chaîne en ActionItemCategory (fallback governance).
+
+    Défense en profondeur après Pydantic (story 9.6) : si ce fallback
+    est atteint après validation, cela signale un drift schema/persistence.
+    """
     try:
         return ActionItemCategory(raw)
     except (ValueError, TypeError):
+        logger.warning(
+            "Pydantic drift: unexpected category=%r fallback=governance",
+            raw,
+            extra={"metric": "pydantic_drift", "field": "category"},
+        )
         return ActionItemCategory.governance
 
 
 def _safe_priority(raw: str | None) -> ActionItemPriority:
-    """Convertir une chaîne en ActionItemPriority (fallback medium)."""
+    """Convertir une chaîne en ActionItemPriority (fallback medium).
+
+    Défense en profondeur après Pydantic (story 9.6).
+    """
     try:
         return ActionItemPriority(raw)
     except (ValueError, TypeError):
+        logger.warning(
+            "Pydantic drift: unexpected priority=%r fallback=medium",
+            raw,
+            extra={"metric": "pydantic_drift", "field": "priority"},
+        )
         return ActionItemPriority.medium
 
 
@@ -185,6 +218,16 @@ async def generate_action_plan(
     from langchain_openai import ChatOpenAI
 
     from app.core.config import settings
+    from app.core.llm_guards import (
+        LLMGuardError,
+        MAX_ACTION_COUNT,
+        MAX_COST_XOF,
+        MIN_ACTION_COUNT,
+        VALID_CATEGORIES,
+        VALID_PRIORITIES,
+        run_guarded_llm_call,
+        validate_action_plan_schema,
+    )
     from app.models.carbon import CarbonAssessment, CarbonStatusEnum
     from app.models.company import CompanyProfile
     from app.models.esg import ESGAssessment, ESGStatusEnum
@@ -247,28 +290,63 @@ async def generate_action_plan(
         timeframe=timeframe,
     )
 
-    # 6. Appel LLM
-    llm = ChatOpenAI(
-        model=settings.openrouter_model,
-        base_url=settings.openrouter_base_url,
-        api_key=settings.openrouter_api_key,
-        streaming=False,
+    # 6. Appel LLM avec guards (story 9.6)
+    base_prompt = prompt
+    hardened_prompt = base_prompt + (
+        "\n\nCONTRAINTES STRICTES (respect absolu) :"
+        "\n- Retourne un tableau JSON (pas de texte hors tableau)."
+        f"\n- Entre {MIN_ACTION_COUNT} et {MAX_ACTION_COUNT} actions (pas moins, pas plus)."
+        f"\n- category DOIT etre une de : {sorted(VALID_CATEGORIES)}."
+        f"\n- priority DOIT etre une de : {sorted(VALID_PRIORITIES)}."
+        f"\n- estimated_cost_xof : entier >= 0 et <= {MAX_COST_XOF}."
+        f"\n- due_date : ISO 8601 (YYYY-MM-DD), dans les {timeframe + 3} mois."
+        "\n- title : 5 a 500 caracteres."
+        "\n- Aucune cle supplementaire hors schema."
     )
-    response = await llm.ainvoke([
-        SystemMessage(content=prompt),
-        HumanMessage(content=f"Génère le plan d'action pour {timeframe} mois."),
-    ])
-    raw_text = response.content if hasattr(response, "content") else str(response)
 
-    # 7. Parser le JSON
-    try:
-        actions_data = _extract_json_array(raw_text)
-    except (ValueError, json.JSONDecodeError) as exc:
-        logger.error("Erreur parsing JSON LLM action_plan: %s", exc)
-        raise HTTPException(
-            status_code=500,
-            detail="Erreur lors de la génération du plan d'action. Réessayez.",
-        ) from exc
+    # Capture des actions validees pour reutilisation post-run (evite le double
+    # parse _extract_json_array -> schema qui pouvait diverger, review 9.6).
+    validated_actions_holder: dict[str, list] = {"items": []}
+
+    def guards(raw_output: str) -> None:
+        try:
+            parsed = _extract_json_array(raw_output)
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise LLMGuardError(
+                "json_parse_failed",
+                "action_plan",
+                {"error": str(exc)[:200]},
+            ) from exc
+        validated = validate_action_plan_schema(
+            parsed, target="action_plan", timeframe_months=timeframe
+        )
+        validated_actions_holder["items"] = validated
+
+    async def llm_call(prompt_to_send: str) -> str:
+        llm_instance = ChatOpenAI(
+            model=settings.openrouter_model,
+            base_url=settings.openrouter_base_url,
+            api_key=settings.openrouter_api_key,
+            streaming=False,
+        )
+        response = await llm_instance.ainvoke([
+            SystemMessage(content=prompt_to_send),
+            HumanMessage(content=f"Génère le plan d'action pour {timeframe} mois."),
+        ])
+        return response.content if hasattr(response, "content") else str(response)
+
+    await run_guarded_llm_call(
+        llm_call=llm_call,
+        guards=guards,
+        base_prompt=base_prompt,
+        hardened_prompt=hardened_prompt,
+        target="action_plan",
+        user_id=str(user_id),
+    )
+
+    # 7. Reutiliser les actions validees par le guard (pas de re-parse).
+    validated_actions = validated_actions_holder["items"]
+    actions_data = [a.model_dump(mode="json") for a in validated_actions]
 
     # 8. Archiver l'ancien plan actif et committer avant d'insérer le nouveau
     # (nécessaire en SQLite qui n'applique pas les index partiels PostgreSQL)

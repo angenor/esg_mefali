@@ -412,12 +412,12 @@ Points actionnables herites :
 
 ### References
 
-- Source epic : `_bmad-output/planning-artifacts/epics.md:1070-1108` (Epic 7 Story 7.1 avec BDD + exigences techniques)
+- Source epic : `_bmad-output/planning-artifacts/epics-019-floating-copilot.md:1070-1108` (Epic 7 Story 7.1 avec BDD + exigences techniques)
 - Source architecture :
-  - `_bmad-output/planning-artifacts/architecture.md:47` (NFR16-NFR19 — tolerance latence, retry DOM)
-  - `_bmad-output/planning-artifacts/architecture.md:409, 476` (patterns waitForElement)
-  - `_bmad-output/planning-artifacts/architecture.md:740` (spec AC skip element)
-  - `_bmad-output/planning-artifacts/architecture.md:1005, 1014` (FR31-FR35 resilience)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:47` (NFR16-NFR19 — tolerance latence, retry DOM)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:409, 476` (patterns waitForElement)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:740` (spec AC skip element)
+  - `_bmad-output/planning-artifacts/architecture-019-floating-copilot.md:1005, 1014` (FR31-FR35 resilience)
 - PRD : FR31 (message empathique skip), NFR16 (timeout 10s), NFR18 (retry 3×500ms), NFR19 (zero regression)
 - Stories precedentes impactant la logique :
   - `_bmad-output/implementation-artifacts/5-4-interruption-du-parcours-et-popover-custom.md` (intro `interruptTour`, `cancelTour`)

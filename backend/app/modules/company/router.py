@@ -37,9 +37,15 @@ async def update_company_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CompanyProfileResponse:
-    """Mettre à jour le profil entreprise (mise à jour partielle)."""
+    """Mettre à jour le profil entreprise (mise à jour partielle, source=manual).
+
+    Story 9.5 : source="manual" marque chaque champ dans `manually_edited_fields`
+    pour empecher l'ecrasement ulterieur par le tool LLM `update_company_profile`.
+    """
     profile = await get_or_create_profile(db, current_user.id)
-    updated_profile, _ = await update_profile(db, profile, updates)
+    updated_profile, _changed, _skipped = await update_profile(
+        db, profile, updates, source="manual",
+    )
     await db.commit()
     await db.refresh(updated_profile)
     return CompanyProfileResponse.model_validate(updated_profile)

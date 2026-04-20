@@ -1,5 +1,114 @@
 # Deferred Work
 
+## Deferred from: story-planning of 9-7-observabilite-with-retry-log-tool-call (2026-04-19)
+
+- **AC4 dimensions stockées dans `tool_args` JSONB au lieu de colonnes séparées** — Story 9.7 AC4 livre `_input_size_bytes` / `_output_size_bytes` via clés JSON dans `tool_args` et `tool_result` pour éviter une migration Alembic dédiée dans le scope. Workaround accepté MVP mais complexifie les queries Prometheus futures (JSON extract sur JSONB au lieu de colonnes indexées) quand Story 17.5 dashboard monitoring admin arrivera. **Migration dédiée différée Phase Growth** : ajouter colonnes `tool_call_logs.input_size_bytes INTEGER` + `output_size_bytes INTEGER` indexables pour queries agrégées rapides. [backend/app/graph/tools/common.py:log_tool_call + backend/app/models/tool_call_log.py]
+- **Circuit breaker seuil 10 erreurs 5xx consécutives** — cohérent NFR75 architecture mais potentiellement tardif en pratique (les 9 premières erreurs 5xx remontent brutes aux users avant ouverture du breaker). À surveiller en prod post-Phase 0 : si volume d'erreurs observées avant ouverture breaker impacte UX, ajuster NFR75 à seuil plus bas (5 ou 7 erreurs). [architecture.md §NFR75]
+
+## Deferred from: code review of story-9.6 (2026-04-19)
+
+- `date.today()` non-déterministe dans `_validate_due_date` — injection de temps demande refacto plus large (clock abstraction globale). [backend/app/core/llm_guards.py:_validate_due_date]
+- `MAX_ACTION_COUNT=20` vs prompt action_plan existant « 10-15 actions » — contradiction d'instructions au LLM, demande édition du prompt base hors scope 9.6. [backend/app/prompts/action_plan.py]
+- `HTTPException(500)` opaque côté utilisateur — message générique sans contexte guard, amélioration UX non critique à traiter dans une story dédiée gestion des erreurs guards. [backend/app/core/llm_guards.py:run_guarded_llm_call]
+- `prompt_hash` sur 200 premiers chars produit collisions cross-user — design choice documenté dans spec AC9 (PII avoidance) ; amélioration future via hash intégral après scrub PII. [backend/app/core/llm_guards.py:prompt_hash]
+- `assert_numeric_coherence` branche `/10` utilise la même tolérance que `/100` — edge case de conversion d'échelle asymétrique, demande design dédié (tolérance relative vs absolue). [backend/app/core/llm_guards.py:assert_numeric_coherence]
+
+## Resolved (2026-04-19) — Story 9.6 : guards LLM persistes documents bailleurs (P1 #10)
+
+### Fix livré
+
+- **Reference audit** : [spec-audits/index.md §P1 #10](./spec-audits/index.md) + [PRD §Risque 10](../planning-artifacts/prd.md) + [PRD §SC-T8](../planning-artifacts/prd.md)
+- **Module partagé `backend/app/core/llm_guards.py`** (~440 lignes) — exception unifiée `LLMGuardError(code, target, details)` + 4 free-text guards (`assert_length`, `assert_language_fr`, `assert_no_forbidden_vocabulary`, `assert_numeric_coherence`) + schéma Pydantic strict `ActionPlanItemLLMSchema` (`extra="forbid"` + enums + bornes) + `validate_action_plan_schema` (min 5, max 20 actions) + orchestrateur `run_guarded_llm_call` (retry unique + HTTPException 500) + télémétrie `log_guard_failure` (metric `llm_guard_failure`) + `prompt_hash` (SHA-256[:16] pour audit sans PII).
+- **Surface 1 — Résumé exécutif ESG** : `backend/app/modules/reports/service.py:63` refacto avec 4 guards séquentiels (length → langue FR → vocab interdit → cohérence numérique) + retry unique prompt renforcé + param `user_id: str | None`.
+- **Surface 2 — Plan d'action JSON** : `backend/app/modules/action_plan/service.py:171` refacto avec schéma Pydantic strict (6 catégories enum, 3 priorités enum, coût ≤ 10 Md FCFA, due_date bornée `MAX_TIMEFRAME_MONTHS + 90j`) + bornes 5-20 actions + retry unique + défense en profondeur via `_safe_*` helpers avec log `pydantic_drift`.
+- **Fiche de préparation financing** : **hors scope 9.6** — aucun LLM actuellement (100 % Jinja2 template). Point d'ancrage documenté pour story future P3.
+- **43 nouveaux tests** : 37 unitaires `test_core/test_llm_guards.py` (19 free-text + 15 JSON schema + 3 Pydantic direct) + 3 intégration pipeline résumé exécutif + 3 intégration pipeline plan d'action. Coverage `app/core/llm_guards.py` = **99 %** (≥ 90 % seuil PRD).
+- **Zéro régression** : 1159 tests backend verts (184 s < 200 s plafond). Adaptation de 3 fixtures `test_action_plan/test_service.py` existantes (passage de 4/1/1 actions à 5 actions pour respecter `MIN_ACTION_COUNT`).
+
+### Scopes renvoyés à stories futures
+
+- **FR40** (signature électronique utilisateur obligatoire avant export bailleur) — story future P1.
+- **FR41** (blocage export > 50 000 USD tant que revue section par section non cochée) — story future P1.
+- **FR44** (SGES/ESMS BETA NO BYPASS — revue humaine obligatoire) — story future.
+- **FR55** (dashboard admin_mefali monitoring `metric=llm_guard_failure`) — story future P1 Phase 0 infra.
+- **FR56** (alerting automatique Sentry/alert manager sur échecs guards) — story future Phase Growth.
+- **Guards LLM sur chat live non persisté** (9 nœuds LangGraph) — P2/P3 à évaluer.
+- **Test contenu PDF bout-en-bout** (P2 #20 audit : parser PDF WeasyPrint généré) — P2 séparé.
+- **Pydantic strict narratifs applications** (spec 009, surface `"application_narrative"`) — hors scope.
+- **`langdetect` / `spaCy`** — décision post-déploiement. T11 vérifié : `langdetect` ABSENT de `requirements.txt` → heuristique stopwords conservée seule.
+- **Tuning des bornes** — constantes exposées (`MIN_SUMMARY_LEN`, `MAX_SUMMARY_LEN`, `MIN_ACTION_COUNT`, `MAX_ACTION_COUNT`, `MAX_COST_XOF`, `FORBIDDEN_VOCAB`, `VALID_CATEGORIES`, `VALID_PRIORITIES`).
+- **Anti-prompt injection dans champs utilisateurs passés au LLM** (NFR9 PRD) — story future sécurité.
+
+### Fichiers modifiés (résumé)
+
+- `backend/app/core/llm_guards.py` (nouveau, ~440 lignes)
+- `backend/app/modules/reports/service.py` (refacto `generate_executive_summary` + call-site)
+- `backend/app/modules/action_plan/service.py` (refacto `generate_action_plan` + logs drift dans `_safe_*`)
+- `backend/tests/test_core/__init__.py` (nouveau, vide)
+- `backend/tests/test_core/test_llm_guards.py` (nouveau, 37 tests)
+- `backend/tests/test_report_guards.py` (nouveau, 3 tests intégration)
+- `backend/tests/test_action_plan/test_service.py` (3 fixtures adaptées + classe `TestActionPlanGuardsIntegration` avec 3 tests)
+- `_bmad-output/implementation-artifacts/spec-audits/index.md` (marqueur résolu P1 #10)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (transition `in-progress` puis `review`)
+
+### Commit fix
+
+- Voir `git log` sur la branche `main` (date 2026-04-19) — `<short-sha>` à ajouter au commit de clôture.
+
+---
+
+## Deferred from: code review of story-9.5 (2026-04-18)
+
+- **Race condition concurrent manual PATCH vs LLM tool call** — `backend/app/modules/company/service.py:192-244` : pas de `SELECT ... FOR UPDATE`, pas de version column, pas de `MutableList.as_mutable()`. Pattern pré-existant à tout le backend, pas aggravé par 9.5. Story future P2 "Locking optimiste sur CompanyProfile".
+- **Tool LLM ne commit pas explicitement** — `backend/app/graph/tools/profiling_tools.py:82-128` : le node LangGraph parent gère la transaction. Pattern pré-existant ; audit séparé nécessaire pour valider que les 9 nodes commit après chaque tool_call.
+- **Pas de test automatisé round-trip upgrade/downgrade/upgrade pour la migration 019** — `backend/alembic/versions/019_add_manually_edited_fields_to_company_profiles.py` : T12 validé manuellement, pattern identique aux migrations 001-018. Story infra future.
+- **Pas de test E2E SSE `profile_skipped` bout-en-bout** — `backend/tests/test_tools/test_profiling_tools.py` : tests unitaires couvrent la logique service/tool ; SSE forward est 3 lignes de code. Rattachable à l'épic 8 (tests E2E parcours).
+- **Payload SSE `current_value` exposé au frontend** — `backend/app/api/chat.py:258-272` : valeur du user pour son propre profil (authentifié), pas une fuite cross-user. Acceptable V1, à revoir si la plateforme devient multi-tenant/multi-collaborateur par profil.
+- **Pas de schéma Pydantic/TypedDict pour payloads SSE `profile_*`** — `backend/app/api/chat.py:258-272` : refactor architectural qui toucherait toute la couche SSE (profile_update / profile_completion / profile_skipped / interactive_question / etc.), hors scope 9.5.
+- **Legacy row NULL possible si l'invariant `server_default='[]'` a été bypassé** — `backend/app/modules/company/service.py:239-246` : risque très faible (server default couvre tous les INSERT ORM + DDL) ; défensif `or []` partout aux reads. One-shot UPDATE disponible dans la spec Dev Notes §"Si le backfill est nécessaire (rare)".
+- **Aucun plafonnement rate sur le nouveau path SSE `profile_skipped`** — `backend/app/api/chat.py:258-267` : couvert globalement par le rate limiting chat de la story 9.1. À ré-évaluer si des abus ciblés apparaissent.
+- **Type frontend `manually_edited_fields: string[]` vs usage défensif `?.includes`** — `frontend/app/types/company.ts` + `frontend/app/components/profile/ProfileForm.vue:95,117` : code défensif tolère stale cache Pinia, peut être durci plus tard en rendant le type `string[] | undefined` ou en garantissant le hydrate.
+- **`getattr(profile, field)` sans default tolérerait un drift `UPDATABLE_FIELDS` vs modèle** — `backend/app/modules/company/service.py:200` : contraint par synchronisation explicite dans le même module. Ajouter un test de cohérence `UPDATABLE_FIELDS ⊆ CompanyProfile.__table__.columns` serait une belle défense en profondeur.
+- **PATCH manuel avec body vide retourne 200 (no-op silencieux)** — `backend/app/modules/company/router.py` : pré-existant à 9.5. À corriger avec un 400 ou 422 si l'UX remonte de la confusion.
+- **Ordering formel entre events SSE `profile_update` / `profile_skipped` / `profile_completion`** — `backend/app/api/chat.py:258-267` : contrat implicite actuel (ordre d'émission dans la boucle). À formaliser si le frontend les consomme et qu'une race pose problème.
+- **Fixture `user_id` partagée + 7 emails différents dans `TestManualEdit`** — `backend/tests/test_company_service.py` : pattern pré-existant dans le module. Factory pytest dédiée à introduire dans un chantier refactoring tests.
+- **Couplage test/prod via `sorted(manually_edited_fields)`** — `backend/app/modules/company/service.py:240` : stabilité acceptable vu la taille bornée (max 17 champs) ; commentaire « ordre stable pour les tests » à réévaluer — remplacer par comparaison sur sets ou introduire un ordering métier serait plus propre à long terme.
+- **Pas d'API de retrait de flag manuel (« revert to AI »)** — confirmé hors scope §2 story 9.5 ; créer une story P3 si besoin produit remonté (UI pour réinitialiser les champs individuellement).
+
+---
+
+## Resolved (2026-04-18) — Story 9.5 : flag `manually_edited_fields` sur CompanyProfile (P1 #7)
+
+### Fix livré
+
+- **Reference audit** : [spec-audits/index.md §P1 #7](./spec-audits/index.md) + [spec-audits/spec-003-audit.md §3.6](./spec-audits/spec-003-audit.md)
+- **Colonne JSONB** `manually_edited_fields: list[str]` ajoutée sur `company_profiles` via migration Alembic `019_manual_edits` (default `'[]'` non-NULL, rétro-compatibilité AC4 sans backfill).
+- **Paramètre `source: Literal["manual", "llm"]`** sur `update_profile(db, profile, updates, source)` — retour 3-uplet `(profile, changed_fields, skipped_fields)`. Le chemin LLM skippe les champs déjà marqués manuels avec `logger.warning(...)`.
+- **Event SSE `profile_skipped`** (marker `__sse_profile__` étendu avec `skipped_fields`) + whitelist `backend/app/api/chat.py` mise à jour.
+- **Badge frontend `✎ manuel`** sur `ProfileField.vue` (dark mode complet), binding `:is-manually-edited` dans `ProfileForm.vue`.
+- **9 nouveaux tests backend** (7 `TestManualEdit` service + 2 `TestManualEditAPI` incluant un test anti-tampering). Zero régression.
+
+### Audit historique T0 — non exécuté
+
+La table `tool_call_logs` existe (migration `54432e29b7f3`) mais son instrumentation actuelle ne trace pas le **champ** visé par chaque appel `update_company_profile` — uniquement le nom du tool et les arguments agrégés. Sans cette granularité, identifier les écrasements suspects « après édition manuelle » nécessiterait un cross-join avec les access logs HTTP `PATCH /profile` indisponibles en BDD actuelle.
+
+**À reprendre** une fois la dette P1 #14 (instrumentation complète `tool_call_logs`) traitée. Non bloquant : la protection à partir du 2026-04-18 est effective pour tous les nouveaux cas.
+
+### Fichiers modifiés (résumé)
+
+- `backend/alembic/versions/019_add_manually_edited_fields_to_company_profiles.py` (nouveau)
+- `backend/app/models/company.py`, `backend/app/modules/company/{service,router,schemas}.py`
+- `backend/app/graph/tools/profiling_tools.py`, `backend/app/api/chat.py`
+- `backend/tests/test_company_service.py`, `backend/tests/test_company_api.py`, `backend/tests/test_tools/test_profiling_tools.py`
+- `frontend/app/types/company.ts`, `frontend/app/components/profile/{ProfileField,ProfileForm}.vue`
+- `_bmad-output/implementation-artifacts/spec-audits/index.md` (marqueur résolu P1 #7)
+
+### Commit fix
+
+- Voir `git log` sur la branche `main` (date 2026-04-18) — `<short-sha>` à ajouter au commit de clôture.
+
+---
+
 ## Deferred from: code review of 9-4-ocr-bilingue-fr-eng-documents-anglophones (2026-04-18, second pass)
 
 Items nouveaux identifiés lors d'une **deuxième passe** `bmad-code-review` le 2026-04-18 (Blind + Edge Case + Acceptance Auditor indépendants de la 1ʳᵉ passe). La majorité des findings sont déjà couverts par la section 1ʳᵉ passe ci-dessous ; seuls les items inédits sont listés ici.

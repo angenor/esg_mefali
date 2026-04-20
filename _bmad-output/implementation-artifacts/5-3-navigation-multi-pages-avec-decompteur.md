@@ -315,11 +315,11 @@ import { nextTick } from 'vue'
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 5, Story 5.3]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 3 (machine a etats useGuidedTour)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 5 (registre data-guide-target)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 6 (orchestration retraction widget)]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 7 (lazy loading Driver.js)]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 5, Story 5.3]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 3 (machine a etats useGuidedTour)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 5 (registre data-guide-target)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 6 (orchestration retraction widget)]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 7 (lazy loading Driver.js)]
 - [Source: _bmad-output/implementation-artifacts/5-1-composable-useguidedtour-machine-a-etats-et-execution-mono-page.md]
 - [Source: _bmad-output/implementation-artifacts/5-2-retraction-et-reapparition-animee-du-widget-pendant-le-guidage.md]
 - [Source: frontend/app/composables/useGuidedTour.ts — code actuel, lignes 82-88 (filtre mono-page)]

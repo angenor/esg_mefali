@@ -164,8 +164,8 @@ Les items differes des stories 1.1-1.7 (F8-F11, W1-W6, D1-D4) ne sont **pas** da
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md — Epic 2, Story 2.1]
-- [Source: _bmad-output/planning-artifacts/architecture.md — Decision 1, Frontiere 1, Arborescence]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md — Epic 2, Story 2.1]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md — Decision 1, Frontiere 1, Arborescence]
 - [Source: _bmad-output/implementation-artifacts/1-7-accessibilite-et-navigation-clavier-du-widget.md — Dev Notes, File List]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md — Items D1-D4]
 

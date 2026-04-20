@@ -33,6 +33,8 @@ export interface CompanyProfile {
   environmental_practices: string | null
   social_practices: string | null
   notes: string | null
+  // Story 9.5 : champs edites manuellement, proteges contre l'ecrasement LLM.
+  manually_edited_fields: string[]
   created_at: string
   updated_at: string
 }

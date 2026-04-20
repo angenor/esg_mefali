@@ -330,9 +330,9 @@ export const WIDGET_MARGIN = 100
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md -- Epic 1, Story 1.7]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md -- Epic 1, Story 1.7]
 - [Source: _bmad-output/planning-artifacts/prd.md -- NFR12 contraste WCAG AA, NFR13 navigation clavier, NFR14 reduction mouvement, NFR15 screen readers]
-- [Source: _bmad-output/planning-artifacts/architecture.md -- ADR1 module-level state, pattern GSAP, Pinia store extension]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md -- ADR1 module-level state, pattern GSAP, Pinia store extension]
 - [Source: _bmad-output/implementation-artifacts/1-6-redimensionnement-du-widget.md -- patterns, store, tests, deferred D1/D2]
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md -- W1, D2, F7 cibles Story 1.7]
 

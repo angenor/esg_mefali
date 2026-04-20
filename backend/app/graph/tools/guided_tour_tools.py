@@ -9,12 +9,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-import uuid
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from app.graph.tools.common import get_db_and_user, log_tool_call
+from app.graph.tools.common import get_db_and_user, with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -44,32 +43,10 @@ async def trigger_guided_tour(
         return "Erreur : tour_id invalide (format attendu : snake_case minuscule)."
 
     try:
-        db, user_id = get_db_and_user(config)
+        get_db_and_user(config)
     except ValueError as exc:
         logger.warning("trigger_guided_tour: config manquante (%s)", exc)
         return "Erreur : contexte technique indisponible, retente."
-
-    configurable = (config or {}).get("configurable", {})
-    conversation_id_raw = configurable.get("conversation_id")
-    conversation_id: uuid.UUID | None
-    if isinstance(conversation_id_raw, str):
-        try:
-            conversation_id = uuid.UUID(conversation_id_raw)
-        except ValueError:
-            logger.warning(
-                "trigger_guided_tour: conversation_id non-UUID (%r)",
-                conversation_id_raw,
-            )
-            conversation_id = None
-    else:
-        conversation_id = conversation_id_raw
-
-    active_module_data = configurable.get("active_module_data") or {}
-    module_name = (
-        configurable.get("active_module")
-        or active_module_data.get("module")
-        or "chat"
-    )
 
     sse_payload = {
         "__sse_guided_tour__": True,
@@ -84,21 +61,9 @@ async def trigger_guided_tour(
     #     Le decodeur JSON cote client restituera `>` correctement.
     sse_marker = json.dumps(sse_payload, default=str).replace("-->", "--\\u003e")
 
-    try:
-        await log_tool_call(
-            db,
-            user_id=user_id,
-            conversation_id=conversation_id,
-            node_name=module_name,
-            tool_name="trigger_guided_tour",
-            tool_args={"tour_id": tour_id, "context": context},
-            tool_result={"tour_id": tour_id, "status": "triggered"},
-            status="success",
-        )
-    except Exception:  # pragma: no cover - journalisation defensive
-        logger.debug("Echec journalisation tool trigger_guided_tour", exc_info=True)
-
+    # H3 (post-review 9.7) : log inline supprime ; le wrapper `with_retry`
+    # emet deja la ligne success avec les 12 colonnes (AC4).
     return f"Parcours guide '{tour_id}' declenche pour l'utilisateur.\n\n<!--SSE:{sse_marker}-->"
 
 
-GUIDED_TOUR_TOOLS = [trigger_guided_tour]
+GUIDED_TOUR_TOOLS = [with_retry(trigger_guided_tour, max_retries=2, node_name="")]

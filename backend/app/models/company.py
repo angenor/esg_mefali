@@ -3,8 +3,18 @@
 import enum
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -68,3 +78,14 @@ class CompanyProfile(UUIDMixin, TimestampMixin, Base):
 
     # Notes qualitatives
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Story 9.5 (P1 #7) : liste des champs edites manuellement via PATCH /profile.
+    # Le tool LLM update_company_profile skip ces champs pour eviter la perte
+    # de donnees silencieuse quand le LLM extrait un sujet different d'une
+    # saisie manuelle precedente (spec 003 §3.6 « edition manuelle prevaut »).
+    manually_edited_fields: Mapped[list[str]] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"),
+        nullable=False,
+        server_default=text("'[]'"),
+        default=list,
+    )

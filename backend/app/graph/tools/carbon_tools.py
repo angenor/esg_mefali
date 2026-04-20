@@ -7,7 +7,7 @@ import uuid
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from app.graph.tools.common import get_db_and_user
+from app.graph.tools.common import get_db_and_user, with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +63,6 @@ async def create_carbon_assessment(year: int, config: RunnableConfig) -> str:
             "status": "error",
             "message": str(e),
         }, ensure_ascii=False)
-    except Exception as e:
-        logger.exception("Erreur lors de la creation du bilan carbone")
-        return json.dumps({
-            "status": "error",
-            "message": f"Erreur lors de la creation du bilan : {e}",
-        }, ensure_ascii=False)
 
 
 @tool
@@ -97,82 +91,74 @@ async def save_emission_entry(
     from app.modules.carbon.emission_factors import EMISSION_FACTORS, compute_emissions_tco2e
     from app.modules.carbon.service import add_entries, get_assessment
 
-    try:
-        db, user_id = get_db_and_user(config)
+    db, user_id = get_db_and_user(config)
 
-        # Recuperer le bilan
-        assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
-        if assessment is None:
+    # Recuperer le bilan
+    assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
+    if assessment is None:
+        return json.dumps({
+            "status": "error",
+            "message": f"Bilan carbone introuvable (id={assessment_id}).",
+        }, ensure_ascii=False)
+
+    # Rechercher le facteur d'emission
+    factor_key = subcategory
+    if factor_key and factor_key in EMISSION_FACTORS:
+        factor_info = EMISSION_FACTORS[factor_key]
+    else:
+        # Chercher par categorie : prendre le premier facteur correspondant
+        factor_info = None
+        for key, info in EMISSION_FACTORS.items():
+            if info.get("category") == category:
+                factor_info = info
+                factor_key = key
+                break
+
+        if factor_info is None:
             return json.dumps({
                 "status": "error",
-                "message": f"Bilan carbone introuvable (id={assessment_id}).",
+                "message": (
+                    f"Aucun facteur d'emission trouve pour la categorie '{category}'"
+                    f" et sous-categorie '{subcategory}'."
+                ),
             }, ensure_ascii=False)
 
-        # Rechercher le facteur d'emission
-        factor_key = subcategory
-        if factor_key and factor_key in EMISSION_FACTORS:
-            factor_info = EMISSION_FACTORS[factor_key]
-        else:
-            # Chercher par categorie : prendre le premier facteur correspondant
-            factor_info = None
-            for key, info in EMISSION_FACTORS.items():
-                if info.get("category") == category:
-                    factor_info = info
-                    factor_key = key
-                    break
+    emission_factor = factor_info["factor"]
+    emissions_tco2e = compute_emissions_tco2e(quantity, emission_factor)
 
-            if factor_info is None:
-                return json.dumps({
-                    "status": "error",
-                    "message": (
-                        f"Aucun facteur d'emission trouve pour la categorie '{category}'"
-                        f" et sous-categorie '{subcategory}'."
-                    ),
-                }, ensure_ascii=False)
+    entry_data = {
+        "category": category,
+        "subcategory": factor_key,
+        "quantity": quantity,
+        "unit": unit,
+        "emission_factor": emission_factor,
+        "emissions_tco2e": emissions_tco2e,
+        "source_description": source_description,
+    }
 
-        emission_factor = factor_info["factor"]
-        emissions_tco2e = compute_emissions_tco2e(quantity, emission_factor)
+    added_count, total, completed_cats = await add_entries(
+        db=db,
+        assessment=assessment,
+        entries_data=[entry_data],
+    )
 
-        entry_data = {
+    return json.dumps({
+        "status": "success",
+        "entry": {
             "category": category,
             "subcategory": factor_key,
             "quantity": quantity,
             "unit": unit,
-            "emission_factor": emission_factor,
+            "emission_factor_kgco2e": emission_factor,
             "emissions_tco2e": emissions_tco2e,
             "source_description": source_description,
-        }
-
-        added_count, total, completed_cats = await add_entries(
-            db=db,
-            assessment=assessment,
-            entries_data=[entry_data],
-        )
-
-        return json.dumps({
-            "status": "success",
-            "entry": {
-                "category": category,
-                "subcategory": factor_key,
-                "quantity": quantity,
-                "unit": unit,
-                "emission_factor_kgco2e": emission_factor,
-                "emissions_tco2e": emissions_tco2e,
-                "source_description": source_description,
-            },
-            "total_emissions_tco2e": total,
-            "message": (
-                f"Entree enregistree : {quantity} {unit} de {factor_info['label']}"
-                f" = {emissions_tco2e} tCO2e. Total actuel : {total} tCO2e."
-            ),
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.exception("Erreur lors de l'enregistrement de l'entree d'emission")
-        return json.dumps({
-            "status": "error",
-            "message": f"Erreur lors de l'enregistrement : {e}",
-        }, ensure_ascii=False)
+        },
+        "total_emissions_tco2e": total,
+        "message": (
+            f"Entree enregistree : {quantity} {unit} de {factor_info['label']}"
+            f" = {emissions_tco2e} tCO2e. Total actuel : {total} tCO2e."
+        ),
+    }, ensure_ascii=False)
 
 
 @tool
@@ -190,41 +176,33 @@ async def finalize_carbon_assessment(
     """
     from app.modules.carbon.service import complete_assessment, get_assessment
 
-    try:
-        db, user_id = get_db_and_user(config)
+    db, user_id = get_db_and_user(config)
 
-        assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
-        if assessment is None:
-            return json.dumps({
-                "status": "error",
-                "message": f"Bilan carbone introuvable (id={assessment_id}).",
-            }, ensure_ascii=False)
-
-        if assessment.status.value == "completed":
-            return json.dumps({
-                "status": "error",
-                "message": "Ce bilan est deja finalise.",
-            }, ensure_ascii=False)
-
-        completed = await complete_assessment(db=db, assessment=assessment)
-
-        return json.dumps({
-            "status": "success",
-            "assessment_id": str(completed.id),
-            "total_emissions_tco2e": completed.total_emissions_tco2e or 0.0,
-            "year": completed.year,
-            "message": (
-                f"Bilan carbone {completed.year} finalise. "
-                f"Total : {completed.total_emissions_tco2e or 0.0} tCO2e."
-            ),
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.exception("Erreur lors de la finalisation du bilan carbone")
+    assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
+    if assessment is None:
         return json.dumps({
             "status": "error",
-            "message": f"Erreur lors de la finalisation : {e}",
+            "message": f"Bilan carbone introuvable (id={assessment_id}).",
         }, ensure_ascii=False)
+
+    if assessment.status.value == "completed":
+        return json.dumps({
+            "status": "error",
+            "message": "Ce bilan est deja finalise.",
+        }, ensure_ascii=False)
+
+    completed = await complete_assessment(db=db, assessment=assessment)
+
+    return json.dumps({
+        "status": "success",
+        "assessment_id": str(completed.id),
+        "total_emissions_tco2e": completed.total_emissions_tco2e or 0.0,
+        "year": completed.year,
+        "message": (
+            f"Bilan carbone {completed.year} finalise. "
+            f"Total : {completed.total_emissions_tco2e or 0.0} tCO2e."
+        ),
+    }, ensure_ascii=False)
 
 
 @tool
@@ -246,44 +224,36 @@ async def get_carbon_summary(
         get_resumable_assessment,
     )
 
-    try:
-        db, user_id = get_db_and_user(config)
+    db, user_id = get_db_and_user(config)
 
-        assessment = None
-        if assessment_id:
-            assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
-        else:
-            # Priorite au bilan in_progress (reprise de questionnaire).
-            # Fallback sur le dernier bilan quel que soit son statut pour
-            # permettre la consultation d'un bilan completed.
-            assessment = await get_resumable_assessment(db, user_id)
-            if assessment is None:
-                assessment = await get_latest_assessment(db, user_id)
-
+    assessment = None
+    if assessment_id:
+        assessment = await get_assessment(db, uuid.UUID(assessment_id), user_id)
+    else:
+        # Priorite au bilan in_progress (reprise de questionnaire).
+        # Fallback sur le dernier bilan quel que soit son statut pour
+        # permettre la consultation d'un bilan completed.
+        assessment = await get_resumable_assessment(db, user_id)
         if assessment is None:
-            return json.dumps({
-                "status": "error",
-                "message": "Aucun bilan carbone trouve.",
-            }, ensure_ascii=False)
+            assessment = await get_latest_assessment(db, user_id)
 
-        summary = await get_assessment_summary(db=db, assessment=assessment)
-
-        return json.dumps({
-            "status": "success",
-            "summary": summary,
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.exception("Erreur lors de la recuperation du resume carbone")
+    if assessment is None:
         return json.dumps({
             "status": "error",
-            "message": f"Erreur lors de la recuperation du resume : {e}",
+            "message": "Aucun bilan carbone trouve.",
         }, ensure_ascii=False)
+
+    summary = await get_assessment_summary(db=db, assessment=assessment)
+
+    return json.dumps({
+        "status": "success",
+        "summary": summary,
+    }, ensure_ascii=False)
 
 
 CARBON_TOOLS = [
-    create_carbon_assessment,
-    save_emission_entry,
-    finalize_carbon_assessment,
-    get_carbon_summary,
+    with_retry(create_carbon_assessment, max_retries=2, node_name="carbon"),
+    with_retry(save_emission_entry, max_retries=2, node_name="carbon"),
+    with_retry(finalize_carbon_assessment, max_retries=2, node_name="carbon"),
+    with_retry(get_carbon_summary, max_retries=2, node_name="carbon"),
 ]

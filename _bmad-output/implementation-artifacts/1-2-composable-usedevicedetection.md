@@ -134,8 +134,8 @@ export function useDeviceDetection() {
 
 ### References
 
-- [Source: _bmad-output/planning-artifacts/epics.md#Story 1.2]
-- [Source: _bmad-output/planning-artifacts/architecture.md#ADR1, #Nouveaux composables, #Regles d'enforcement]
+- [Source: _bmad-output/planning-artifacts/epics-019-floating-copilot.md#Story 1.2]
+- [Source: _bmad-output/planning-artifacts/architecture-019-floating-copilot.md#ADR1, #Nouveaux composables, #Regles d'enforcement]
 - [Source: _bmad-output/planning-artifacts/prd.md#FR29, FR30]
 - [Source: _bmad-output/implementation-artifacts/1-1-refactoring-usechat-en-module-level-state.md — Deferred items F11, pattern tests]
 - [Source: frontend/app/stores/ui.ts — Pattern matchMedia existant ligne 15]

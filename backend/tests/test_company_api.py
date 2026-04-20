@@ -249,3 +249,76 @@ class TestGetCompletion:
         """GET completion sans token retourne 401."""
         response = await client.get("/api/company/profile/completion")
         assert response.status_code == 401
+
+
+# ─── Tests Story 9.5 : manually_edited_fields (AC5, AC6) ─────────────
+
+
+class TestManualEditAPI:
+    """Story 9.5 — P1 #7 : exposition API du flag manually_edited_fields."""
+
+    @pytest.mark.asyncio
+    async def test_profile_response_includes_manually_edited_fields(
+        self, client: AsyncClient,
+    ) -> None:
+        """AC6 : GET /profile expose manually_edited_fields (jamais null)."""
+        _, token = await create_authenticated_user(client)
+
+        # 1. Apres creation : liste vide, jamais null
+        resp = await client.get(
+            "/api/company/profile",
+            headers=auth_headers(token),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "manually_edited_fields" in body
+        assert body["manually_edited_fields"] == []
+
+        # 2. Apres edition manuelle : champ present dans la liste
+        await client.patch(
+            "/api/company/profile",
+            json={"sector": "textile"},
+            headers=auth_headers(token),
+        )
+        resp2 = await client.get(
+            "/api/company/profile",
+            headers=auth_headers(token),
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["manually_edited_fields"] == ["sector"]
+
+    @pytest.mark.asyncio
+    async def test_client_cannot_tamper_with_manual_list(
+        self, client: AsyncClient,
+    ) -> None:
+        """Securite : toute tentative de manipuler manually_edited_fields est rejetee.
+
+        Avec model_config `extra="forbid"` sur CompanyProfileUpdate (review 9.5 P5),
+        la requete entiere est rejetee (422) des qu'un champ inconnu est present —
+        plus solide qu'un silent-ignore.
+        """
+        _, token = await create_authenticated_user(client)
+        await client.get("/api/company/profile", headers=auth_headers(token))
+
+        # Saisie manuelle protegee
+        await client.patch(
+            "/api/company/profile",
+            json={"sector": "textile"},
+            headers=auth_headers(token),
+        )
+
+        # Tentative de reset de la liste par le client (attaque)
+        resp_attack = await client.patch(
+            "/api/company/profile",
+            json={"sector": "agriculture", "manually_edited_fields": []},
+            headers=auth_headers(token),
+        )
+        # La requete entiere est rejetee (422) — aucun champ n'est applique.
+        assert resp_attack.status_code == 422
+
+        resp = await client.get("/api/company/profile", headers=auth_headers(token))
+        body = resp.json()
+        # sector reste a "textile" (le PATCH attaquant n'a rien modifie)
+        assert body["sector"] == "textile"
+        # Et la liste manuelle est intacte
+        assert "sector" in body["manually_edited_fields"]

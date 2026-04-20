@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-18' (Story 9.4 done — 2nd pass code-review: 7 patches applied + 18 defers + 25 dismissed, regression 1107/0 in 173.86s, Status → done)
+# last_updated: '2026-04-20' (Story 9.7 done — patches C1/C2/C3/H1/H2/H3 post-review appliqués, 1244 tests verts +72, coverage common.py 96% / global app/graph/tools 87%, P1 #14 + P2 #2 RÉSOLUS, débloque Epic 10)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,9 +35,9 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-18' (Story 9.4 done — 2nd pass code-review: 7 patches applied + 18 defers + 25 dismissed, regression 1107/0 in 173.86s, Status → done)
-last_story_created: '9-4-ocr-bilingue-fr-eng-documents-anglophones'
-last_review_completed: '9-4-ocr-bilingue-fr-eng-documents-anglophones (2nd pass)'
+last_updated: '2026-04-20'
+last_story_created: '9-7-observabilite-with-retry-log-tool-call'
+last_review_completed: '9-6-guards-llm-persistes-documents-bailleurs (bmad-code-review 3-layers, 3 decisions + 15 patches + 5 defers + 9 dismissed, 1172 tests verts incl. 13 nouveaux D1/D2/D3)'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -115,4 +115,7 @@ development_status:
   9-2-quota-cumule-stockage-par-utilisateur: done
   9-3-fix-4-tests-pre-existants-rouges: done
   9-4-ocr-bilingue-fr-eng-documents-anglophones: done
+  9-5-flag-manually-edited-fields-companyprofile: done
+  9-6-guards-llm-persistes-documents-bailleurs: done
+  9-7-observabilite-with-retry-log-tool-call: done
   epic-9-retrospective: optional
