@@ -8,7 +8,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.graph.checkpointer import create_checkpointer
-from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, project_node, router_node
+from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, maturity_node, project_node, router_node
 from app.graph.state import ConversationState
 
 logger = logging.getLogger(__name__)
@@ -110,11 +110,19 @@ def build_graph() -> StateGraph:
                              → [has_document] → document_node → chat_node ⟲ chat_tools → END
                              → [no_document]  → chat_node ⟲ chat_tools → END
                              → [project 🚧]  → project_node ⟲ project_tools → END  (squelette — unreachable Epic 11)
+                             → [maturity 🚧] → maturity_node ⟲ maturity_tools → END (squelette — unreachable Epic 12)
 
         Story 10.2 : [project] → project_node ⟲ project_tools → END est
         declaré mais **non atteignable** depuis le router (pas d'entree
         dans `_route_after_router` ni dans le conditional_edges dict).
         Epic 11 ajoutera l'heuristique de routage.
+
+        Story 10.3 : [maturity] → maturity_node ⟲ maturity_tools → END est
+        declaré mais **non atteignable** depuis le router (pas d'entree
+        dans `_route_after_router` ni dans le conditional_edges dict) tant
+        qu'Epic 12 ne definit pas son heuristique de routage. Le node est
+        joignable uniquement via un test qui invoque `compiled_graph` avec
+        `config={"configurable": {"active_module": "maturity"}}`.
     """
     # Importer les tools de chaque module (imports paresseux pour eviter les cycles)
     from app.graph.tools.action_plan_tools import ACTION_PLAN_TOOLS
@@ -127,6 +135,7 @@ def build_graph() -> StateGraph:
     from app.graph.tools.financing_tools import FINANCING_TOOLS
     from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS
     from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
+    from app.graph.tools.maturity_tools import MATURITY_TOOLS
     from app.graph.tools.profiling_tools import PROFILING_TOOLS
     from app.graph.tools.projects_tools import PROJECTS_TOOLS
 
@@ -152,6 +161,16 @@ def build_graph() -> StateGraph:
     # depuis le router (pas d'entree dans _route_after_router) tant
     # qu'Epic 11 ne definit pas son heuristique de routage.
     create_tool_loop(graph, "project", project_node, tools=PROJECTS_TOOLS + INTERACTIVE_TOOLS + GUIDED_TOUR_TOOLS)
+
+    # Story 10.3 AC5 : 11e noeud specialiste `maturity`, non atteignable
+    # depuis le router (pas d'entree dans _route_after_router) tant
+    # qu'Epic 12 ne definit pas son heuristique de routage.
+    create_tool_loop(graph, "maturity", maturity_node, tools=MATURITY_TOOLS + INTERACTIVE_TOOLS + GUIDED_TOUR_TOOLS)
+
+    # Story 10.4 : le module admin_catalogue est UI-only (Clarification 2 architecture.md).
+    # AUCUN admin_node n'est enregistre ici — les endpoints /api/admin/catalogue/*
+    # sont consommes par l'UI admin Mefali (formulaires), pas par le chat LLM.
+    # Cette absence est enforced par test_admin_catalogue_absence_from_graph.py.
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(

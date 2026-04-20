@@ -41,3 +41,19 @@ from app.modules.projects.models import (  # noqa: F401
     ProjectRolePermission,
     ProjectSnapshot,
 )
+
+# Story 10.3 — Module maturity squelette : enregistrement SQLAlchemy metadata
+from app.modules.maturity.models import (  # noqa: F401
+    AdminMaturityLevel,
+    AdminMaturityRequirement,
+    FormalizationPlan,
+)
+
+# Story 10.4 — Module admin_catalogue squelette : enregistrement SQLAlchemy metadata
+from app.modules.admin_catalogue.models import (  # noqa: F401
+    AdminCatalogueAuditTrail,
+    Criterion,
+    CriterionDerivationRule,
+    Pack,
+    Referential,
+)

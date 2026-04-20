@@ -170,6 +170,12 @@ _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS
 #   3. Ajouter `_route_project` dans `_route_after_router` (graph.py).
 #   4. Ajouter "project" dans le conditional_edges dict (graph.py).
 # Voir deferred-work.md §« MEDIUM-10.2-2 » pour le detail.
+#
+# TODO Epic 12 S1 : ajouter 'maturity' ici quand maturity_node devient routable
+# (actuellement pattern squelette sans routing heuristique — cf. Story 10.3 AC5).
+# Meme checklist 4 points a aligner simultanement (ici + module_labels +
+# _route_after_router dans graph.py + conditional_edges dict graph.py).
+# Lecon MEDIUM-10.2-2 Code Review 2026-04-20 — ne pas reproduire le trap.
 _MODULE_ROUTE_FLAGS = {
     "esg_scoring": "_route_esg",
     "carbon": "_route_carbon",
@@ -189,6 +195,10 @@ async def _is_topic_continuation(message: str, active_module: str) -> bool:
     # le routing projet (sinon le prompt LLM recoit le libelle brut "project"
     # et degrade la classification continuation/changement). Checklist complete
     # dans `_MODULE_ROUTE_FLAGS` ci-dessus.
+    #
+    # TODO Epic 12 S1 : ajouter 'maturity': 'Module maturité administrative'
+    # ici quand maturity_node devient routable (actuellement pattern squelette
+    # sans routing heuristique — cf. Story 10.3 AC5). Lecon MEDIUM-10.2-2.
     module_labels = {
         "esg_scoring": "évaluation ESG",
         "carbon": "bilan carbone",
@@ -1324,6 +1334,40 @@ async def project_node(state: ConversationState) -> ConversationState:
             )
         ],
         "active_module": "project",
+        "active_module_data": {"node_visited": True},
+    }
+
+
+async def maturity_node(state: ConversationState) -> ConversationState:
+    """Noeud maturity squelette — 11e nœud specialiste (Story 10.3 AC5).
+
+    **Squelette MVP** : ne call ni `get_llm()` ni `bind_tools()` — ce node ne
+    construit pas de prompt ni d'invocation LLM. Epic 12 Story 12.1 livrera
+    le prompt dedie (`backend/app/prompts/maturity.py`) et la logique metier
+    complete (self-declaration FR11, OCR validation FR12, FormalizationPlan
+    country-data-driven FR13, auto-reclassement FR15, audit trail FR16).
+
+    Comportement actuel (AC5) :
+      - Retourne un AIMessage marquant l'activation du squelette.
+      - Pose `active_module="maturity"` + `active_module_data={"node_visited": True}`
+        pour empecher le router de router vers ici au tour suivant tant
+        qu'Epic 12 ne definit pas l'heuristique.
+      - **Aucun appel aux tools MATURITY_TOOLS** dans ce corps (les tools
+        sont branches sur le ToolNode via `create_tool_loop` pour etre
+        accessibles quand Epic 12 activera bind_tools).
+
+    Meme rationale que `project_node` (Story 10.2 AC6) — eviter d'attirer
+    du trafic LLM sans prompt metier et sans clef OpenRouter en CI.
+    """
+    from langchain_core.messages import AIMessage
+
+    return {
+        "messages": [
+            AIMessage(
+                content="Module maturity — squelette activé (Epic 12 livre la logique métier).",
+            )
+        ],
+        "active_module": "maturity",
         "active_module_data": {"node_visited": True},
     }
 

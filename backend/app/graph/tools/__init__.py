@@ -20,6 +20,8 @@ from app.graph.tools.esg_tools import ESG_TOOLS
 from app.graph.tools.financing_tools import FINANCING_TOOLS
 from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS
 from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
+# Story 10.3 — maturity_tools ajoute entre PROJECTS et ESG (ordre Cluster A -> A' -> ESG)
+from app.graph.tools.maturity_tools import MATURITY_TOOLS
 from app.graph.tools.profiling_tools import PROFILING_TOOLS
 # Story 10.2 — projects_tools ajoute entre PROFILING et ESG (ordre alpha logique nouveaute)
 from app.graph.tools.projects_tools import PROJECTS_TOOLS
@@ -27,6 +29,7 @@ from app.graph.tools.projects_tools import PROJECTS_TOOLS
 INSTRUMENTED_TOOLS: list = [
     *PROFILING_TOOLS,
     *PROJECTS_TOOLS,
+    *MATURITY_TOOLS,  # Story 10.3 — Cluster A -> A' -> ESG
     *ESG_TOOLS,
     *CARBON_TOOLS,
     *FINANCING_TOOLS,
@@ -51,6 +54,7 @@ __all__ = [
     "GUIDED_TOUR_TOOLS",
     "INSTRUMENTED_TOOLS",
     "INTERACTIVE_TOOLS",
+    "MATURITY_TOOLS",
     "PROFILING_TOOLS",
     "PROJECTS_TOOLS",
 ]
