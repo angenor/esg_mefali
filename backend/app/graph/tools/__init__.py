@@ -21,9 +21,12 @@ from app.graph.tools.financing_tools import FINANCING_TOOLS
 from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS
 from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
 from app.graph.tools.profiling_tools import PROFILING_TOOLS
+# Story 10.2 — projects_tools ajoute entre PROFILING et ESG (ordre alpha logique nouveaute)
+from app.graph.tools.projects_tools import PROJECTS_TOOLS
 
 INSTRUMENTED_TOOLS: list = [
     *PROFILING_TOOLS,
+    *PROJECTS_TOOLS,
     *ESG_TOOLS,
     *CARBON_TOOLS,
     *FINANCING_TOOLS,
@@ -49,4 +52,5 @@ __all__ = [
     "INSTRUMENTED_TOOLS",
     "INTERACTIVE_TOOLS",
     "PROFILING_TOOLS",
+    "PROJECTS_TOOLS",
 ]

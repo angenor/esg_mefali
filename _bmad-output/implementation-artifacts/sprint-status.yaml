@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-20' (Story 9.7 done — patches C1/C2/C3/H1/H2/H3 post-review appliqués, 1244 tests verts +72, coverage common.py 96% / global app/graph/tools 87%, P1 #14 + P2 #2 RÉSOLUS, débloque Epic 10)
+# last_updated: '2026-04-20' (Story 10.2 done — 3 patches post-review MEDIUM-10.2-1 + MEDIUM-10.2-2 + LOW-10.2-5 appliqués, 5 LOW déférés dans deferred-work.md, 66 tests ciblés verts, zéro régression)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -36,8 +36,9 @@
 
 generated: 2026-04-12
 last_updated: '2026-04-20'
-last_story_created: '9-7-observabilite-with-retry-log-tool-call'
-last_review_completed: '9-6-guards-llm-persistes-documents-bailleurs (bmad-code-review 3-layers, 3 decisions + 15 patches + 5 defers + 9 dismissed, 1172 tests verts incl. 13 nouveaux D1/D2/D3)'
+last_story_created: '10-3-module-maturity-squelette'
+last_story_implemented: '10-2-module-projects-squelette (dev-story done 2026-04-20 : 3 patches post-review MEDIUM-10.2-1/MEDIUM-10.2-2/LOW-10.2-5 appliqués, 5 LOW déférés dans deferred-work.md, 66 tests ciblés verts, zéro régression)'
+last_review_completed: '10-2-module-projects-squelette (bmad-code-review 3-layers 2026-04-20, APPROVE-WITH-CHANGES : 0 CRITICAL + 0 HIGH + 2 MEDIUM + 7 LOW + 12 INFO. 2 MEDIUM + 1 LOW patchés post-review, reste tracé dans deferred-work.md.)'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -119,3 +120,30 @@ development_status:
   9-6-guards-llm-persistes-documents-bailleurs: done
   9-7-observabilite-with-retry-log-tool-call: done
   epic-9-retrospective: optional
+
+  # Epic 10 : Fondations Extension Phase 0 (BLOQUANT Epic 11-20)
+  # Source : _bmad-output/planning-artifacts/epics/epic-10.md
+  # 21 stories — socle schéma + 3 modules squelettes + RLS + micro-Outbox + framework prompts + UI foundations
+  epic-10: in-progress
+  10-1-migrations-alembic-020-027: done
+  10-2-module-projects-squelette: done
+  10-3-module-maturity-squelette: ready-for-dev
+  10-4-module-admin-catalogue-squelette: backlog
+  10-5-rls-postgresql-4-tables-sensibles: backlog
+  10-6-abstraction-storage-provider: backlog
+  10-7-environnements-dev-staging-prod: backlog
+  10-8-framework-injection-prompts-ccc9: backlog
+  10-9-feature-flag-enable-project-model: backlog
+  10-10-micro-outbox-domain-events: backlog
+  10-11-sourcing-documentaire-annexe-f-ci: backlog
+  10-12-audit-trail-catalogue: backlog
+  10-13-migration-embeddings-voyage-api: backlog
+  10-14-setup-storybook-6-stories: backlog
+  10-15-ui-button-4-variantes: backlog
+  10-16-ui-input-textarea-select: backlog
+  10-17-ui-badge-tokens-semantiques: backlog
+  10-18-ui-drawer-wrapper-reka-ui: backlog
+  10-19-ui-combobox-tabs-wrappers: backlog
+  10-20-ui-datepicker: backlog
+  10-21-setup-lucide-esg-icon: backlog
+  epic-10-retrospective: optional

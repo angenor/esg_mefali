@@ -8,7 +8,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.graph.checkpointer import create_checkpointer
-from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, router_node
+from app.graph.nodes import action_plan_node, application_node, carbon_node, chat_node, credit_node, document_node, esg_scoring_node, financing_node, project_node, router_node
 from app.graph.state import ConversationState
 
 logger = logging.getLogger(__name__)
@@ -109,6 +109,12 @@ def build_graph() -> StateGraph:
                              → [action_plan]  → action_plan_node ⟲ action_plan_tools → END
                              → [has_document] → document_node → chat_node ⟲ chat_tools → END
                              → [no_document]  → chat_node ⟲ chat_tools → END
+                             → [project 🚧]  → project_node ⟲ project_tools → END  (squelette — unreachable Epic 11)
+
+        Story 10.2 : [project] → project_node ⟲ project_tools → END est
+        declaré mais **non atteignable** depuis le router (pas d'entree
+        dans `_route_after_router` ni dans le conditional_edges dict).
+        Epic 11 ajoutera l'heuristique de routage.
     """
     # Importer les tools de chaque module (imports paresseux pour eviter les cycles)
     from app.graph.tools.action_plan_tools import ACTION_PLAN_TOOLS
@@ -122,6 +128,7 @@ def build_graph() -> StateGraph:
     from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS
     from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.graph.tools.profiling_tools import PROFILING_TOOLS
+    from app.graph.tools.projects_tools import PROJECTS_TOOLS
 
     graph = StateGraph(ConversationState)
 
@@ -140,6 +147,11 @@ def build_graph() -> StateGraph:
     create_tool_loop(graph, "application", application_node, tools=APPLICATION_TOOLS + INTERACTIVE_TOOLS)
     create_tool_loop(graph, "credit", credit_node, tools=CREDIT_TOOLS + INTERACTIVE_TOOLS + GUIDED_TOUR_TOOLS)
     create_tool_loop(graph, "action_plan", action_plan_node, tools=ACTION_PLAN_TOOLS + INTERACTIVE_TOOLS + GUIDED_TOUR_TOOLS)
+
+    # Story 10.2 AC6 : 10e noeud specialiste `project`, non atteignable
+    # depuis le router (pas d'entree dans _route_after_router) tant
+    # qu'Epic 11 ne definit pas son heuristique de routage.
+    create_tool_loop(graph, "project", project_node, tools=PROJECTS_TOOLS + INTERACTIVE_TOOLS + GUIDED_TOUR_TOOLS)
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(

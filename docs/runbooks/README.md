@@ -16,6 +16,7 @@
 | 3 | [Data residency migration](#3-data-residency-migration) | P1 | Exceptionnel | 🟡 squelette |
 | 4 | [Copie anonymisée PROD → STAGING mensuelle](#4-copie-anonymisée-prod--staging-mensuelle) | P3 | Mensuelle | 🟡 squelette |
 | 5 | [Migration référentiel bloquée — divergence > 20 %](#5-migration-référentiel-bloquée--divergence--20) | P1 | Rare | 🟡 squelette |
+| 6 | [Rollback migration Alembic (NFR32 trimestriel)](#6-rollback-migration-alembic-nfr32-trimestriel) | P1 | Trimestriel | 🟡 squelette |
 
 **Légende statut** : 🟡 squelette (structure + TODO) · 🟢 prêt (détails opérationnels complets) · ✅ validé (testé lors d'un drill ou incident réel)
 
@@ -346,6 +347,59 @@ Si migration validée mais bugs détectés dans les 7 jours post-publication :
 - `ux-design-specification.md §Step 10 Journey 5 Mariam` (flow admin)
 - `architecture.md §N3 workflow` (état transitions)
 - `business-decisions-2026-04-19.md §SC-B-PILOTE` (budget consultants)
+
+---
+
+## 6. Rollback migration Alembic (NFR32 trimestriel)
+
+### Purpose
+
+Procédure opérationnelle de rollback d'une migration Alembic en production, exigée par NFR32 (drill trimestriel). Couvre toute migration de la chaîne `001 → 027` et au-delà.
+
+### Triggers
+
+- **Bug bloquant** découvert post-déploiement qui ne se fixe pas en hot-fix
+- **Corruption de données** liée à une migration (CASCADE imprévu, perte de colonne)
+- **Drill trimestriel NFR32** : exercer la procédure sur STAGING pour garder les ops en forme
+
+### Prerequisites
+
+- `pg_dump --schema-only` de référence pris AVANT la migration incriminée
+- Accès AWS RDS console + secret `DATABASE_URL`
+- Container application arrêté (éviter écritures concurrentes pendant rollback)
+- Révision Alembic cible identifiée (`alembic history | grep <target>`)
+
+### Step-by-step procedure
+
+- [ ] **1. Arrêter** les workers (ECS task count = 0 ou scheduled stop)
+- [ ] **2. Snapshot RDS** en plus du PITR (sécurité double)
+- [ ] **3. Dump** le schéma courant : `pg_dump -h $HOST -U postgres -d esg_mefali --schema-only > pre-rollback.sql`
+- [ ] **4. Rollback** : `alembic downgrade <target_revision>` (ex : `019_manual_edits`)
+- [ ] **5. Vérifier** le head : `alembic current` doit retourner `<target_revision>`
+- [ ] **6. Diff schéma** : `diff pre-rollback.sql <(pg_dump ... --schema-only)` — documenter ce qui a été rollbackké
+- [ ] **7. Redémarrer** l'application (tasks count = baseline)
+- [ ] **8. Smoke tests** : 3 journeys users
+
+### Rollback de rollback
+
+Si le rollback lui-même casse quelque chose :
+1. `alembic upgrade <previous_head>` (revenir à l'état problématique mais stable)
+2. Ou restaurer depuis le snapshot RDS pris à l'étape 2
+3. Investiguer à froid puis refaire le cycle
+
+### Post-incident actions
+
+- [ ] Documenter le `downgrade()` qui a posé problème (cause racine)
+- [ ] Ajouter test de round-trip pour la migration concernée si absent
+- [ ] Update `backend/alembic/README.md` avec leçon apprise
+- [ ] Drill trimestriel suivant : re-tester sur STAGING
+
+### References
+
+- `backend/alembic/README.md` (conventions + exemples d'en-tête)
+- `docs/CODEMAPS/data-model-extension.md` (Story 10.1 — chaîne 020–027)
+- `.github/workflows/test-migrations-roundtrip.yml` (gate CI automatique AC10)
+- `architecture.md §NFR32` (drill rollback trimestriel)
 
 ---
 

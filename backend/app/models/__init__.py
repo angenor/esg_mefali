@@ -30,3 +30,14 @@ from app.models.interactive_question import (  # noqa: F401
     InteractiveQuestionState,
     InteractiveQuestionType,
 )
+
+# Story 10.2 — Module projects squelette : enregistrement SQLAlchemy metadata
+from app.modules.projects.models import (  # noqa: F401
+    BeneficiaryProfile,
+    Company,
+    CompanyProjection,
+    Project,
+    ProjectMembership,
+    ProjectRolePermission,
+    ProjectSnapshot,
+)

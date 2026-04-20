@@ -163,6 +163,13 @@ _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS
 
 
 # Mapping module actif → flag de routing correspondant
+# TODO Epic 11 S1 : ajouter "project": "_route_project" avant d'activer
+# le routing projet (cf. project_node Story 10.2). Checklist coherence :
+#   1. Ajouter "project": "_route_project" ici.
+#   2. Ajouter "project": "Module projet" dans `module_labels` ci-dessous.
+#   3. Ajouter `_route_project` dans `_route_after_router` (graph.py).
+#   4. Ajouter "project" dans le conditional_edges dict (graph.py).
+# Voir deferred-work.md §« MEDIUM-10.2-2 » pour le detail.
 _MODULE_ROUTE_FLAGS = {
     "esg_scoring": "_route_esg",
     "carbon": "_route_carbon",
@@ -178,6 +185,10 @@ async def _is_topic_continuation(message: str, active_module: str) -> bool:
 
     Retourne True (rester dans le module) en cas d'erreur (defaut securitaire).
     """
+    # TODO Epic 11 S1 : ajouter "project": "Module projet" avant d'activer
+    # le routing projet (sinon le prompt LLM recoit le libelle brut "project"
+    # et degrade la classification continuation/changement). Checklist complete
+    # dans `_MODULE_ROUTE_FLAGS` ci-dessus.
     module_labels = {
         "esg_scoring": "évaluation ESG",
         "carbon": "bilan carbone",
@@ -1285,6 +1296,35 @@ async def application_node(state: ConversationState) -> ConversationState:
         "application_data": application_data,
         "active_module": "application",
         "active_module_data": {"session_id": None},
+    }
+
+
+async def project_node(state: ConversationState) -> ConversationState:
+    """Noeud projects squelette — 10e nœud specialiste (Story 10.2 AC6).
+
+    **Squelette MVP** : ne call ni `get_llm()` ni `bind_tools()` — ce node ne
+    construit pas de prompt ni d'invocation LLM. Epic 11 Story 11-1 livrera
+    le prompt dedie et la logique metier complete.
+
+    Comportement actuel (AC6) :
+      - Retourne un AIMessage marquant l'activation du squelette.
+      - Pose `active_module="project"` + `active_module_data={"node_visited": True}`
+        pour empecher le router de router vers ici au tour suivant tant
+        qu'Epic 11 ne definit pas l'heuristique.
+      - **Aucun appel aux tools PROJECTS_TOOLS** dans ce corps (les tools sont
+        branches sur le ToolNode via `create_tool_loop` pour etre accessibles
+        quand Epic 11 activera bind_tools).
+    """
+    from langchain_core.messages import AIMessage
+
+    return {
+        "messages": [
+            AIMessage(
+                content="Module projects — squelette activé (Epic 11 livre la logique métier).",
+            )
+        ],
+        "active_module": "project",
+        "active_module_data": {"node_visited": True},
     }
 
 

@@ -1,14 +1,15 @@
 # Tools LangChain — Guide d'utilisation
 
-Ce package expose les **34 tools LangChain** consommés par les noeuds LangGraph
+Ce package expose les **35 tools LangChain** consommés par les noeuds LangGraph
 du conseiller ESG. Tous les tools sont **instrumentés** via `with_retry` +
 `log_tool_call` (Story 9.7, FR-021 + FR-022 + NFR75).
 
-## 1. Inventaire des 34 tools par module
+## 1. Inventaire des 35 tools par module
 
 | Module | `node_name` | Tools exposés |
 |--------|-------------|---------------|
 | `profiling_tools.py` | `profiling` | `update_company_profile`, `get_company_profile` |
+| `projects_tools.py` | `project` | `create_project` (stub Epic 11) |
 | `esg_tools.py` | `esg_scoring` | `create_esg_assessment`, `save_esg_criterion_score`, `finalize_esg_assessment`, `get_esg_assessment`, `batch_save_esg_criteria` |
 | `carbon_tools.py` | `carbon` | `create_carbon_assessment`, `save_emission_entry`, `finalize_carbon_assessment`, `get_carbon_summary` |
 | `financing_tools.py` | `financing` | `search_compatible_funds`, `save_fund_interest`, `get_fund_details`, `create_fund_application` |

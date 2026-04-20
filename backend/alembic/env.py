@@ -13,8 +13,17 @@ from app.models.base import Base
 # Importer tous les modèles pour que Alembic les détecte
 import app.models  # noqa: F401
 
+import os
+
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Priorité : (1) TEST_ALEMBIC_URL (env var pour les tests de migrations),
+# (2) sqlalchemy.url déjà set sur Config (override programmatique),
+# (3) settings.database_url (défaut runtime).
+_test_url = os.environ.get("TEST_ALEMBIC_URL")
+if _test_url:
+    config.set_main_option("sqlalchemy.url", _test_url)
+elif not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

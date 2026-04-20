@@ -150,6 +150,7 @@ class TestAllToolsWrapped:
         """
         module_paths = [
             "app.graph.tools.profiling_tools",
+            "app.graph.tools.projects_tools",
             "app.graph.tools.esg_tools",
             "app.graph.tools.carbon_tools",
             "app.graph.tools.financing_tools",
