@@ -9,7 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.core.admin_audit_listener import register_admin_access_listener
 from app.core.config import settings
+from app.core.database import engine as _db_engine
 from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,10 @@ compiled_graph = None
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Cycle de vie de l'application : initialisation et nettoyage."""
     global compiled_graph
+
+    # Story 10.5 — attacher le listener before_flush qui log les bypass
+    # admin dans admin_access_audit (architecture.md §D7). Idempotent.
+    register_admin_access_listener(_db_engine)
 
     # Démarrage : initialiser le graphe LangGraph
     if settings.openrouter_api_key:
@@ -106,6 +112,8 @@ from app.modules.company.router import router as company_router  # noqa: E402
 from app.modules.documents.router import router as documents_router  # noqa: E402
 from app.modules.esg.router import router as esg_router  # noqa: E402
 from app.modules.projects.router import router as projects_router  # noqa: E402
+from app.modules.maturity.router import router as maturity_router  # noqa: E402
+from app.modules.admin_catalogue.router import router as admin_catalogue_router  # noqa: E402
 from app.modules.reports.router import router as reports_router  # noqa: E402
 from app.modules.carbon.router import router as carbon_router  # noqa: E402
 from app.modules.financing.router import router as financing_router  # noqa: E402
@@ -120,6 +128,8 @@ app.include_router(company_router, prefix="/api/company", tags=["company"])
 app.include_router(documents_router, prefix="/api/documents", tags=["documents"])
 app.include_router(esg_router, prefix="/api/esg", tags=["esg"])
 app.include_router(projects_router, prefix="/api/projects", tags=["projects"])
+app.include_router(maturity_router, prefix="/api/maturity", tags=["maturity"])
+app.include_router(admin_catalogue_router, prefix="/api/admin/catalogue", tags=["admin-catalogue"])
 app.include_router(reports_router, prefix="/api/reports", tags=["reports"])
 app.include_router(carbon_router, prefix="/api/carbon", tags=["carbon"])
 app.include_router(financing_router, prefix="/api/financing", tags=["financing"])

@@ -1,5 +1,32 @@
 # Deferred Work
 
+## Deferred from: code review of story-10.5 (2026-04-20)
+
+- **LOW-10.5-1 — Bypass SUPERUSER PG sur REVOKE + triggers non documenté** — un compte PostgreSQL avec attribut `SUPERUSER` ou propriétaire de table peut désactiver les triggers tamper-proof via `ALTER TABLE admin_access_audit DISABLE TRIGGER ...` et bypasser le `REVOKE UPDATE, DELETE FROM PUBLIC`. Mitigation : accès SUPERUSER réservé ops/DBA ; rôle `app_user` NOINHERIT pour tous les services applicatifs. **Documenté** dans `docs/CODEMAPS/security-rls.md §6` (Limitations connues #5 + note §5.2). À encadrer dans **runbook incident_response** Epic 20 Ops (ségrégation credentials + audit accès SUPERUSER via pg_log / Cloud SQL audit). [docs/CODEMAPS/security-rls.md §6]
+- **LOW-10.5-2 — REVOKE `UPDATE/DELETE` sur `admin_access_audit` non testé isolément** — les 6 tests `test_audit_tamper_proof.py` reposent sur un `sync_engine` connecté en superuser de migration où le REVOKE PUBLIC n'a aucun effet ; seul le trigger bloque. Si demain quelqu'un retire le `CREATE TRIGGER` en laissant le REVOKE, les 6 tests passeraient faussement (en superuser, REVOKE sans trigger = pas de blocage). Gap de défense en profondeur, risque régressif spécifique très faible. Ajouter `test_revoke_blocks_non_superuser_update` (SET LOCAL ROLE app_user + UPDATE → "permission denied" AVANT trigger) lors d'une future story security hardening (candidat Epic 20). [backend/tests/test_security/test_audit_tamper_proof.py]
+- **LOW-10.5-3 — `ERRCODE = '42501'` (insufficient_privilege) sémantiquement ambigu** — le code SQLSTATE `42501` est émis par notre trigger PL/pgSQL alors qu'il signifie normalement « privilège insuffisant » (ex. REVOKE non-superuser). Un observateur SIEM pourrait confondre les deux signaux. Alternative envisageable : `'P0001'` (raise_exception générique) ou code custom classe `XX`/préfixe `ME` (Mefali). À arbitrer Epic 20 Ops avec l'équipe SRE (coût : rebuild migration 028 OU migration complémentaire + mise à jour assertions tests). [backend/alembic/versions/028_tamper_proof_audit_tables.py:53-54]
+- **LOW-10.5-4 — `conn.execute(text("RESET ROLE"))` redondant ligne 245 test_rls_enforcement.py** — `SET LOCAL ROLE app_user` est automatiquement réinitialisé à la fin de la transaction par PostgreSQL. La ligne explicite `RESET ROLE` obscurcit la lecture — un reviewer futur pourrait la croire nécessaire. Gain purement cosmétique, à supprimer lors du prochain drive-by sur ce fichier. [backend/tests/test_security/test_rls_enforcement.py:245]
+- **LOW-10.5-5 — `apply_rls_context` : 2 `set_config` séparés au lieu d'un seul** — cas pathologique théorique : si la 1ʳᵉ query réussit et la 2ᵉ échoue (perte réseau transient), la session reste dans `(user_id=<valide>, role=<stale>)`. Risque effectif très faible (transience + chemin non-authentifié simultanés). Optimisation : 1 seul `SELECT set_config(...), set_config(...)` (1 roundtrip au lieu de 2, + atomicité garantie). À appliquer lors d'un prochain drive-by sur `app/core/rls.py` — pas de changement sémantique. [backend/app/core/rls.py:131-138]
+- **INFO-10.5-1 — `register_admin_access_listener(engine)` ne consomme pas `engine`** — le paramètre est conservé pour cohérence API architecture §D7 mais non utilisé (le listener est attaché sur la classe `AsyncSession.sync_session_class`, pas sur l'engine). Pattern voulu (1 seul appel au startup suffit). À documenter plus clairement dans la docstring ou renommer en `register_admin_access_listener(_: AsyncEngine | Engine | None = None)` pour signaler l'absence d'effet. [backend/app/core/admin_audit_listener.py:94-107]
+- **INFO-10.5-2 — Aucune couverture ORM pour `facts`** — le modèle métier de la table `facts` (Couche 1 ESG 3 layers, migration 022) n'est pas encore livré (déféré à Epic 13). Le listener `before_flush` filtre par `__tablename__ in RLS_TABLE_NAMES` donc il couvrirait le modèle le jour où il sera ajouté ; en attendant, les tests E2E listener (`test_admin_audit_listener.py`) utilisent un ORM `_FactForTest` local isolé dans un `DeclarativeBase` de test. Quand Epic 13 livrera `app.models.fact.Fact`, remplacer l'ORM local du test par l'import de production. [backend/tests/test_security/test_admin_audit_listener.py + Epic 13]
+- **INFO-10.5-3 — `security-rls.md` dépasse AC7 (8 sections vs 6 prescrites)** — la doc livre 8 sections (ajout « Fichiers clés » + « Incidents type ») contre 6 prescrites par l'AC7. Extension bénéfique (pas d'item à défer). [docs/CODEMAPS/security-rls.md]
+
+## Deferred from: code review of story-10.4 (2026-04-20)
+
+- **LOW-10.4-1 — Pattern `status_code=201` + raise 501** — `backend/app/modules/admin_catalogue/router.py:72-121` déclare `status_code=201` sur les 4 POST stubs (criteria, referentials, packs, rules) mais raise 501 tant qu'Epic 13 n'est pas livré. Conservation volontaire (pattern 10.2 INFO-10.2-1 + 10.3 LOW-10.3-1). Epic 13.1/13.2/13.3/13.1bis livreront les 201 effectifs avec `CriterionResponse`/`ReferentialResponse`/`PackResponse`/`CriterionDerivationRuleResponse`. [_bmad-output/implementation-artifacts/10-4-code-review-2026-04-20.md#low-10.4-1]
+- **LOW-10.4-2 — Endpoints POST typés `-> dict` jamais retournent dict** — les 4 endpoints POST annotent `-> dict` mais leur seul chemin d'exécution est `raise HTTPException(501)`. Harmoniser vers `-> CriterionResponse | None` (intention future) ou `-> None` lors de la livraison Epic 13. Cosmétique. [_bmad-output/implementation-artifacts/10-4-code-review-2026-04-20.md#low-10.4-2]
+- **LOW-10.4-3 — Import `admin_catalogue_router` hors ordre alphabétique dans `main.py`** — [backend/app/main.py:106-125] — l'import et l'`include_router` sont placés entre `maturity_router` et `reports_router` (Cluster A → A' → admin_catalogue → reports) plutôt qu'en ordre alpha strict. Conservation volontaire, pas d'impact runtime (préfixes disjoints). [_bmad-output/implementation-artifacts/10-4-code-review-2026-04-20.md#low-10.4-3]
+- **LOW-10.4-4 — `_is_admin_mefali_email` parse env var à chaque appel** — `backend/app/modules/admin_catalogue/dependencies.py:22-30` lit + parse `ADMIN_MEFALI_EMAILS` à chaque requête admin. Micro-perf négligeable MVP (~µs, volume admin Mefali faible). Un cache module-level est **interdit** pour permettre `monkeypatch.setenv`. Résolu naturellement Epic 18 avec `User.role` + MFA FR61 (colonne BDD indexée). [_bmad-output/implementation-artifacts/10-4-code-review-2026-04-20.md#low-10.4-4]
+
+## Deferred from: code review of story-10.3 (2026-04-20)
+
+- **LOW-10.3-1 — Pattern `status_code=201` + raise 501** — `backend/app/modules/maturity/router.py:45-55` déclare `status_code=201` sur `POST /declare` mais raise 501 tant qu'Epic 12 n'est pas livré. Conservation volontaire (pattern 10.2 INFO-10.2-1). Epic 12.1 livrera le 201 effectif avec `FormalizationPlanResponse`. [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#low-10.3-1]
+- **LOW-10.3-2 — Import `maturity_router` hors ordre alphabétique dans `main.py`** — [backend/app/main.py:106-122] — l'import et l'`include_router` sont placés entre `projects_router` et `reports_router` (Cluster A → A' → reports) plutôt qu'en ordre alpha strict. Conservation volontaire, pas d'impact runtime (préfixes disjoints). [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#low-10.3-2]
+- **LOW-10.3-4 — Exposition future `country` en logs Epic 12.3** — quand Epic 12.3 `FormalizationPlanCalculator.generate(country: str)` sera livré, le `country` sera journalisé dans `tool_call_logs.tool_args`. Pas de risque PII (pays = public), mais à noter pour Epic 12.3 review. [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#low-10.3-4]
+- **Test `test_module_route_flags_coherence.py` (hérité 10.2)** — dette défensive restée ouverte depuis review 10.2 (option A « test de cohérence `_MODULE_ROUTE_FLAGS` ↔ nodes tool-loop »). Les 2 TODO `_MODULE_ROUTE_FLAGS` + `module_labels` documentent la dette pour **Epic 11 S1** (project) et **Epic 12 S1** (maturity). Implémentation conjointe lorsque l'un des deux routings sera activé. [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#info-10.3-9]
+- **Capitalisation pattern NFR66 country-data-driven** — le scan `assert_no_country_literals` a fait ses preuves dès la première itération 10.3 (détection `"Senegal"` dans docstring `service.py`). À extraire en helper `backend/tests/test_architecture/helpers.py::assert_no_country_literals(path, banned_list)` OU en skill BMAD `country-data-driven-scan` pour Epic 12.3, Story 10.11 (sourcing Annexe F) et futures extensions CEDEAO. [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#info-10.3-10]
+- **Déplacer `test_events_module_exposes_event_types`** — le test de présence des 3 constantes `events.py` est actuellement dans `backend/tests/test_maturity/test_service.py:65-77`. Cosmétique (hérité pattern 10.2 identique). À déplacer vers un `test_events.py` dédié lors de la prochaine drive-by (appliquer aussi à 10.2 pour cohérence). [_bmad-output/implementation-artifacts/10-3-code-review-2026-04-20.md#info-10.3-14]
+
 ## Deferred from: code review of story-10.2 (2026-04-20)
 
 - **MEDIUM-10.2-1 — Migration Cluster A : `CompanyProfile` → `Company`** — les deux modèles coexistent temporairement : `app.models.company.CompanyProfile` (table `company_profiles`, spec 003 MVP) + `app.modules.projects.models.Company` (table `companies`, squelette Cluster A Story 10.2). **Story 11-1** migrera les usages métier MVP vers `Company` (relations, services, validations complètes). **Story 20.1** dépréciera `CompanyProfile` en fin de Phase 0. Docstring de traçabilité posée dans `backend/app/modules/projects/models.py::Company` (2026-04-20 patch). [_bmad-output/implementation-artifacts/10-2-code-review-2026-04-20.md#medium-10.2-1]
@@ -20,12 +47,12 @@
 - **Cleanup feature flag `ENABLE_PROJECT_MODEL`** (arbitrage Q1) — déplacé vers **Story 20.1** : retrait code applicatif uniquement (pas de migration Alembic supplémentaire). La migration 027 reste dédiée à `domain_events` + `prefill_drafts` (micro-Outbox D11). [_bmad-output/planning-artifacts/epics/epic-10.md#story-101]
 - **Load test `REFRESH MATERIALIZED VIEW CONCURRENTLY` sur `mv_fund_matching_cube`** (arbitrage Q4) — reporté **Story 20.4** benchmark Phase 0. La vue est créée ici, le benchmark p95 ≤ 2 s sera mesuré sous charge réaliste avec des données seedées. [backend/alembic/versions/022_create_esg_3_layers.py]
 - **Modèles SQLAlchemy ORM pour les 30+ nouvelles tables** — livrés en parallèle par **Stories 10.2** (`projects`), **10.3** (`maturity`), **10.4** (`admin_catalogue`). Story 10.1 livre uniquement le schéma SQL — les tests CRUD utilisent raw SQL. [backend/app/models/]
-- **Event listener SQLAlchemy pour `admin_access_audit`** — livré **Story 10.5** (RLS + event listener qui loggue les escapes admin dans `admin_access_audit`). La table + policies RLS sont créées ici ; le hook applicatif viendra après. [backend/alembic/versions/024_enable_rls_on_sensitive_tables.py]
+- ✅ **RÉSOLU Story 10.5 (2026-04-20)** — **Event listener SQLAlchemy pour `admin_access_audit`** : livré via `backend/app/core/admin_audit_listener.py` (pattern `before_flush` sur `AsyncSession.sync_session_class`, enregistré au startup dans `main.py::lifespan`). Voir section `## Resolved in Story 10.5` ci-dessous.
 - **Worker APScheduler `domain_events` + purge `prefill_drafts`** — livré **Story 10.10** : consommation outbox via `FOR UPDATE SKIP LOCKED` 30 s + nettoyage `prefill_drafts.expires_at < now()`. Infra prête ici. [backend/alembic/versions/027_create_outbox_and_prefill_drafts.py]
 
 ## Deferred from: code review of story-10.1 (2026-04-20)
 
-- **HIGH-10.1-11 — Audit tables tamper-proofing (D6/D7)** — livré **Story 10.5** (cumul avec event listener `admin_access_audit`) : ajouter `REVOKE UPDATE, DELETE ON admin_access_audit, admin_catalogue_audit_trail FROM PUBLIC` + trigger `BEFORE UPDATE OR DELETE ... RAISE EXCEPTION 'audit immuable'` pour tout rôle hors `admin_super`. Migration créera le schéma ici, le lockdown opérationnel viendra après. [backend/alembic/versions/024_enable_rls_on_sensitive_tables.py + 026_create_admin_catalogue_audit_trail.py]
+- ✅ **RÉSOLU Story 10.5 (2026-04-20)** — **HIGH-10.1-11 — Audit tables tamper-proofing (D6/D7)** : livré via migration `backend/alembic/versions/028_tamper_proof_audit_tables.py` (`REVOKE UPDATE, DELETE ... FROM PUBLIC` + fonction `audit_table_is_immutable()` + 2 triggers `BEFORE UPDATE OR DELETE` sur `admin_access_audit` et `admin_catalogue_audit_trail`). 6 tests d'attaque validant que UPDATE/DELETE → `ProgrammingError: audit table is immutable (D6/D7)`. Voir section `## Resolved in Story 10.5` ci-dessous.
 - **MEDIUM-10.1-6 — Refresh policy `mv_fund_matching_cube`** — à trancher **Story 10.10** (worker APScheduler qui lancera également `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_fund_matching_cube` sur événement `fund.updated`/`intermediary.updated` consommé via domain_events). Sans ce worker, la MV reste stale après le seed initial. [backend/alembic/versions/022_create_esg_3_layers.py:354]
 - **MEDIUM-10.1-7 — FR44 NO BYPASS codes hardcodés** — remplacer la CHECK constraint `ck_no_bypass_human_review` (liste `('sges_beta','esia','stakeholder_engagement_plan')` inline) par une table de référence `high_risk_section_codes(code UNIQUE)` + trigger BEFORE INSERT/UPDATE sur `reusable_sections` qui force `human_review_required=true`. Prévu **Story 10.4** (module admin_catalogue) ou **Story 15.x** (moteur livrables). [backend/alembic/versions/023_create_deliverables_engine.py:107]
 - **MEDIUM-10.1-8 — Timestamps manquants** (`created_at`/`updated_at` absents de `project_role_permissions`, `criterion_referential_map`, `referential_versions`, `atomic_blocks`) — cohérence D6 audit. Ajouter dans une migration dédiée lors de la livraison des modèles ORM (Stories 10.2/10.3/15.x). Non bloquant MVP.
@@ -47,6 +74,68 @@
 - `HTTPException(500)` opaque côté utilisateur — message générique sans contexte guard, amélioration UX non critique à traiter dans une story dédiée gestion des erreurs guards. [backend/app/core/llm_guards.py:run_guarded_llm_call]
 - `prompt_hash` sur 200 premiers chars produit collisions cross-user — design choice documenté dans spec AC9 (PII avoidance) ; amélioration future via hash intégral après scrub PII. [backend/app/core/llm_guards.py:prompt_hash]
 - `assert_numeric_coherence` branche `/10` utilise la même tolérance que `/100` — edge case de conversion d'échelle asymétrique, demande design dédié (tolérance relative vs absolue). [backend/app/core/llm_guards.py:assert_numeric_coherence]
+
+## Resolved in Story 10.5 (2026-04-20)
+
+### Fix livré
+
+- **HIGH-10.1-11 — Audit tables tamper-proofing (D6/D7)** — migration additive `backend/alembic/versions/028_tamper_proof_audit_tables.py` (revision `028_audit_tamper`, `down_revision = "027_outbox_prefill"`) :
+  - `REVOKE UPDATE, DELETE ON admin_access_audit FROM PUBLIC`
+  - `REVOKE UPDATE, DELETE ON admin_catalogue_audit_trail FROM PUBLIC`
+  - Fonction PL/pgSQL partagée `audit_table_is_immutable()` qui `RAISE EXCEPTION 'audit table is immutable (D6/D7)'` avec `ERRCODE = '42501'` (insufficient_privilege).
+  - 2 triggers `BEFORE UPDATE OR DELETE` : `trg_admin_access_audit_immutable` + `trg_admin_catalogue_audit_trail_immutable` (idempotents via `DO $$ IF NOT EXISTS ... END $$`).
+  - `downgrade()` restaure : `DROP TRIGGER` + `DROP FUNCTION` + `GRANT UPDATE, DELETE ... TO PUBLIC` (cohérence NFR32 drill rollback trimestriel).
+- **INSERT reste autorisé** sur les 2 tables (nécessaire pour l'event listener admin_audit_listener + catalogue audit trail Story 10.4). Seuls UPDATE/DELETE sont bloqués.
+- **6 tests d'attaque** dans `backend/tests/test_security/test_audit_tamper_proof.py` (`@pytest.mark.postgres`) : INSERT ok + UPDATE ProgrammingError + DELETE ProgrammingError × 2 tables.
+
+- **Event listener SQLAlchemy `admin_access_audit`** — fichier `backend/app/core/admin_audit_listener.py` (~150 lignes) avec :
+  - `register_admin_access_listener(engine)` enregistré au startup dans `backend/app/main.py::lifespan`.
+  - Listener `before_flush` attaché sur `AsyncSession.sync_session_class` qui inspecte `session.new | session.dirty | session.deleted` et insère une ligne `admin_access_audit` pour chaque objet muté parmi les 4 tables sensibles (`companies`, `fund_applications`, `facts`, `documents`) si le contexte session est admin.
+  - Anti-récursion via filtre table (skip `admin_access_audit` + `admin_catalogue_audit_trail`) + flag `session.info[_SESSION_AUDIT_FLAG]`.
+  - Atomicité : l'INSERT audit partage la transaction métier (rollback cohérent).
+  - Limitation SELECT documentée (déférée Story 18.x).
+
+- **Couche applicative RLS** — fichier `backend/app/core/rls.py` (~130 lignes) :
+  - `apply_rls_context(db, user)` : positionne `app.current_user_id` + `app.user_role` via `set_config(..., false)` avec bind params.
+  - `reset_rls_context(db)` : appelé dans `get_db::finally` pour éviter fuite cross-requête via pool asyncpg.
+  - `resolve_user_role(user)` : réutilise `_is_admin_mefali_email` (Story 10.4) + nouvelle whitelist `ADMIN_SUPER_EMAILS` (fail-closed).
+  - `ADMIN_ROLES = frozenset({"admin_mefali", "admin_super"})` (source unique).
+  - Intégration dans `backend/app/api/deps.py::get_current_user` (appel automatique post-auth) + `backend/app/core/database.py::get_db` (reset en finally).
+
+### Fichiers livrés
+
+**Créations (9)** :
+- `backend/app/core/rls.py`
+- `backend/app/core/admin_audit_listener.py`
+- `backend/alembic/versions/028_tamper_proof_audit_tables.py`
+- `backend/tests/test_security/test_resolve_user_role.py` (7 tests, unit)
+- `backend/tests/test_security/test_rls_pool_reuse.py` (3 tests, PG)
+- `backend/tests/test_security/test_rls_enforcement.py` (16 tests, PG, matrice 4×4)
+- `backend/tests/test_security/test_audit_tamper_proof.py` (6 tests, PG)
+- `docs/CODEMAPS/security-rls.md`
+- `_bmad-output/implementation-artifacts/10-5-rls-postgresql-4-tables-sensibles.md` (story spec)
+
+**Modifications (5)** :
+- `backend/app/core/database.py` (ajout `try/finally` + `reset_rls_context` dans get_db)
+- `backend/app/api/deps.py` (appel `apply_rls_context(db, user)` post-auth)
+- `backend/app/main.py` (import + appel `register_admin_access_listener(engine)` au lifespan startup)
+- `backend/.env.example` (section « Admin Whitelists » avec `ADMIN_MEFALI_EMAILS=` + `ADMIN_SUPER_EMAILS=`)
+- `docs/runbooks/README.md` (référence `docs/CODEMAPS/security-rls.md`)
+
+### Tests
+
+- **Baseline pré-10.5** : 1331 passed + 35 skipped.
+- **Baseline post-10.5 (sans PG)** : 1338 passed + 60 skipped (+7 tests `resolve_user_role` verts, +25 tests PG skippés — 16 matrice + 3 pool + 6 tamper).
+- **Delta total** : +32 tests collectés dans `backend/tests/test_security/` (6 → 38).
+- **Zéro régression** sur les 1331 tests pré-existants.
+
+### Scopes déférés (non bloquants)
+
+- **SELECT admin non capturés** par le listener `before_flush` — déféré Story 18.x si besoin concret émerge. Mitigation MVP : un admin qui exfiltre doit persister (INSERT audité).
+- **Rôle `auditor` effectif** (lecture cross-tenant read-only) — Epic 18 avec FR61 (colonne `User.role` + MFA step-up).
+- **Whitelist email transitoire** — remplacée par `User.role` Epic 18.
+
+---
 
 ## Resolved (2026-04-19) — Story 9.6 : guards LLM persistes documents bailleurs (P1 #10)
 

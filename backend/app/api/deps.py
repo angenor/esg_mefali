@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rls import apply_rls_context
 from app.core.security import decode_token
 from app.models.user import User
 
@@ -49,6 +50,13 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Utilisateur introuvable ou inactif",
         )
+
+    # Story 10.5 — injecter le contexte RLS (app.current_user_id + app.user_role)
+    # sur la session courante pour que les policies tenant_isolation (migration 024)
+    # filtrent automatiquement les 4 tables sensibles. Appelé uniquement après
+    # authentification réussie : un 401 ne positionne jamais le contexte, la
+    # session reste à l'état reset (fail-safe).
+    await apply_rls_context(db, user)
 
     # Exposer l'utilisateur dans request.state pour le rate limiter SlowAPI (FR-013)
     request.state.user = user

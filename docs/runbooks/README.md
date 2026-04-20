@@ -420,3 +420,16 @@ Si le rollback lui-même casse quelque chose :
 - [ ] Runbook 5 (migration blocked) — dépend de Story 13.8c
 
 **Status global Phase 0** : squelettes prêts (2026-04-20), détails opérationnels à compléter au fil des stories qui les référencent (Story 10.7, 10.13, 13.8c).
+
+---
+
+## Security — RLS PostgreSQL (Story 10.5)
+
+Pour tout incident lié à **RLS (Row-Level Security), fuite cross-tenant
+présumée, ou audit admin_access_audit / admin_catalogue_audit_trail**,
+consulter d'abord le codemap canonique :
+
+- [`docs/CODEMAPS/security-rls.md`](../CODEMAPS/security-rls.md) —
+  contrat `apply_rls_context`, listener `before_flush`, migration 028
+  tamper-proof triggers, procédures de test local via `psql`,
+  limitations connues + roadmap Epic 18.
