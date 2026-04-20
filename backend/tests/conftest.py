@@ -53,6 +53,26 @@ def reset_rate_limiter():
     yield
 
 
+@pytest.fixture(autouse=True)
+def isolate_storage_provider(tmp_path_factory, monkeypatch):
+    """Story 10.6 — isole chaque test dans un storage local tmpdir dédié.
+
+    Évite que les tests qui déclenchent `get_storage_provider().put()` (via
+    `upload_document` ou `generate_esg_report_pdf`) n'écrivent dans
+    `backend/uploads/` réel. Sans cette fixture, les tests legacy qui
+    mockaient `_save_file_to_disk` persisteraient dans le filesystem du repo.
+    """
+    from app.core import storage as storage_module
+    from app.core.config import settings
+
+    tmp_dir = tmp_path_factory.mktemp("storage_test")
+    monkeypatch.setattr(settings, "storage_local_path", str(tmp_dir))
+    monkeypatch.setattr(settings, "storage_provider", "local")
+    storage_module._reset_storage_provider_cache()
+    yield
+    storage_module._reset_storage_provider_cache()
+
+
 async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dépendance de test pour remplacer la session de BDD."""
     async with test_session_factory() as session:

@@ -433,3 +433,14 @@ consulter d'abord le codemap canonique :
   contrat `apply_rls_context`, listener `before_flush`, migration 028
   tamper-proof triggers, procédures de test local via `psql`,
   limitations connues + roadmap Epic 18.
+
+## Storage — local + S3 EU-West-3 (Story 10.6)
+
+Pour tout incident lié au **stockage fichiers** (upload documents,
+génération PDF rapports, bascule local ↔ S3 Phase Growth), consulter :
+
+- [`docs/CODEMAPS/storage.md`](../CODEMAPS/storage.md) —
+  contrat `StorageProvider`, config `STORAGE_PROVIDER`, IAM S3, SSE-S3,
+  multipart seuil 10 MB, presigned TTL, migration local → S3, limitations
+  MVP (4 modules PDF in-memory non câblés, libs d'extraction tempfile
+  adapter déferré).

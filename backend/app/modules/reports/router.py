@@ -4,11 +4,13 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.storage import get_storage_provider
+from app.core.storage.local import LocalStorageProvider
 from app.models.user import User
 from app.modules.reports.schemas import (
     ReportGenerateResponse,
@@ -19,7 +21,13 @@ from app.modules.reports.schemas import (
 
 router = APIRouter()
 
-UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "reports"
+# Rétrocompat lecture : rapports générés AVANT Story 10.6 avaient
+# `file_path = "<file_name>.pdf"` (sans préfixe) et étaient stockés dans
+# `backend/uploads/reports/`. Les nouveaux ont `file_path = reports/<id>/<file>`
+# (clé opaque portable local↔S3).
+LEGACY_REPORTS_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "reports"
+)
 
 
 @router.post(
@@ -72,7 +80,7 @@ async def download_report(
     report_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> FileResponse:
+):
     """Telecharger le fichier PDF d'un rapport."""
     from app.modules.reports.service import get_report, get_report_any_user
 
@@ -85,18 +93,34 @@ async def download_report(
     if report.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Acces refuse.")
 
-    # Verifier que le fichier existe
-    pdf_path = UPLOADS_DIR / report.file_path
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Fichier PDF non trouve.")
+    # Nom de téléchargement user-friendly (suffixe fichier)
+    download_name = report.file_path.rsplit("/", 1)[-1] or "rapport.pdf"
 
-    filename = report.file_path
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=filename,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    storage = get_storage_provider()
+
+    if isinstance(storage, LocalStorageProvider):
+        # Rétrocompat : rapports legacy ont file_path = "<name>.pdf"
+        if not report.file_path.startswith("reports/"):
+            pdf_path = LEGACY_REPORTS_DIR / report.file_path
+        else:
+            pdf_path = storage.local_path(report.file_path)
+
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Fichier PDF non trouve.")
+
+        return FileResponse(
+            path=str(pdf_path),
+            media_type="application/pdf",
+            filename=download_name,
+            headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+        )
+
+    # S3 (Phase Growth) : redirection vers URL pré-signée 15 min
+    try:
+        url = await storage.signed_url(report.file_path, ttl_seconds=900)
+    except Exception as exc:  # noqa: BLE001 → déjà mappé StorageError
+        raise HTTPException(status_code=404, detail="Fichier PDF non trouve.") from exc
+    return RedirectResponse(url=url, status_code=302)
 
 
 @router.get("/", response_model=ReportListResponse)

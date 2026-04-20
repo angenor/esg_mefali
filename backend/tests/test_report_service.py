@@ -106,12 +106,18 @@ class TestGenerateReport:
 
         mock_weasyprint = MagicMock()
 
-        def _fake_write_pdf(path):
-            """Creer un faux fichier PDF sur disque pour que stat() fonctionne."""
+        def _fake_write_pdf(target):
+            """Story 10.6 : write_pdf reçoit désormais un BytesIO buffer
+            (persistance via storage.put). Garde rétrocompat path."""
+            from io import IOBase
             from pathlib import Path
 
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            Path(path).write_bytes(b"%PDF-1.4 fake content")
+            fake_content = b"%PDF-1.4 fake content"
+            if isinstance(target, IOBase) or hasattr(target, "write"):
+                target.write(fake_content)
+                return
+            Path(target).parent.mkdir(parents=True, exist_ok=True)
+            Path(target).write_bytes(fake_content)
 
         mock_weasyprint.HTML.return_value.write_pdf.side_effect = _fake_write_pdf
 

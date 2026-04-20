@@ -9,6 +9,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -18,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.storage import get_storage_provider, storage_key_for_report
 from app.core.llm_guards import (
     MAX_SUMMARY_LEN,
     MIN_SUMMARY_LEN,
@@ -41,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Chemins
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "reports"
+# Story 10.6 : UPLOADS_DIR supprimé — persistance via `get_storage_provider()`.
 
 # Mapping secteur -> label francais
 SECTOR_LABELS = {
@@ -353,19 +355,23 @@ async def generate_report(
             pillar_criteria=pillar_criteria,
         )
 
-        # 7. Convertir HTML -> PDF via WeasyPrint (import lazy)
+        # 7. Convertir HTML -> PDF via WeasyPrint (buffer in-memory)
         from weasyprint import HTML
 
-        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-        pdf_path = UPLOADS_DIR / file_name
-
+        buffer = BytesIO()
         html_doc = HTML(string=html_content)
-        html_doc.write_pdf(str(pdf_path))
+        html_doc.write_pdf(buffer)
+        pdf_bytes = buffer.getvalue()
 
-        # 8. Mettre a jour le rapport
-        file_size = pdf_path.stat().st_size
+        # 8. Persister via storage provider (local ou S3)
+        storage = get_storage_provider()
+        storage_key = storage_key_for_report(report.id, file_name)
+        await storage.put(storage_key, pdf_bytes, content_type="application/pdf")
+
+        # 9. Mettre à jour le rapport (clé opaque stockée en BDD)
+        report.file_path = storage_key
+        report.file_size = len(pdf_bytes)
         report.status = ReportStatusEnum.completed
-        report.file_size = file_size
         report.generated_at = datetime.now(timezone.utc)
         await db.flush()
 

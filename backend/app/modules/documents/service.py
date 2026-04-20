@@ -11,6 +11,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.storage import (
+    get_storage_provider,
+    storage_key_for_document,
+)
+from app.core.storage.base import StoragePermissionError, StorageQuotaError
 from app.models.document import (
     Document,
     DocumentAnalysis,
@@ -20,10 +25,15 @@ from app.models.document import (
 
 logger = logging.getLogger(__name__)
 
-# Espace disque minimal requis (50 MB)
+# Espace disque minimal requis (50 MB) — shim legacy, garde disque réelle
+# portée maintenant par `LocalStorageProvider._check_disk_space`.
 MIN_DISK_SPACE_BYTES = 50 * 1024 * 1024
 
-# Répertoire de base pour le stockage des fichiers
+# Répertoire de base pour la **rétrocompatibilité lecture** des fichiers
+# uploadés AVANT Story 10.6. Les enregistrements `Document.storage_path`
+# historiques contiennent "uploads/<uid>/<did>/<file>" relatif à `backend/`.
+# Story 10.6 : tout nouveau upload passe par `storage.put()` et le
+# `storage_path` stocké est la clé opaque `documents/<uid>/<did>/<file>`.
 UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads"
 
 # Types MIME autorisés
@@ -83,16 +93,27 @@ def _sanitize_filename(filename: str) -> str:
 
 
 # ─── Stockage fichiers ───────────────────────────────────────────────
+# Story 10.6 : les helpers `_save_file_to_disk` / `_delete_file_from_disk`
+# ont été remplacés par `get_storage_provider().put|delete`. La garde disque
+# locale est désormais portée par `LocalStorageProvider.put`.
+#
+# Les fonctions ci-dessous sont conservées comme **shims de compatibilité**
+# pour les tests legacy qui les patchent via `unittest.mock.patch`. Elles ne
+# sont plus appelées par `upload_document` / `delete_document` en prod —
+# leur seul rôle est d'être `monkeypatch`-ables sans AttributeError.
 
 
 def _check_disk_space() -> None:
-    """Vérifier que l'espace disque est suffisant pour stocker un fichier."""
+    """Shim legacy — la vraie garde est dans ``LocalStorageProvider.put``.
+
+    Conservée pour la compat des tests qui patchent `shutil.disk_usage`
+    au niveau module.
+    """
     try:
         usage = shutil.disk_usage(UPLOADS_DIR.parent)
     except OSError:
         logger.warning("Impossible de verifier l'espace disque disponible")
         return
-
     if usage.free < MIN_DISK_SPACE_BYTES:
         raise ValueError(
             "Espace disque insuffisant. Veuillez liberer de l'espace "
@@ -106,24 +127,31 @@ def _save_file_to_disk(
     filename: str,
     content: bytes,
 ) -> str:
-    """Sauvegarder le fichier sur le disque local."""
-    _check_disk_space()
-    dir_path = UPLOADS_DIR / str(user_id) / str(document_id)
-    dir_path.mkdir(parents=True, exist_ok=True)
-    file_path = dir_path / filename
-    file_path.write_bytes(content)
-    return str(file_path.relative_to(UPLOADS_DIR.parent))
+    """Shim legacy — n'est plus appelé en prod (Story 10.6). Conservé pour
+    la rétrocompatibilité des tests qui font `patch(_save_file_to_disk)`."""
+    return storage_key_for_document(user_id, document_id, filename)
 
 
 def _delete_file_from_disk(storage_path: str) -> None:
-    """Supprimer le fichier et son dossier parent du disque."""
-    full_path = UPLOADS_DIR.parent / storage_path
-    if full_path.exists():
-        full_path.unlink()
-    # Supprimer le dossier parent s'il est vide
-    parent = full_path.parent
-    if parent.exists() and not any(parent.iterdir()):
-        parent.rmdir()
+    """Shim legacy — n'est plus appelé en prod (Story 10.6)."""
+    return None
+
+
+def _resolve_legacy_storage_path(storage_path: str) -> Path | None:
+    """Rétrocompat Story 10.6 : retourne un path filesystem absolu si
+    `storage_path` est un enregistrement **legacy** (préfixe ``uploads/``),
+    sinon ``None``. Les rows BDD antérieurs à 10.6 ont été stockés avec
+    ``_save_file_to_disk`` qui préfixait avec ``uploads/<uid>/<did>/<file>``
+    relatif à ``backend/``. Les rows post-10.6 utilisent la clé opaque
+    ``documents/<uid>/<did>/<file>`` résolue par `LocalStorageProvider`
+    sous ``backend/uploads/documents/...``.
+
+    Cohérent avec la logique de lecture présente dans `analyze_document`
+    (single source of truth du mapping legacy→filesystem).
+    """
+    if storage_path.startswith("uploads/"):
+        return UPLOADS_DIR.parent / storage_path
+    return None
 
 
 # ─── Quota utilisateur ───────────────────────────────────────────────
@@ -192,16 +220,21 @@ async def upload_document(
     document_id = uuid.uuid4()
 
     # Dette pré-existante spec 004 : dans un upload multi-fichiers, si un
-    # fichier ultérieur fait lever QuotaExceededError, _save_file_to_disk
-    # aura déjà écrit sur disque les fichiers précédents → orphelins
-    # (la transaction BDD rollback mais le disque n'est pas nettoyé).
-    # Hors scope story 9.2.
-    storage_path = _save_file_to_disk(
-        user_id=user_id,
-        document_id=document_id,
-        filename=safe_filename,
-        content=content,
-    )
+    # fichier ultérieur fait lever QuotaExceededError, le fichier précédent
+    # aura déjà été persisté par `storage.put()` → orphelins (la transaction
+    # BDD rollback mais le disque/S3 n'est pas nettoyé). Hors scope 9.2/10.6.
+    storage = get_storage_provider()
+    storage_path = storage_key_for_document(user_id, document_id, safe_filename)
+    try:
+        await storage.put(storage_path, content, content_type=content_type)
+    except StorageQuotaError as exc:
+        raise QuotaExceededError(str(exc)) from exc
+    except StoragePermissionError as exc:
+        # Story 10.6 post-review MEDIUM-10.6-5 : défense en profondeur.
+        # Unreachable en prod car `storage_key_for_document` produit toujours
+        # des clés sûres, mais un code path futur (clé passée directement par
+        # un appelant) serait mappé 400 au lieu d'un 500 générique.
+        raise ValueError(f"Chemin de stockage refuse : {exc}") from exc
 
     document = Document(
         id=document_id,
@@ -363,8 +396,26 @@ async def analyze_document(
     await db.flush()
 
     try:
-        # Résoudre le chemin absolu du fichier
-        file_path = str(UPLOADS_DIR.parent / document.storage_path)
+        # Résoudre le chemin filesystem absolu pour les libs d'extraction
+        # (PyMuPDF/pytesseract/docx2txt/openpyxl attendent un path, pas un
+        # BinaryIO). Story 10.6 : en mode local on demande le path au provider ;
+        # en mode S3 (Phase Growth) un adaptateur tempfile sera nécessaire
+        # — TODO déferré dans `deferred-work.md` section storage.
+        from app.core.storage.local import LocalStorageProvider
+
+        storage = get_storage_provider()
+        if isinstance(storage, LocalStorageProvider):
+            # Rétrocompat lecture : les anciens documents ont
+            # storage_path = "uploads/<uid>/<did>/<file>" relatif à backend/
+            if document.storage_path.startswith("uploads/"):
+                file_path = str(UPLOADS_DIR.parent / document.storage_path)
+            else:
+                file_path = str(storage.local_path(document.storage_path))
+        else:  # pragma: no cover — Phase Growth S3
+            raise NotImplementedError(
+                "Extraction depuis S3 requiert l'adaptateur tempfile "
+                "(déferré Phase Growth)."
+            )
 
         if not Path(file_path).exists():
             raise FileNotFoundError(
@@ -606,7 +657,22 @@ async def delete_document(
     db: AsyncSession,
     document: Document,
 ) -> None:
-    """Supprimer un document (fichier physique + BDD)."""
-    _delete_file_from_disk(document.storage_path)
+    """Supprimer un document (fichier physique + BDD).
+
+    Rétrocompat Story 10.6 (HIGH-10.6-1) : les rows legacy (`storage_path`
+    préfixé ``uploads/``) sont supprimés directement via `pathlib.Path.unlink`
+    car leur layout disque précède l'introduction de `LocalStorageProvider`
+    (double préfixe `uploads/uploads/` sinon → fichier orphelin + fuite
+    RGPD FR65). Les rows post-10.6 passent par `storage.delete(key)`.
+    """
+    import asyncio
+
+    legacy_path = _resolve_legacy_storage_path(document.storage_path)
+    if legacy_path is not None:
+        # Delete filesystem direct, idempotent via missing_ok=True.
+        await asyncio.to_thread(legacy_path.unlink, True)
+    else:
+        storage = get_storage_provider()
+        await storage.delete(document.storage_path)
     await db.delete(document)
     await db.flush()

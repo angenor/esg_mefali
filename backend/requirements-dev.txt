@@ -9,5 +9,8 @@ aiosqlite>=0.20.0
 freezegun>=1.5.0
 psycopg2-binary>=2.9.9  # driver sync requis par tests migrations Story 10.1 + scripts/validate_schema.py
 
+# Mock AWS (Story 10.6 — marker @pytest.mark.s3)
+moto[s3]>=5.0,<6.0
+
 # Linting
 ruff>=0.8.0

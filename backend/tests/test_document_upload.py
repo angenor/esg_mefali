@@ -590,3 +590,106 @@ class TestQuota:
 
         assert fresh_settings.quota_bytes_per_user_mb == 200
         assert fresh_settings.quota_docs_per_user == 100
+
+
+# ─── Story 10.6 post-review HIGH-10.6-1 : delete_document rétrocompat ───
+
+
+class TestDeleteDocumentLegacyPaths:
+    """Tests rétrocompatibilité Story 10.6 HIGH-10.6-1.
+
+    Vérifie que `delete_document` supprime **réellement** les fichiers
+    physiques pour les 2 variantes de `storage_path` co-existantes :
+      - **Legacy** : ``uploads/<uid>/<did>/<filename>`` (antérieur à 10.6)
+      - **Post-10.6** : ``documents/<uid>/<did>/<filename>`` (clé opaque)
+    """
+
+    @pytest.mark.asyncio
+    async def test_delete_document_removes_legacy_file_from_disk(
+        self,
+        db_session: AsyncSession,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """HIGH-10.6-1 — row legacy avec `uploads/<uid>/<did>/<file>`
+        doit être **physiquement supprimé** (zéro orphelin → RGPD FR65)."""
+        from pathlib import Path as _Path
+
+        from app.models.document import Document, DocumentStatus
+        from app.modules.documents import service as doc_service
+        from app.modules.documents.service import delete_document
+
+        # Redirige UPLOADS_DIR vers le tmp_path pour isoler le filesystem test
+        fake_uploads_dir = tmp_path / "uploads"
+        fake_uploads_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(doc_service, "UPLOADS_DIR", fake_uploads_dir)
+
+        # Seed d'un fichier physique legacy
+        user_id = uuid.uuid4()
+        doc_id = uuid.uuid4()
+        legacy_rel = f"uploads/{user_id}/{doc_id}/legacy.pdf"
+        legacy_abs = tmp_path / legacy_rel
+        legacy_abs.parent.mkdir(parents=True, exist_ok=True)
+        legacy_abs.write_bytes(b"%PDF-1.4 legacy")
+        assert legacy_abs.exists()
+
+        # Row BDD pointant sur la clé legacy
+        doc = Document(
+            id=doc_id,
+            user_id=user_id,
+            filename="legacy.pdf",
+            original_filename="legacy.pdf",
+            mime_type="application/pdf",
+            file_size=15,
+            storage_path=legacy_rel,
+            status=DocumentStatus.uploaded,
+        )
+        db_session.add(doc)
+        await db_session.flush()
+
+        # Act
+        await delete_document(db_session, doc)
+
+        # Assert — effet observable : fichier réellement absent du disque
+        assert not _Path(legacy_abs).exists(), (
+            "Legacy storage_path non supprimé — fuite RGPD (HIGH-10.6-1)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_delete_document_removes_modern_key_via_storage_provider(
+        self,
+        db_session: AsyncSession,
+    ) -> None:
+        """HIGH-10.6-1 — row post-10.6 (`documents/<uid>/<did>/<file>`)
+        doit passer par `storage.delete()` et disparaître du provider."""
+        from app.core.storage import get_storage_provider
+        from app.models.document import Document, DocumentStatus
+        from app.modules.documents.service import delete_document
+
+        storage = get_storage_provider()
+        user_id = uuid.uuid4()
+        doc_id = uuid.uuid4()
+        modern_key = f"documents/{user_id}/{doc_id}/modern.pdf"
+
+        # Seed via le provider (respecte la fixture auto-use isolate_storage_provider)
+        await storage.put(modern_key, b"%PDF-1.4 modern")
+        assert await storage.exists(modern_key) is True
+
+        doc = Document(
+            id=doc_id,
+            user_id=user_id,
+            filename="modern.pdf",
+            original_filename="modern.pdf",
+            mime_type="application/pdf",
+            file_size=15,
+            storage_path=modern_key,
+            status=DocumentStatus.uploaded,
+        )
+        db_session.add(doc)
+        await db_session.flush()
+
+        # Act
+        await delete_document(db_session, doc)
+
+        # Assert — effet observable : provider ne trouve plus la clé
+        assert await storage.exists(modern_key) is False

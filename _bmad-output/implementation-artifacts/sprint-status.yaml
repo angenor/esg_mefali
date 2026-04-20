@@ -1,5 +1,5 @@
 # generated: 2026-04-12
-# last_updated: '2026-04-20' (Story 10.5 done — post-review round 1 : HIGH-10.5-1 résolu via 4 tests E2E listener admin_audit, 3 MEDIUM fixés, 5 LOW + 3 INFO tracés, nouvelle leçon E2E listeners ORM capitalisée)
+# last_updated: '2026-04-20' (Story 10.6 ready-for-dev — bmad-create-story : abstraction StorageProvider local + S3 EU-West-3, 8 AC, 15 tasks, scan NFR66 anticipé zéro helper préexistant + 2 consommateurs persistants identifiés documents/reports, rectification épic AC3 (2 modules réels vs 8 annoncés), boto3 sync asyncio.to_thread, SSE-S3 AES256 NFR25, multipart >=10MB boto3.s3.transfer, with_retry 9.7 sur transient, règle d'or 10.5 round-trip 1MB+10MB, marker @pytest.mark.s3 nouveau + skip via importorskip moto, baseline 1338+64 cible ≥ 1350 (+12 min).)
 # project: esg_mefali
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,10 +35,10 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-12
-last_updated: '2026-04-20 (Story 10.5 done — post-review round 1 : HIGH-10.5-1 résolu via 4 tests E2E listener admin_audit, 3 MEDIUM fixés, 5 LOW + 3 INFO tracés deferred-work.md + §6 Limits #5-#6 security-rls.md (bypass SUPERUSER + SQL direct non-capturé). Nouvelle leçon majeure E2E listeners ORM capitalisée. Collection 38 → 42 tests test_security/ (+4). 1338 passed + 64 skipped. Zéro régression.)'
-last_story_created: '10-3-module-maturity-squelette'
+last_updated: '2026-04-20 (Story 10.6 done — post-review round 1 : HIGH-10.6-1 résolu via helper _resolve_legacy_storage_path + 2 tests E2E rétrocompat disque (fuite RGPD FR65 neutralisée), 4 MEDIUM fixés (validator aws_region UE NFR24, 2 tests SSE multipart NFR25, contrat signed_url documenté ABC+storage.md, upload_document catch StoragePermissionError défense profondeur), 6 LOW tracés deferred-work.md §story-10.6 avec mapping Epic/Story. Baseline 1387 → 1406 passed + 64 skipped (+19 tests), zéro régression. Précédemment : Story 10.5 done — post-review HIGH résolu via 4 tests E2E listener admin_audit, 3 MEDIUM fixés. Cible Story 10.7 environnements DEV/STAGING/PROD consommera S3StorageProvider + CRR EU-West-3 → EU-West-1.)'
+last_story_created: '10-6-abstraction-storage-provider (2026-04-20 — bmad-create-story : 8 AC, 15 tasks, baseline 1338+64 cible ≥ 1350, scan NFR66 anticipé 2 consommateurs persistants documents/reports, S3 EU-West-3 + SSE-S3 + multipart >=10MB + moto[s3] + with_retry hérité 9.7, règle d'or 10.5 tester effet observable round-trip 1MB+10MB)'
 last_story_implemented: '10-3-module-maturity-squelette (dev-story review 2026-04-20 : 8 fichiers module maturity + maturity_node 11ᵉ nœud + maturity_tools.py wrappé with_retry + formalization_plan_calculator.py stub + TODO Epic 12 S1 inscrit nodes.py, 21 tests verts, 100% coverage module, baseline 1283 → 1305 passed)'
-last_review_completed: '10-5-rls-postgresql-4-tables-sensibles (bmad-code-review 3-layers 2026-04-20, APPROVE-WITH-CHANGES : 0 CRITICAL + 1 HIGH + 3 MEDIUM + 5 LOW + 3 INFO. Post-review round 1 (2026-04-20) : HIGH-10.5-1 résolu via backend/tests/test_security/test_admin_audit_listener.py (4 tests E2E paramétrés companies/fund_applications/facts/documents, chaîne apply_rls_context → ORM mutation → before_flush → admin_access_audit vérifiée end-to-end). MEDIUM-10.5-1 record_ids via json.dumps. MEDIUM-10.5-2 commentaire pool_pre_ping corrigé. MEDIUM-10.5-3 résolu par PATCH 1. 5 LOW + 3 INFO tracés deferred-work.md § Deferred from: code review of story-10.5. Nouvelle leçon majeure E2E listeners ORM intégrée story file 10.5 Completion Notes. Cible ≥ 1342 passants atteignable en CI PG (1338 passed + 64 skipped local, +4 skippent proprement sans TEST_ALEMBIC_URL). Zéro régression.)'
+last_review_completed: '10-6-abstraction-storage-provider (bmad-code-review 3-layers 2026-04-20, APPROVE-WITH-CHANGES : 0 CRITICAL + 1 HIGH + 4 MEDIUM + 6 LOW + 3 INFO. Post-review round 1 (2026-04-20) : HIGH-10.6-1 résolu via helper `_resolve_legacy_storage_path` + 2 tests E2E TestDeleteDocumentLegacyPaths (fuite RGPD FR65 neutralisée). MEDIUM-10.6-2 validator field `aws_region` + ALLOWED_EU_REGIONS (8 régions UE) + 15 tests fail-fast. MEDIUM-10.6-3 2 tests SSE multipart (upload_fileobj BinaryIO 2MB + bytes 10MB+1). MEDIUM-10.6-4 contrat signed_url documenté ABC + storage.md §2. MEDIUM-10.6-5 upload_document catch StoragePermissionError → ValueError 400 (défense profondeur). 6 LOW tracés deferred-work.md § Deferred from: code review of story-10.6 (filename PII Epic 18 FR65, IAM DeleteObject Story 10.7, exists silencieux Epic 18 hardening, versioning+MFA Story 10.7 runbook, ThrottlingException Epic 18 obs, to_thread presigned optim Phase Growth). Baseline 1387 → 1406 passed + 64 skipped (+19 tests). Zéro régression. Story done.)'
 project: esg_mefali
 project_key: NOKEY
 tracking_system: file-system
@@ -130,7 +130,7 @@ development_status:
   10-3-module-maturity-squelette: done
   10-4-module-admin-catalogue-squelette: done
   10-5-rls-postgresql-4-tables-sensibles: done
-  10-6-abstraction-storage-provider: backlog
+  10-6-abstraction-storage-provider: done
   10-7-environnements-dev-staging-prod: backlog
   10-8-framework-injection-prompts-ccc9: backlog
   10-9-feature-flag-enable-project-model: backlog

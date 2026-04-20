@@ -101,11 +101,18 @@ def mock_weasyprint():
     """Mock WeasyPrint pour eviter l'import des libs systeme C."""
     mock_wp = MagicMock()
 
-    def _fake_write_pdf(path):
+    def _fake_write_pdf(target):
+        """Story 10.6 : le service passe désormais un BytesIO buffer
+        (persistance via storage.put). Garde rétrocompat path pour sécurité."""
+        from io import IOBase
         from pathlib import Path
 
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        Path(path).write_bytes(b"%PDF-1.4 fake report content")
+        fake_content = b"%PDF-1.4 fake report content"
+        if isinstance(target, IOBase) or hasattr(target, "write"):
+            target.write(fake_content)
+            return
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        Path(target).write_bytes(fake_content)
 
     mock_wp.HTML.return_value.write_pdf.side_effect = _fake_write_pdf
 

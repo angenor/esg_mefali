@@ -529,3 +529,125 @@ Items différés suite à la revue adversariale 3-couches du 2026-04-18 (Blind H
 - Nettoyage partiel sur 429 côté frontend : `documentProgress`, `activeToolCall`, `abortController` ne sont pas explicitement réinitialisés. Le `finally` existant couvre `isStreaming`. Risque d'état fantôme d'une tentative précédente persistant après un 429. [frontend/app/composables/useChat.ts:279-289]
 - Input utilisateur perdu sur 429 : AC5 spécifie l'idempotence (retrait du message refusé), mais le contenu tapé n'est pas préservé dans le composer pour un retry. UX sub-optimale pour messages longs. [frontend/app/composables/useChat.ts:287]
 - Headers `X-RateLimit-Remaining` / `X-RateLimit-Limit` émis (via `headers_enabled=True`) mais ignorés côté frontend. Le composable pourrait afficher « Il vous reste X messages » pour une UX proactive. [frontend/app/composables/useChat.ts]
+
+## Deferred from: Story 10.6 Storage abstraction (2026-04-20)
+
+### Opportunités Phase Growth — 4 modules PDF in-memory vers storage.put()
+
+Ces modules génèrent actuellement du PDF **in-memory** via
+`HTML(...).write_pdf()` → `bytes` streamés directement via
+`FastAPI Response`. Aucune écriture disque, aucun audit trail, aucun
+caching. Intérêt de les câbler à `storage.put()` en Phase Growth :
+persistance pour audit réglementaire (ESG/financement/crédit) + cache
+1re génération = 0 CPU sur re-download, + possibilité de signed_url si
+le PDF devient accessible par plusieurs intervenants.
+
+- `backend/app/modules/credit/certificate.py:56` — certificat de scoring crédit vert.
+- `backend/app/modules/financing/preparation_sheet.py:108` — fiche de préparation financement.
+- `backend/app/modules/applications/export.py:149` — export dossier candidature.
+- `backend/app/modules/applications/prep_sheet.py:135` — fiche de préparation candidature.
+
+### Adaptateur tempfile pour libs d'extraction en mode S3
+
+PyMuPDF, pytesseract, docx2txt et openpyxl attendent un **path
+filesystem** (pas un BinaryIO). En mode `STORAGE_PROVIDER=s3`,
+`documents.service.analyze_document` doit télécharger la clé dans un
+`tempfile.NamedTemporaryFile` avant d'appeler les extracteurs. Pattern
+déferré à la story de migration Phase Growth (hors 10.6 qui reste
+`NotImplementedError` si S3 actif + extraction demandée).
+[backend/app/modules/documents/service.py:analyze_document]
+
+### Script `scripts/migrate_local_to_s3.py`
+
+Phase Growth — déplace récursivement `backend/uploads/documents/*` et
+`backend/uploads/reports/*` vers le bucket S3, en conservant les clés
+opaques **identiques** (aucune migration BDD nécessaire car
+`Document.storage_path` et `Report.file_path` stockent déjà la clé
+portable depuis Story 10.6). À écrire + tester avant la bascule
+`STORAGE_PROVIDER=s3` en prod. [scripts/migrate_local_to_s3.py (à créer)]
+
+### `download_document` endpoint bascule signed_url
+
+`backend/app/modules/documents/router.py:355-380` utilise toujours
+`FileResponse(path=...)` pour servir les fichiers. En mode S3 Phase
+Growth, il faudra détecter `isinstance(storage, S3StorageProvider)` et
+renvoyer `RedirectResponse(await storage.signed_url(key, ttl=900))`.
+Pattern identique à `reports/router.py:download_report` (déjà migré
+Story 10.6). [backend/app/modules/documents/router.py]
+
+### Pagination `list()` > 1000 keys
+
+`S3StorageProvider.list(max_keys > 1000)` lève `NotImplementedError`.
+Nécessaire pour audit catalogue multi-tenant (NFR66) à partir de ~500
+utilisateurs actifs. À implémenter avec `ContinuationToken` boto3.
+[backend/app/core/storage/s3.py:list]
+
+### SSE-KMS en lieu de SSE-S3 pour compliance renforcée
+
+SSE-S3 AES256 est gratuit + suffisant pour NFR25 MVP. SSE-KMS (clé
+managée par Mefali, rotation automatique, audit CloudTrail) sera
+exigé si compliance UEMOA/BCEAO renforcée. Coût : ~0,03 $/10k
+requêtes. [backend/app/core/storage/s3.py:put]
+
+## Deferred from: code review of story-10.6 (2026-04-20)
+
+Issus du rapport `10-6-code-review-2026-04-20.md` — 6 LOW consolidés,
+non bloquants pour le merge, chacun mappé à un epic/story cible de
+livraison pour éviter perte de traçabilité.
+
+- **LOW-10.6-1 — Filename PII dans la clé opaque** — `storage_key_for_document`
+  inclut le filename utilisateur (sanitisé mais "humain" — ex.
+  `contrat_mhamadou_sgbs_2026.pdf`). Visible dans CloudTrail logs,
+  Access Analyzer, logs FastAPI de retry → PII (nom client) exposé
+  côté ops AWS + ops Mefali. Proposition : option `opaque_filename=True`
+  qui hash SHA256[:16] + extension. **Cible** : **Epic 18 FR65 RGPD**
+  (droit à l'oubli + minimisation logs) OU **Story 10.7** avant bascule
+  Phase Growth. [backend/app/core/storage/keys.py:19-30]
+  [10-6-code-review-2026-04-20.md#low-10.6-5]
+
+- **LOW-10.6-2 — IAM `s3:DeleteObject` trop large** — la policy documentée
+  grant DeleteObject sur `arn:aws:s3:::<bucket>/*` → un pod compromis
+  (RCE via CVE LangChain/FastAPI) peut supprimer en masse via
+  `storage.delete` + `list`. Mitigation : séparer rôle app (GetObject +
+  PutObject) du rôle admin (DeleteObject avec MFA) ; soft-delete
+  applicatif via flag `Document.deleted_at` + purge offline. **Cible** :
+  **Story 10.7 environnements DEV/STAGING/PROD** (IaC Terraform IAM
+  granulaire). [docs/CODEMAPS/storage.md:79]
+  [10-6-code-review-2026-04-20.md#low-10.6-6]
+
+- **LOW-10.6-3 — `LocalStorageProvider.exists()` silencieux sur path-traversal** —
+  en capturant `StoragePermissionError` et retournant False, l'implémentation
+  respecte le contrat ABC mais masque un signal d'attaque. Un futur endpoint
+  qui exposerait `exists(user_controlled_key)` serait vulnérable à
+  l'énumération silencieuse. Proposition : logger `WARNING` avant return
+  False. **Cible** : **Epic 18 Security hardening** (durcissement défense
+  en profondeur). [backend/app/core/storage/local.py:168-174]
+  [10-6-code-review-2026-04-20.md#low-10.6-7]
+
+- **LOW-10.6-4 — Bucket versioning + MFA delete + Object Lock non documentés** —
+  `storage.md §4` décrit SSE-S3, CRR, retry, presigned TTL, mais omet
+  3 propriétés essentielles Phase Growth : versioning (récupération
+  post-incident), MFA delete (blocage suppressions de masse
+  automatisées), Object Lock WORM (immutabilité pour documents
+  réglementaires SGES/audits). **Cible** : **Story 10.7 runbook storage
+  deployment** (section « Propriétés bucket Phase Growth »).
+  [docs/CODEMAPS/storage.md:62-112] [10-6-code-review-2026-04-20.md#low-10.6-8]
+
+- **LOW-10.6-5 — `ThrottlingException` dans `_TRANSIENT_ERROR_CODES` (code mort)** —
+  canonique pour DynamoDB/Lambda/API Gateway mais jamais émis par S3
+  (qui utilise `SlowDown`). Inclusion défensive mais inutile, induit en
+  erreur lors d'un audit du retry policy. Proposition : retirer OU
+  renommer la constante `_TRANSIENT_AWS_ERROR_CODES` si le module doit
+  servir d'autres services AWS un jour. **Cible** : **Epic 18
+  observabilité** (audit retry policies + métriques fines par
+  provider). [backend/app/core/storage/s3.py:41-50]
+  [10-6-code-review-2026-04-20.md#low-10.6-9]
+
+- **LOW-10.6-6 — `signed_url` délègue `generate_presigned_url` à `asyncio.to_thread`** —
+  `generate_presigned_url` est purement local (signature HMAC ~50 μs),
+  aucun round-trip réseau. Le thread-pool ajoute ~0.3-0.8 ms overhead
+  sans bénéfice. Impact : +0.05-0.1 vCPU permanent sous 100 req/s en
+  Phase Growth, négligeable MVP. Proposition : inline direct si profiling
+  Phase Growth montre saturation thread pool. **Cible** : **optimisation
+  Phase Growth** (micro-optim post-10.7). [backend/app/core/storage/s3.py:269-275]
+  [10-6-code-review-2026-04-20.md#low-10.6-10]
