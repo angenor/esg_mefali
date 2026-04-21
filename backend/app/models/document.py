@@ -129,8 +129,17 @@ class DocumentChunk(UUIDMixin, Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # v1 legacy — OpenAI text-embedding-3-small 1536 dim.
+    # DEPRECATED post-032 (migration future drop). Story 10.13 conserve la
+    # coexistence v1+v2 pour rollback non-destructif (Q2 parallel strategy).
     embedding = mapped_column(
         Vector(1536) if Vector is not None else Text,
+        nullable=True,
+    )
+    # v2 Story 10.13 — Voyage voyage-3 1024 dim (MVP default).
+    # Peuplé par ``rembed_voyage_corpus.py`` + nouveau flow ``store_embeddings``.
+    embedding_vec_v2 = mapped_column(
+        Vector(1024) if Vector is not None else Text,
         nullable=True,
     )
     metadata_: Mapped[dict | None] = mapped_column(
@@ -154,4 +163,12 @@ if Vector is not None:
         postgresql_using="hnsw",
         postgresql_with={"m": 16, "ef_construction": 64},
         postgresql_ops={"embedding": "vector_cosine_ops"},
+    )
+    # v2 Story 10.13 — index HNSW dédié pour embedding_vec_v2 1024 dim.
+    hnsw_index_v2 = Index(
+        "ix_document_chunks_embedding_v2_hnsw",
+        DocumentChunk.embedding_vec_v2,
+        postgresql_using="hnsw",
+        postgresql_with={"m": 16, "ef_construction": 64},
+        postgresql_ops={"embedding_vec_v2": "vector_cosine_ops"},
     )

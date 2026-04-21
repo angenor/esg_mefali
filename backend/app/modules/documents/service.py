@@ -520,20 +520,6 @@ def _split_text(
     return splitter.split_text(text)
 
 
-async def _get_embeddings(texts: list[str]) -> list[list[float]]:
-    """Obtenir les embeddings via l'API OpenRouter/OpenAI."""
-    from langchain_openai import OpenAIEmbeddings
-
-    from app.core.config import settings
-
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_base=settings.openrouter_base_url,
-        openai_api_key=settings.openrouter_api_key,
-    )
-    return await embeddings_model.aembed_documents(texts)
-
-
 async def store_embeddings(
     db: AsyncSession,
     document_id: uuid.UUID,
@@ -541,20 +527,31 @@ async def store_embeddings(
 ) -> int:
     """Découper le texte et stocker les embeddings dans DocumentChunk.
 
-    Retourne le nombre de chunks créés.
+    Story 10.13 : migré vers ``app.core.embeddings.get_embedding_provider``.
+    Écrit dans la colonne v2 ``embedding_vec_v2`` (Voyage voyage-3 1024 dim
+    par défaut, OpenAI 1536 en fallback). La colonne v1 ``embedding`` reste
+    NULL sur les nouveaux chunks — migration 032 future droppera v1.
+
+    Signature publique byte-identique (pattern shims legacy 10.6).
     """
+    from app.core.embeddings import (
+        EmbeddingError,
+        get_embedding_provider,
+    )
     from app.models.document import DocumentChunk
 
     chunks = _split_text(text)
     if not chunks:
         return 0
 
+    provider = get_embedding_provider()
     try:
-        embeddings = await _get_embeddings(chunks)
-    except Exception:
+        embeddings = await provider.embed(chunks)
+    except EmbeddingError:
         logger.warning(
-            "Erreur API embedding pour document %s, stockage sans vecteurs",
+            "Erreur provider embedding pour document %s, stockage sans vecteurs",
             document_id,
+            extra={"document_id": str(document_id), "provider": provider.name},
         )
         embeddings = [None] * len(chunks)
 
@@ -563,7 +560,7 @@ async def store_embeddings(
             document_id=document_id,
             chunk_index=idx,
             content=chunk_text,
-            embedding=embedding,
+            embedding_vec_v2=embedding,
             metadata_={"chunk_index": idx, "total_chunks": len(chunks)},
         )
         db.add(chunk)
@@ -578,27 +575,37 @@ async def search_similar_chunks(
     query: str,
     limit: int = 5,
 ) -> list:
-    """Recherche vectorielle par similarité cosinus dans les chunks."""
-    from sqlalchemy import text as sql_text
+    """Recherche vectorielle par similarité cosinus dans les chunks.
 
+    Story 10.13 : utilise ``embedding_vec_v2`` (Voyage 1024 dim) pour la
+    recherche. Les chunks legacy ``embedding`` v1 NULL-sur-v2 ne sont pas
+    retournés (cas acceptable : re-embedder via ``rembed_voyage_corpus``).
+    """
+    from app.core.embeddings import (
+        EmbeddingError,
+        get_embedding_provider,
+    )
     from app.models.document import DocumentChunk
 
+    provider = get_embedding_provider()
     try:
-        query_embedding = await _get_embeddings([query])
-    except Exception:
+        query_embedding = await provider.embed([query])
+    except EmbeddingError:
         logger.exception("Erreur embedding pour la recherche")
         return []
 
+    if not query_embedding:
+        return []
     embedding_vector = query_embedding[0]
 
-    # Recherche par similarité cosinus via pgvector
+    # Recherche par similarité cosinus via pgvector — colonne v2 Voyage.
     result = await db.execute(
         select(DocumentChunk)
         .join(Document, DocumentChunk.document_id == Document.id)
         .where(Document.user_id == user_id)
-        .where(DocumentChunk.embedding.isnot(None))
+        .where(DocumentChunk.embedding_vec_v2.isnot(None))
         .order_by(
-            DocumentChunk.embedding.cosine_distance(embedding_vector)
+            DocumentChunk.embedding_vec_v2.cosine_distance(embedding_vector)
         )
         .limit(limit)
     )

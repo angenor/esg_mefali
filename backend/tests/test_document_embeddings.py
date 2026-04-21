@@ -36,7 +36,11 @@ async def test_split_short_text():
 
 @pytest.mark.asyncio
 async def test_store_embeddings_creates_chunks():
-    """store_embeddings doit creer des DocumentChunk en BDD."""
+    """store_embeddings doit creer des DocumentChunk en BDD.
+
+    Story 10.13 — mock migré de ``_get_embeddings`` (supprimé) vers
+    ``get_embedding_provider().embed`` (pattern abstraction ABC).
+    """
     from app.modules.documents.service import store_embeddings
 
     mock_db = AsyncMock()
@@ -46,11 +50,13 @@ async def test_store_embeddings_creates_chunks():
     document_id = uuid.uuid4()
     text = "Paragraphe de test. " * 100
 
-    # Mock l'API d'embedding
+    fake_provider = MagicMock()
+    fake_provider.name = "voyage"
+    fake_provider.embed = AsyncMock(return_value=[[0.1] * 1024] * 5)
+
     with patch(
-        "app.modules.documents.service._get_embeddings",
-        new_callable=AsyncMock,
-        return_value=[[0.1] * 1536] * 5,
+        "app.core.embeddings.get_embedding_provider",
+        return_value=fake_provider,
     ):
         chunks_count = await store_embeddings(mock_db, document_id, text)
 
@@ -68,11 +74,13 @@ async def test_search_similar_chunks():
     mock_result.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=mock_result)
 
-    # Mock l'API d'embedding pour la query
+    fake_provider = MagicMock()
+    fake_provider.name = "voyage"
+    fake_provider.embed = AsyncMock(return_value=[[0.1] * 1024])
+
     with patch(
-        "app.modules.documents.service._get_embeddings",
-        new_callable=AsyncMock,
-        return_value=[[0.1] * 1536],
+        "app.core.embeddings.get_embedding_provider",
+        return_value=fake_provider,
     ):
         results = await search_similar_chunks(
             mock_db, uuid.uuid4(), "question test",

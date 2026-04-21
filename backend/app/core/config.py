@@ -156,6 +156,29 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = ""
     aws_region: str = Field(default="eu-west-3")
 
+    # --- Embeddings (Story 10.13) ---
+    # Provider : "voyage" (MVP default, voyage-3 1024 dim) ou "openai" (legacy
+    # fallback text-embedding-3-small 1536 dim). Coexistence v1+v2 via
+    # migration 031 — Q2 parallel strategy.
+    embedding_provider: str = Field(default="voyage", pattern="^(voyage|openai)$")
+    voyage_api_key: str = ""
+    voyage_model: str = Field(default="voyage-3")
+
+    @field_validator("voyage_model")
+    @classmethod
+    def _validate_voyage_model(cls, v: str) -> str:
+        """Q1 whitelist — fail-fast boot si typo modèle Voyage."""
+        allowed = {"voyage-3", "voyage-3-large", "voyage-code-3", "voyage-3-lite"}
+        if v not in allowed:
+            raise ValueError(
+                f"voyage_model must be one of {sorted(allowed)}. Got: {v!r}"
+            )
+        return v
+
+    # --- Anthropic direct (Story 10.13 bench Livrable B) ---
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = Field(default="https://api.anthropic.com/v1")
+
     @field_validator("aws_region")
     @classmethod
     def _validate_eu_region(cls, v: str) -> str:
