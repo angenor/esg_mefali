@@ -56,3 +56,27 @@ async def admin_authenticated_client(
         yield ac
 
     del app.dependency_overrides[get_current_user]
+
+
+@pytest.fixture
+async def seed_admin_user(db_session):
+    """Insere un `users` row (FK `actor_user_id` d'`admin_catalogue_audit_trail`).
+
+    Utilise par les tests `test_audit_trail_service.py` et
+    `test_audit_trail_atomicity.py` qui appellent `record_audit_event`
+    directement — la FK `users.id` doit etre satisfaite (ON DELETE RESTRICT
+    cote migration 026).
+    """
+    from app.models.user import User
+
+    user = User(
+        id=uuid.uuid4(),
+        email=f"audit-actor-{uuid.uuid4().hex[:8]}@mefali.test",
+        hashed_password="hash",
+        full_name="Audit Actor",
+        company_name="Mefali",
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user

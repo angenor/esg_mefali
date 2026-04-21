@@ -8,9 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.modules.admin_catalogue.enums import (
-    CatalogueActionEnum,
     NodeStateEnum,
-    WorkflowLevelEnum,
 )
 from app.modules.admin_catalogue.service import (
     create_criterion,
@@ -18,7 +16,6 @@ from app.modules.admin_catalogue.service import (
     create_pack,
     create_referential,
     list_fact_types,
-    record_audit_event,
     transition_workflow_state,
 )
 
@@ -65,22 +62,6 @@ _STUB_CALLS = [
         id="create_derivation_rule",
     ),
     pytest.param(
-        lambda db: record_audit_event(
-            db,
-            actor_user_id=uuid.uuid4(),
-            entity_type="Criterion",
-            entity_id=uuid.uuid4(),
-            action=CatalogueActionEnum.create,
-            workflow_level=WorkflowLevelEnum.N1,
-            workflow_state_before=None,
-            workflow_state_after="draft",
-            changes_before=None,
-            changes_after={},
-            correlation_id=None,
-        ),
-        id="record_audit_event",
-    ),
-    pytest.param(
         lambda db: transition_workflow_state(
             db,
             entity_type="Criterion",
@@ -96,8 +77,9 @@ _STUB_CALLS = [
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("invoke", _STUB_CALLS)
-async def test_6_service_functions_raise_not_implemented(invoke):
-    """Test 12 — 6 stubs service -> NotImplementedError avec message marqueur."""
+async def test_5_remaining_stub_service_functions_raise_not_implemented(invoke):
+    """Test 12 — 5 stubs service -> NotImplementedError (record_audit_event
+    implementee Story 10.12, pattern shims legacy signature byte-identique)."""
     db_mock = AsyncMock()
     with pytest.raises(NotImplementedError) as exc_info:
         await invoke(db_mock)

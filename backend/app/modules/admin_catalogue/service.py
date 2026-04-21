@@ -25,6 +25,10 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.admin_catalogue.audit_constants import (
+    ACTION_TYPES,
+    WORKFLOW_LEVELS,
+)
 from app.modules.admin_catalogue.enums import (
     CatalogueActionEnum,
     NodeStateEnum,
@@ -133,8 +137,52 @@ async def record_audit_event(
     **NFR37 tracability** : `correlation_id` recoit le `request_id` du
     middleware HTTP pour tracer l'event jusqu'au log. Story 10.10 livrera
     le wiring complet.
+
+    **Story 10.12** : body implemente. Validation fail-fast contre les
+    registres `ACTION_TYPES`/`WORKFLOW_LEVELS` (CCC-9 synchronises avec
+    les enum DB migration 026). Appelle `db.add(entity)` + `db.flush()`
+    (pas `commit` — la boundary transaction reste au caller, CCC-14
+    « meme transaction que la mutation qui declenche l'event »).
+    Retourne l'entite avec `id` genere (UUIDMixin server-default) et
+    `ts` server-default `now()`.
     """
-    raise NotImplementedError(_SKELETON_MSG)
+    # Enforce registre : `action`/`workflow_level` peuvent arriver en str
+    # (filtres endpoint/client externe) ou en Enum Python (callers Epic 13
+    # qui passent `CatalogueActionEnum.create`). On normalise en str puis
+    # valide contre le tuple frozen.
+    action_value = action.value if isinstance(action, CatalogueActionEnum) else str(action)
+    level_value = (
+        workflow_level.value
+        if isinstance(workflow_level, WorkflowLevelEnum)
+        else str(workflow_level)
+    )
+
+    if action_value not in ACTION_TYPES:
+        raise ValueError(
+            f"Action `{action_value}` invalide. "
+            f"Valeurs autorisees : {ACTION_TYPES}."
+        )
+    if level_value not in WORKFLOW_LEVELS:
+        raise ValueError(
+            f"Workflow level `{level_value}` invalide. "
+            f"Valeurs autorisees : {WORKFLOW_LEVELS}."
+        )
+
+    entity = AdminCatalogueAuditTrail(
+        actor_user_id=actor_user_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action_value,
+        workflow_level=level_value,
+        workflow_state_before=workflow_state_before,
+        workflow_state_after=workflow_state_after,
+        changes_before=changes_before,
+        changes_after=changes_after,
+        correlation_id=correlation_id,
+    )
+    db.add(entity)
+    await db.flush()  # genere id + ts (server_default) sans commit
+    return entity
 
 
 async def transition_workflow_state(
