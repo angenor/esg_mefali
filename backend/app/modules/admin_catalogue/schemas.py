@@ -20,6 +20,7 @@ from app.modules.admin_catalogue.enums import (
 
 __all__ = [
     "AdminCatalogueAuditTrailResponse",
+    "AuditTrailPage",
     "CatalogueActionEnum",
     "CriterionCreate",
     "CriterionDerivationRuleCreate",
@@ -166,3 +167,18 @@ class FactTypeListResponse(BaseModel):
     """Reponse du GET /api/admin/catalogue/fact-types (FR17)."""
 
     fact_types: list[str]
+
+
+class AuditTrailPage(BaseModel):
+    """Page paginee keyset de l'audit trail catalogue (Story 10.12 AC1).
+
+    `next_cursor` est un opaque base64 — les clients ne doivent pas le
+    parser. Format interne : `base64url({ts_iso}|{uuid_hex})`. Absent
+    (None) quand la derniere page est atteinte.
+    """
+
+    items: list[AdminCatalogueAuditTrailResponse]
+    next_cursor: str | None = None
+    page_size: int = Field(ge=1, le=200)
+
+    model_config = ConfigDict(from_attributes=False)

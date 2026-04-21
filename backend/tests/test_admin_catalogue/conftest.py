@@ -36,8 +36,10 @@ async def admin_authenticated_client(
     """Client HTTP authentifie avec email whiteliste admin (AC4 §3).
 
     Pose `ADMIN_MEFALI_EMAILS=admin@mefali.test` via monkeypatch et override
-    `get_current_user` avec un user dont l'email matche. Les endpoints
-    admin_catalogue renvoient donc 501 (POST stubs) ou 200 (GET fact-types).
+    `get_current_user` avec un user dont l'email matche. L'override utilise
+    `Request` pour deposer `request.state.user` — necessaire pour que le
+    rate limiter SlowAPI (`get_user_id_from_request`) retrouve l'utilisateur
+    (Story 9.1 FR-013 invariant).
     """
     from app.api.deps import get_current_user
     from app.main import app
@@ -49,12 +51,24 @@ async def admin_authenticated_client(
     mock_user.email = ADMIN_EMAIL
     mock_user.is_active = True
 
+    # Override simple (pattern global `override_auth`). Le rate limiter
+    # SlowAPI (FR-013) utilise `request.state.user` pour derriver la clef,
+    # peuplee normalement par `get_current_user`. En tests avec
+    # `lambda: mock_user` (sans argument), ce state n'est jamais pose ->
+    # `RuntimeError`. On desactive le limiter en tests unitaires (le test
+    # qui valide la constante rate limit = pattern FR-013 suffit, les
+    # tests d'integration PG smoke-testent le comportement 429 reel).
     app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    from app.core.rate_limit import limiter as slowapi_limiter
+
+    slowapi_limiter.enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
+    slowapi_limiter.enabled = True
     del app.dependency_overrides[get_current_user]
 
 
