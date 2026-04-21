@@ -1,0 +1,77 @@
+name: Storybook Build + A11y
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/storybook.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/storybook.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build-storybook
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright Chromium (test-storybook requirement)
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Storybook static
+        run: npm run storybook:build
+
+      - name: Enforce size budget (< 15 MB)
+        run: |
+          SIZE_KB=$(du -sk storybook-static | awk '{print $1}')
+          echo "Storybook bundle size: ${SIZE_KB} KB"
+          if [ "$SIZE_KB" -gt 15360 ]; then
+            echo "::error::Storybook bundle exceeds 15 MB budget"
+            exit 1
+          fi
+
+      - name: Verify stories count >= 18 (AC8)
+        run: |
+          COUNT=$(jq '.entries | keys | length' storybook-static/index.json)
+          echo "Stories count: ${COUNT}"
+          if [ "$COUNT" -lt 18 ]; then
+            echo "::error::Stories count ${COUNT} below AC8 floor 18"
+            exit 1
+          fi
+
+      - name: Run a11y + interactions tests
+        run: |
+          npx http-server storybook-static -p 6006 --silent &
+          SERVER_PID=$!
+          npx wait-on http://127.0.0.1:6006 --timeout 60000
+          npm run storybook:test -- --url http://127.0.0.1:6006 --maxWorkers=2
+          kill $SERVER_PID || true
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: frontend/storybook-static
+          retention-days: 14
+          compression-level: 9

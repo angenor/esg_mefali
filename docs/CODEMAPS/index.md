@@ -15,3 +15,4 @@ backend réutilisable (abstraction, gate, migration, extension schéma) avec
 - [security-rls.md](./security-rls.md) — Row Level Security PostgreSQL sur 4 tables sensibles (Story 10.5).
 - [source-tracking.md](./source-tracking.md) — NFR-SOURCE-TRACKING + CI nightly FR63 (Story 10.11).
 - [storage.md](./storage.md) — Abstraction `StorageProvider` local + S3 EU-West-3 (Story 10.6).
+- [storybook.md](./storybook.md) — Storybook partiel + 6 composants à gravité (Story 10.14).
