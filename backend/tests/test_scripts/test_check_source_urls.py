@@ -162,6 +162,54 @@ def test_ssl_error_returns_status_ssl_error() -> None:
 
 @pytest.mark.unit
 @respx.mock
+def test_http_status_error_categorized_as_not_found() -> None:
+    """httpx.HTTPStatusError 404 → status `not_found` (branche exc dedicated)."""
+
+    url = "https://example.test/http-error"
+
+    async def _raise_http_status(request):
+        fake_response = httpx.Response(
+            404, request=request, content=b""
+        )
+        raise httpx.HTTPStatusError(
+            "404", request=request, response=fake_response
+        )
+
+    respx.head(url).mock(side_effect=_raise_http_status)
+
+    result = _run(_call_check_one(url))
+
+    assert result["status"] == "not_found"
+    assert result["http_code"] == 404
+
+
+@pytest.mark.unit
+@respx.mock
+def test_request_error_categorized_as_other_error() -> None:
+    """httpx.RequestError (parent class) → status `other_error`."""
+
+    url = "https://example.test/request-err"
+    respx.head(url).mock(side_effect=httpx.RequestError("dns failure"))
+
+    result = _run(_call_check_one(url))
+    assert result["status"] == "other_error"
+    assert result["http_code"] is None
+
+
+@pytest.mark.unit
+@respx.mock
+def test_connect_error_without_ssl_is_other_error() -> None:
+    """ConnectError sans mention 'SSL' → status `other_error`."""
+
+    url = "https://example.test/conn"
+    respx.head(url).mock(side_effect=httpx.ConnectError("DNS resolution failed"))
+
+    result = _run(_call_check_one(url))
+    assert result["status"] == "other_error"
+
+
+@pytest.mark.unit
+@respx.mock
 def test_head_405_falls_back_to_get_range_1kb() -> None:
     """HEAD 405 → fallback GET avec `Range: bytes=0-1023` → status final ok."""
 
@@ -284,6 +332,136 @@ def test_load_dry_run_fixture_returns_url_to_table_mapping() -> None:
     assert len(urls) == 3
     assert urls["https://example.test/ok"] == "sources"
     assert urls["https://example.test/missing"] == "funds"
+
+
+@pytest.mark.unit
+def test_main_invokes_run_via_asyncio(tmp_path, monkeypatch) -> None:
+    """Le point d'entrée `main()` appelle `asyncio.run(run(args))`.
+
+    Couvre les branches `main()` + `if __name__ == "__main__"` (branche
+    skippée sous pytest mais la fonction `main` est exécutable directement).
+    """
+
+    output = tmp_path / "report.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_source_urls.py",
+            "--dry-run",
+            "--dry-run-fixture",
+            str(FIXTURE_PATH),
+            "--output",
+            str(output),
+        ],
+    )
+    with respx.mock() as mock:
+        mock.head("https://example.test/ok").mock(return_value=httpx.Response(200))
+        mock.head("https://example.test/missing").mock(return_value=httpx.Response(404))
+        mock.head("https://example.test/slow").mock(
+            side_effect=httpx.TimeoutException("slow")
+        )
+        exit_code = check_source_urls.main()
+    assert exit_code == 0
+    assert output.exists()
+
+
+@pytest.mark.unit
+def test_only_table_filter_restricts_scan(tmp_path) -> None:
+    """`--only-table funds` ne scanne que les URLs de la table `funds`."""
+
+    output = tmp_path / "report.json"
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "--dry-run",
+            "--dry-run-fixture",
+            str(FIXTURE_PATH),
+            "--output",
+            str(output),
+            "--only-table",
+            "funds",
+        ]
+    )
+    with respx.mock() as mock:
+        mock.head("https://example.test/missing").mock(
+            return_value=httpx.Response(404)
+        )
+        exit_code = asyncio.run(check_source_urls.run(args))
+    assert exit_code == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    # Seule la source `funds` (missing) est retenue — les 2 autres filtrées.
+    assert report["total_sources_checked"] == 1
+    assert report["sources"][0]["table"] == "funds"
+
+
+@pytest.mark.unit
+def test_collect_urls_from_db_returns_dedup_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`collect_urls_from_db` doit dédoublonner centralisé > éparse."""
+
+    # Mock léger de l'engine/connection — on ne teste pas SQLAlchemy,
+    # juste la logique de merge `sources` > `SCAN_TABLES`.
+    import types
+
+    fake_rows: dict[str, list[tuple[str]]] = {
+        "sources": [("https://dup.test/a",), ("https://only-sources.test/b",)],
+    }
+    # Ajoute 1 URL dupliquée (doit rester `sources`) + 1 URL exclusive funds.
+    for table in check_source_urls.SCAN_TABLES:
+        if table == "funds":
+            fake_rows[table] = [
+                ("https://dup.test/a",),
+                ("https://only-funds.test/c",),
+            ]
+        else:
+            fake_rows[table] = []
+
+    class _FakeResult:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def __iter__(self):
+            return iter(self._rows)
+
+    class _FakeConn:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def execute(self, stmt):
+            text = str(stmt)
+            if "FROM sources" in text:
+                return _FakeResult(fake_rows["sources"])
+            for table in check_source_urls.SCAN_TABLES:
+                if f"FROM {table}" in text:
+                    return _FakeResult(fake_rows[table])
+            return _FakeResult([])
+
+    class _FakeEngine:
+        def connect(self):
+            return _FakeConn()
+
+        async def dispose(self):
+            return None
+
+    def fake_create(db_url):
+        return _FakeEngine()
+
+    import sqlalchemy.ext.asyncio as sa_async
+
+    monkeypatch.setattr(sa_async, "create_async_engine", fake_create)
+
+    result = asyncio.run(
+        check_source_urls.collect_urls_from_db("postgresql://fake")
+    )
+    # Centralisé gagne sur dup.test/a.
+    assert result["https://dup.test/a"] == "sources"
+    assert result["https://only-sources.test/b"] == "sources"
+    assert result["https://only-funds.test/c"] == "funds"
 
 
 @pytest.mark.unit

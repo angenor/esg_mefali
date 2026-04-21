@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Resolved in Story 10.11 drive-by (2026-04-21)
+
+- ✅ **INFO-10.10-2 — Scan CI unicité writer = 2 hits attendu 1** : résolu par `backend/tests/test_core/test_outbox/test_writer_uniqueness.py` qui scanne `backend/app/**/*.py` via `Path.rglob` et **exclut explicitement** `app/models/domain_event.py` (le modèle ORM contient `__tablename__ = "domain_events"` légitimement). Assertion `hits in ([], [writer.py])` — strict 0 ou 1, jamais 2.
+- ✅ **INFO-10.10-4 — `_SavepointRollbackSignal` non documenté** : résolu par ajout du bullet #13 dans `docs/CODEMAPS/outbox.md §5 Pièges` — référence le pattern correctif HIGH-10.10-1 et prévient qu'un futur dev retire cette exception interne (« semble inutilisée » mais c'est le seul mécanisme d'isolation SQL par event).
+- ✅ **LOW-10.10-4 — Redondance filtre `status='pending'` + `processed_at IS NULL`** : conservation **documentée** (pas de suppression). Ajout bullet #12 `§5 Pièges` expliquant que la double condition est un garde-fou anti-régression défense-en-profondeur, pas une duplication à éliminer — si un futur terminal state oublie `processed_at = now()`, le filtre pending empêche le retraitement involontaire.
+
 ## Resolved in Story 10.10 code-review patches (2026-04-21)
 
 - ✅ **HIGH-10.10-1 — Session partagée batch : `PendingRollbackError` si handler SQL raise après écriture partielle** : résolu par patch savepoint par event (`async with db.begin_nested():` + `_SavepointRollbackSignal` dans `backend/app/core/outbox/worker.py::_process_single_event`). Nouveau test E2E `test_worker_savepoint_isolates_handler_sql_failure` vérifie que l'écriture SQL partielle d'un handler en échec est rollback, et que les autres events du batch sont traités normalement. Absorbe pré-requis bloquant Epic 13 S1.

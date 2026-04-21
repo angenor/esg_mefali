@@ -208,6 +208,21 @@ Un `event_type` dupliqué provoque un **fail-at-import** via
     `PendingRollback` → tous les events du batch restent `pending` →
     hot-loop. Correctif HIGH-10.10-1 : dispatch systématiquement dans un
     savepoint, rollback signalé via `_SavepointRollbackSignal`.
+12. **Filtre `status='pending' AND processed_at IS NULL`** (worker
+    `_fetch_ready_events`) : la double condition est **volontairement
+    défensive**. Si un futur terminal state (`status='suspended'` par
+    exemple) oublie de positionner `processed_at = now()`, le filtre
+    `processed_at IS NULL` empêche quand même un retraitement
+    involontaire. Ne pas simplifier — la redondance est un **garde-fou
+    anti-régression**, pas une duplication (LOW-10.10-4 absorbé Story 10.11).
+13. **`_SavepointRollbackSignal` — sentinel interne privée** : cette
+    exception (`backend/app/core/outbox/worker.py`) n'est levée que pour
+    signaler au bloc `async with db.begin_nested():` qu'il faut rollback
+    **sans propager** à la boucle batch. Ne pas la retirer même si elle
+    semble « inutilisée » : c'est le seul mécanisme qui garantit
+    l'isolation SQL par event (HIGH-10.10-1). Toute refactorisation du
+    worker doit préserver le couple `try/except _SavepointRollbackSignal`
+    (INFO-10.10-4 absorbé Story 10.11).
 
 ---
 

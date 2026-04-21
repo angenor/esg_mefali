@@ -10,6 +10,13 @@ immutable de strings (protection contre mutation accidentelle).
 
 Story 10.4 — module `admin_catalogue/` squelette (UI-only).
 FR covered: [FR17] (registry), NFR covered: [NFR27, NFR62, NFR66].
+
+Note CCC-6 (NFR-SOURCE-TRACKING) — **non applicable** : ce registre est
+du code interne (tuple Python), pas une entite catalogue BDD. Les
+`fact_type` sont des cles enum (identifiants de type de fait), pas des
+references a des documents sources. Les `source_url` sont portees par
+les entites BDD qui **utilisent** ces cles (`criteria`, `referentials`,
+`admin_maturity_requirements`, ...). Story 10.11.
 """
 
 from __future__ import annotations
