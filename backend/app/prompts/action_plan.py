@@ -115,29 +115,20 @@ def build_action_plan_prompt(
     Returns:
         Prompt formaté pour le LLM
     """
-    from app.prompts.guided_tour import (
-        GUIDED_TOUR_INSTRUCTION,
-        build_adaptive_frequency_hint,
-    )
-    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
-    from app.prompts.widget import WIDGET_INSTRUCTION
+    # Import lazy (CCC-9) : evite tout risque d'import circulaire.
+    from app.prompts.guided_tour import build_adaptive_frequency_hint
+    from app.prompts.registry import build_prompt
+    from app.prompts.system import build_page_context_instruction
 
-    prompt = (
-        ACTION_PLAN_PROMPT.format(
-            company_context=company_context,
-            esg_context=esg_context,
-            carbon_context=carbon_context,
-            financing_context=financing_context,
-            intermediaries_context=intermediaries_context,
-            timeframe=timeframe,
-        )
-        + "\n\n"
-        + STYLE_INSTRUCTION
-        + "\n\n"
-        + WIDGET_INSTRUCTION
-        + "\n\n"
-        + GUIDED_TOUR_INSTRUCTION
+    base = ACTION_PLAN_PROMPT.format(
+        company_context=company_context,
+        esg_context=esg_context,
+        carbon_context=carbon_context,
+        financing_context=financing_context,
+        intermediaries_context=intermediaries_context,
+        timeframe=timeframe,
     )
+    prompt = build_prompt(module="action_plan", base=base)
 
     # Appendix conditionnel — modulation adaptative (FR17)
     hint = build_adaptive_frequency_hint(guidance_stats)

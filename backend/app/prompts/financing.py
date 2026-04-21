@@ -89,25 +89,16 @@ def build_financing_prompt(
     guidance_stats: dict | None = None,
 ) -> str:
     """Construire le prompt financement avec le contexte entreprise et RAG."""
-    from app.prompts.guided_tour import (
-        GUIDED_TOUR_INSTRUCTION,
-        build_adaptive_frequency_hint,
-    )
-    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
-    from app.prompts.widget import WIDGET_INSTRUCTION
+    # Import lazy (CCC-9) : evite tout risque d'import circulaire.
+    from app.prompts.guided_tour import build_adaptive_frequency_hint
+    from app.prompts.registry import build_prompt
+    from app.prompts.system import build_page_context_instruction
 
-    prompt = (
-        FINANCING_PROMPT.format(
-            company_context=company_context,
-            rag_context=rag_context,
-        )
-        + "\n\n"
-        + STYLE_INSTRUCTION
-        + "\n\n"
-        + WIDGET_INSTRUCTION
-        + "\n\n"
-        + GUIDED_TOUR_INSTRUCTION
+    base = FINANCING_PROMPT.format(
+        company_context=company_context,
+        rag_context=rag_context,
     )
+    prompt = build_prompt(module="financing", base=base)
 
     # Appendix conditionnel — modulation adaptative (FR17)
     hint = build_adaptive_frequency_hint(guidance_stats)

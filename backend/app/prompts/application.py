@@ -101,19 +101,16 @@ def build_application_prompt(
     current_page: str | None = None,
 ) -> str:
     """Construire le prompt application avec le contexte entreprise et dossier."""
-    from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
-    from app.prompts.widget import WIDGET_INSTRUCTION
+    # Import lazy (CCC-9) : evite tout risque d'import circulaire.
+    # Module 'application' exclut guided_tour (parite historique).
+    from app.prompts.registry import build_prompt
+    from app.prompts.system import build_page_context_instruction
 
-    prompt = (
-        APPLICATION_PROMPT.format(
-            company_context=company_context,
-            application_context=application_context,
-        )
-        + "\n\n"
-        + STYLE_INSTRUCTION
-        + "\n\n"
-        + WIDGET_INSTRUCTION
+    base = APPLICATION_PROMPT.format(
+        company_context=company_context,
+        application_context=application_context,
     )
+    prompt = build_prompt(module="application", base=base)
 
     page_context = build_page_context_instruction(current_page)
     if page_context:
