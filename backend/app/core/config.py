@@ -102,6 +102,22 @@ class Settings(BaseSettings):
             )
         return self
 
+    # --- Feature flag Phase 1 Cluster A (Story 10.9) ---
+    # Bascule modèle Company × Project (Clarification 5 architecture, NFR63).
+    # Champ informationnel : le runtime lit `os.environ` dynamiquement via
+    # `app.core.feature_flags.is_project_model_enabled()` pour le toggle live
+    # DEV (monkeypatch.setenv). Ce champ sert la self-documentation du schéma
+    # Settings + la coercion bool au boot (rejette "garbage").
+    # Retrait fin Phase 1 via migration 027 (Story 20.1).
+    enable_project_model: bool = Field(
+        default=False,
+        description=(
+            "Feature flag Phase 1 Cluster A — bascule Company × Project "
+            "(NFR63). Lu dynamiquement par `is_project_model_enabled()` au "
+            "runtime ; le champ Settings est informationnel."
+        ),
+    )
+
     # Quotas utilisateur (dette spec 004 §3.2)
     # ge=1 : refuse 0 au boot pour éviter les sémantiques ambigues
     # (disabled vs unlimited) — cf. review D1.

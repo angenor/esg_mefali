@@ -209,29 +209,29 @@ def build_system_prompt(
     if user_profile:
         sections.append(_format_profile_visual_instructions(user_profile))
 
-    # Injecter le style concis uniquement post-onboarding
-    if user_profile and _has_minimum_profile(user_profile):
-        sections.append(STYLE_INSTRUCTION)
+    # CCC-9 (patch HIGH-10.8-1) : delegate les 3 instructions transverses au
+    # registre central. STYLE est exclu si le profil est insuffisant
+    # (preserve la conditionnalite _has_minimum_profile spec 014).
+    # WIDGET et GUIDED_TOUR sont systematiquement appliques au module "chat".
+    from app.prompts.guided_tour import build_adaptive_frequency_hint
+    from app.prompts.registry import build_prompt
 
-    # Injecter les regles d'emploi du tool trigger_guided_tour systematiquement.
-    # Le tool est binde sans condition dans 6 noeuds (chat, esg_scoring, carbon,
-    # financing, credit, action_plan — voir graph/nodes.py), les regles d'usage
-    # (6 tour_id autorises, consentement, NFR10 sur context) doivent toujours
-    # accompagner le tool cote LLM — meme pour un profil minimal.
-    from app.prompts.guided_tour import (
-        GUIDED_TOUR_INSTRUCTION,
-        build_adaptive_frequency_hint,
+    base_text = "\n\n".join(sections)
+    exclude: frozenset[str] = (
+        frozenset()
+        if (user_profile and _has_minimum_profile(user_profile))
+        else frozenset({"style"})
     )
-    sections.append(GUIDED_TOUR_INSTRUCTION)
+    composite = build_prompt(module="chat", base=base_text, exclude_names=exclude)
 
     # Appendix conditionnel — modulation de frequence (FR17).
-    # Injecte apres GUIDED_TOUR_INSTRUCTION pour ne pas rompre les 16+17 tests
-    # qui verrouillent la constante. Chaine vide si refusal_count < 3.
+    # Injecte apres les instructions transverses pour ne pas rompre les 16+17
+    # tests qui verrouillent l'ordre. Chaine vide si refusal_count < 3.
     hint = build_adaptive_frequency_hint(guidance_stats)
     if hint:
-        sections.append(hint)
+        composite = composite + "\n\n" + hint
 
-    return "\n\n".join(sections)
+    return composite
 
 
 def _format_profile_section(profile: dict) -> str:

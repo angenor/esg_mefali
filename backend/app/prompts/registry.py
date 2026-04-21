@@ -120,12 +120,14 @@ def build_prompt(
     module: str,
     variables: Mapping[str, str] | None = None,
     base: str = "",
+    exclude_names: frozenset[str] | set[str] | None = None,
 ) -> str:
     """Construire un prompt composite a partir du registre d'instructions.
 
     Flow :
         1. Valide module ∈ SUPPORTED_MODULES (sinon UnknownPromptModuleError).
-        2. Filtre INSTRUCTION_REGISTRY par `applies_to` contient `module`.
+        2. Filtre INSTRUCTION_REGISTRY par `applies_to` contient `module`,
+           ET `name` n'est pas dans `exclude_names`.
         3. Trie par (priority ASC, name ASC) — stable et deterministe.
         4. Pour chaque entree : verifie required_vars, substitue ${var}
            via string.Template.substitute (strict) → UnboundPromptVariableError
@@ -136,6 +138,9 @@ def build_prompt(
         module: identifiant du module metier (cle de SUPPORTED_MODULES).
         variables: mapping des variables de substitution (optionnel).
         base: prefixe concatene en tete du prompt (optionnel).
+        exclude_names: noms d'instructions a exclure du rendu (optionnel).
+            Use case : `build_system_prompt` exclut "style" si profil minimal
+            non rempli (cf. _has_minimum_profile dans system.py).
 
     Returns:
         Le prompt composite final, pret a injection LLM.
@@ -152,9 +157,13 @@ def build_prompt(
         )
 
     vars_map: dict[str, str] = dict(variables or {})
+    excluded: frozenset[str] = frozenset(exclude_names or ())
 
     applicable = sorted(
-        (e for e in INSTRUCTION_REGISTRY if module in e.applies_to),
+        (
+            e for e in INSTRUCTION_REGISTRY
+            if module in e.applies_to and e.name not in excluded
+        ),
         key=lambda e: (e.priority, e.name),
     )
 

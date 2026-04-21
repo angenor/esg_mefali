@@ -79,7 +79,6 @@ Quand tu reçois le résultat du tool generate_action_plan ou get_action_plan, p
 {"value":0,"max":100,"label":"Progression globale du plan","thresholds":[{"limit":30,"color":"#EF4444"},{"limit":60,"color":"#F59E0B"},{"limit":100,"color":"#10B981"}],"unit":"%"}
 ```
 
-
 ## STYLE DE COMMUNICATION — OBLIGATOIRE
 
 Règle fondamentale : chaque mot doit apporter une information nouvelle ou une action concrète.

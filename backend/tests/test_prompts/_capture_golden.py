@@ -76,12 +76,19 @@ def capture_all() -> dict[str, str]:
     return snapshots
 
 
-def write_all() -> None:
+def write_all(force: bool = False) -> None:
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+    if not force and any(GOLDEN_DIR.glob("*.txt")):
+        raise SystemExit(
+            "Golden snapshots existent deja. Utiliser --force pour ecraser, "
+            "ou les supprimer manuellement avec un commit explicite documentant "
+            "le drift semantique attendu."
+        )
     for name, content in capture_all().items():
         (GOLDEN_DIR / f"{name}.txt").write_text(content, encoding="utf-8")
         print(f"[ok] wrote {name}.txt ({len(content)} chars)")
 
 
 if __name__ == "__main__":
-    write_all()
+    import sys
+    write_all(force="--force" in sys.argv)

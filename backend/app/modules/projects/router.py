@@ -16,7 +16,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_current_user
-from app.core.feature_flags import is_project_model_enabled
+from app.core.feature_flags import check_project_model_enabled
 from app.models.user import User
 from app.modules.projects.schemas import (
     ProjectCreate,
@@ -29,21 +29,11 @@ from app.modules.projects.schemas import (
 router = APIRouter()
 
 _SKELETON_501 = "Projects module skeleton — implementation delivered in Epic 11"
-_FLAG_404 = "Feature not available: ENABLE_PROJECT_MODEL is disabled"
 
 _RESPONSES = {
     404: {"description": "Feature flag ENABLE_PROJECT_MODEL disabled"},
     501: {"description": "Projects module skeleton — Epic 11 not yet delivered"},
 }
-
-
-def check_project_model_enabled() -> None:
-    """Dependency FastAPI : 404 si le feature flag est OFF (AC4).
-
-    Story 10.9 reprendra ce helper avec des tests dedies.
-    """
-    if not is_project_model_enabled():
-        raise HTTPException(status_code=404, detail=_FLAG_404)
 
 
 @router.post(

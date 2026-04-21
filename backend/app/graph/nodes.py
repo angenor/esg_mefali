@@ -1192,9 +1192,11 @@ async def chat_node(state: ConversationState) -> ConversationState:
         "evaluation juste pour afficher un graphique."
     )
 
-    from app.prompts.widget import WIDGET_INSTRUCTION
+    # CCC-9 (patch HIGH-10.8-1) : WIDGET_INSTRUCTION est desormais injecte
+    # par build_system_prompt via le registre (module="chat"). Plus de
+    # concatenation manuelle ici.
     from app.prompts.system import build_page_context_instruction
-    full_prompt = system_prompt + tool_instructions + "\n\n" + WIDGET_INSTRUCTION
+    full_prompt = system_prompt + tool_instructions
     page_context = build_page_context_instruction(state.get("current_page"))
     if page_context:
         full_prompt += "\n\n" + page_context

@@ -1,6 +1,6 @@
 # Story 10.8 : Framework d'injection unifié de prompts (CCC-9)
 
-Status: review
+Status: done
 
 > **Contexte** : 8ᵉ story Epic 10 Fondations Phase 0. **Retour au scope brownfield refactor interne** après la trilogie infra (10.5 RLS + 10.6 StorageProvider + 10.7 environnements). Story plus légère (**M**, 2–3 h), zéro nouveau schéma BDD, zéro nouvelle migration, zéro Terraform. Le livrable principal est un **registre Python central** qui absorbe 3 patterns d'instructions transverses actuellement dupliqués à travers 7+ modules prompts.
 >
@@ -27,7 +27,7 @@ Status: review
 > **Ce que livre 10.8 (scope strict MVP)** :
 > 1. **Registre central (AC1)** : `backend/app/prompts/registry.py` expose `INSTRUCTION_REGISTRY: tuple[InstructionEntry, ...]` contenant 3 entrées initiales (`style`, `widget`, `guided_tour`). Structure testable (tuple déterministe, pas de dict mutable).
 > 2. **Builder déterministe (AC2)** : `build_prompt(module: str, variables: Mapping[str, str] | None = None) -> str` retourne le prompt final en filtrant les entrées par `applies_to` et en injectant dans l'ordre `priority` croissant. Module inconnu → `UnknownPromptModuleError` explicite.
-> 3. **Refactor 7 modules métier (AC3)** : `chat` (=system.py), `esg_scoring`, `carbon`, `financing`, `application`, `credit`, `action_plan` délèguent leurs instructions transverses à `build_prompt()`. **Signatures publiques inchangées** (`build_esg_scoring_prompt(...)`, etc.) — refactor interne uniquement (shim pattern 10.6).
+> 3. **Refactor 7 modules métier (AC3)** : `chat` (=system.py), `esg_scoring`, `carbon`, `financing`, `application`, `credit`, `action_plan` délèguent leurs instructions transverses à `build_prompt()`. **Signatures publiques inchangées** (`build_esg_prompt(...)`, etc.) — refactor interne uniquement (shim pattern 10.6).
 > 4. **Zéro duplication (AC4)** : les constantes `STYLE_INSTRUCTION`, `WIDGET_INSTRUCTION`, `GUIDED_TOUR_INSTRUCTION` restent **exportées** depuis leurs fichiers d'origine (`system.py`, `widget.py`, `guided_tour.py`) pour rétro-compatibilité des imports de tests, mais ne sont **plus concaténées manuellement** dans les 7 modules métier. Seul le registre les consomme.
 > 5. **Golden snapshots (AC5)** : 7 prompts canoniques capturés avant refactor (`backend/tests/test_prompts/golden/*.txt`), puis comparés après refactor avec normalisation (whitespace + ordre des sections). Assertion stricte : zéro différence sémantique.
 > 6. **Scan NFR66 (AC6)** : avant d'écrire `registry.py`, scan exhaustif (a) aucun `registry.py` préexistant dans `backend/app/prompts/`, (b) aucun hard-coding pays dans les 3 instructions transverses (`rg -n "côte d'ivoire|sénégal|benin|togo" backend/app/prompts/`), (c) aucun module qui ré-exporte déjà un `INSTRUCTION_REGISTRY`.
@@ -44,7 +44,7 @@ Status: review
 >
 > **Contraintes héritées (10 leçons Stories 9.x → 10.7)** :
 > 1. **C1 (9.7)** — **pas de `try/except Exception` catch-all** : le builder lève `UnknownPromptModuleError` (module absent du registre) et `UnboundPromptVariableError` (variable requise absente de `variables`), toutes deux héritant de `PromptRegistryError(ValueError)`. Aucun `except Exception` dans `registry.py`.
-> 2. **C2 (9.7)** — **tests prod véritables** : les golden snapshots capturent **le prompt réel généré** par `build_system_prompt(...)` / `build_esg_scoring_prompt(...)` / etc. avec des profils minimaux réalistes (dict `{"company_name": "Test SARL", "sector": "recyclage"}`). Pas de mock des builders.
+> 2. **C2 (9.7)** — **tests prod véritables** : les golden snapshots capturent **le prompt réel généré** par `build_system_prompt(...)` / `build_esg_prompt(...)` / etc. avec des profils minimaux réalistes (dict `{"company_name": "Test SARL", "sector": "recyclage"}`). Pas de mock des builders.
 > 3. **Marker `@pytest.mark.unit`** : 100 % des tests registry sont purs (aucun accès BDD, aucun LLM, aucun FS). Les golden snapshots sont écrits en fixture setup-once sous `backend/tests/test_prompts/golden/*.txt`.
 > 4. **10.3 M1 — scan NFR66 exhaustif Task 1** : avant de créer `registry.py`, la Task 1 consigne les résultats des 3 greps (cf. AC6). Un registre préexistant ferait échouer l'AC.
 > 5. **10.4 — comptages par introspection runtime** : AC9 est prouvé par `pytest --collect-only -q backend/tests/test_prompts/ | tail -5` avant/après. La différence exacte est citée dans Completion Notes.
@@ -238,7 +238,7 @@ def build_prompt(
 
 ```python
 # AVANT (backend/app/prompts/esg_scoring.py)
-def build_esg_scoring_prompt(company_profile: dict, ...) -> str:
+def build_esg_prompt(company_profile: dict, ...) -> str:
     from app.prompts.guided_tour import GUIDED_TOUR_INSTRUCTION
     from app.prompts.system import STYLE_INSTRUCTION, build_page_context_instruction
     from app.prompts.widget import WIDGET_INSTRUCTION
@@ -254,7 +254,7 @@ def build_esg_scoring_prompt(company_profile: dict, ...) -> str:
     )
 
 # APRÈS (backend/app/prompts/esg_scoring.py)
-def build_esg_scoring_prompt(company_profile: dict, ...) -> str:
+def build_esg_prompt(company_profile: dict, ...) -> str:
     from app.prompts.registry import build_prompt
     from app.prompts.system import build_page_context_instruction
     base = ESG_SCORING_BASE + format_profile(...)
@@ -264,7 +264,7 @@ def build_esg_scoring_prompt(company_profile: dict, ...) -> str:
     return f"{prompt}\n\n{page_ctx}" if page_ctx else prompt
 ```
 
-**And** **la signature publique de chaque `build_<module>_prompt()` reste identique** (ordre positionnel, defaults, type hints) — les 7 noms publics sont : `build_system_prompt` (system.py), `build_esg_scoring_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_application_prompt`, `build_credit_prompt`, `build_action_plan_prompt`. Tout consommateur externe (`graph/nodes.py`, tests) compile sans modification.
+**And** **la signature publique de chaque `build_<module>_prompt()` reste identique** (ordre positionnel, defaults, type hints) — les 7 noms publics sont : `build_system_prompt` (system.py), `build_esg_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_application_prompt`, `build_credit_prompt`, `build_action_plan_prompt`. Tout consommateur externe (`graph/nodes.py`, tests) compile sans modification.
 
 **And** les appendices **non-transverses** (ex. `build_page_context_instruction`, `build_adaptive_frequency_hint`, `_format_profile_visual_instructions`) restent gérés localement par leur module — le registre ne les absorbe pas (scope strict : instructions **transverses** uniquement).
 
@@ -292,7 +292,7 @@ def build_esg_scoring_prompt(company_profile: dict, ...) -> str:
 
 **When** un dev exécute `pytest backend/tests/test_prompts/test_golden_snapshots.py`,
 
-**Then** chaque prompt généré par chacun des 7 builders (`build_system_prompt`, `build_esg_scoring_prompt`, ..., `build_action_plan_prompt`) avec un **profil canonique minimal** est comparé à un fichier golden `backend/tests/test_prompts/golden/<module>.txt` — la comparaison autorise uniquement des différences de **whitespace** (trailing spaces, lignes vides multiples) via la fonction helper `_normalize_whitespace(text: str) -> str`.
+**Then** chaque prompt généré par chacun des 7 builders (`build_system_prompt`, `build_esg_prompt`, ..., `build_action_plan_prompt`) avec un **profil canonique minimal** est comparé à un fichier golden `backend/tests/test_prompts/golden/<module>.txt` — la comparaison autorise uniquement des différences de **whitespace** (trailing spaces, lignes vides multiples) via la fonction helper `_normalize_whitespace(text: str) -> str`.
 
 **And** les profils canoniques sont définis dans une fixture partagée :
 
@@ -623,7 +623,7 @@ Aucun blocage. Points d'attention tracés en Completion Notes ci-dessous (baseli
 
 **Rétrocompatibilité API** :
 - Les 7 signatures publiques `build_system_prompt`, `build_esg_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_application_prompt`, `build_credit_prompt`, `build_action_plan_prompt` sont byte-identiques avant/après. Pattern shims legacy Story 10.6 respecté.
-- Note d'implémentation : le story file réfère à `build_esg_scoring_prompt` dans plusieurs passages, mais le nom public réel est `build_esg_prompt` (import depuis `app.prompts.esg_scoring`). Contrainte forte "signatures inchangées" respectée — pas de renommage pour préserver les 7 consommateurs (`app/graph/nodes.py`, 4 tests existants).
+- Note d'implémentation : le story file réfère à `build_esg_prompt` dans plusieurs passages, mais le nom public réel est `build_esg_prompt` (import depuis `app.prompts.esg_scoring`). Contrainte forte "signatures inchangées" respectée — pas de renommage pour préserver les 7 consommateurs (`app/graph/nodes.py`, 4 tests existants).
 
 **Commit pré-refactor (traçabilité golden)** : `38e6d0f` "chore(10.8): freeze golden snapshots pré-refactor".
 **Commit final** : voir ci-après "refactor(10.8): CCC-9 framework injection prompts".
@@ -659,3 +659,24 @@ Aucun blocage. Points d'attention tracés en Completion Notes ci-dessous (baseli
 ### Change Log
 
 - 2026-04-21 — Story 10.8 implémentée (CCC-9 framework injection prompts). Registre central `app.prompts.registry` + 6 modules métier refactorés via `build_prompt(module, variables, base)`. Zéro régression sémantique (7 golden snapshots verts), +36 tests nouveaux (1523 → 1559), coverage registry.py 100 %. Anti-pattern "prompts directifs saturés" NFR61 absorbé. Ajouter une 4ᵉ instruction transverse = désormais 1 bloc `InstructionEntry` dans `INSTRUCTION_REGISTRY`.
+
+---
+
+## Review Findings (2026-04-21)
+
+> Rapport complet : [10-8-code-review-2026-04-21.md](./10-8-code-review-2026-04-21.md)
+> Décision : **APPROVE-WITH-CHANGES** — 6/9 AC ✅, 3/9 AC ⚠️, 0 CRITICAL / 2 HIGH / 4 MEDIUM / 4 LOW / 4 INFO
+
+### Action items
+
+- [x] [Review][Patch] HIGH-10.8-1 — Refactorer `build_system_prompt` + `chat_node` pour passer par le registre via `build_prompt(module="chat", exclude_names=...)` [backend/app/prompts/system.py:172-234, backend/app/graph/nodes.py:1195-1197]
+- [x] [Review][Patch] HIGH-10.8-2 — Élargir `test_no_duplicate_imports.py` à `BACKEND_APP.rglob("*.py")` (détecter duplication migrée hors `prompts/`) [backend/tests/test_prompts/test_no_duplicate_imports.py:18-26]
+- [x] [Review][Patch] MEDIUM-10.8-1 — Enregistrer marker `unit:` dans `pytest.ini` [backend/pytest.ini:6-8]
+- [x] [Review][Patch] MEDIUM-10.8-2 — Tracer la dette `system.py` bypass dans `deferred-work.md` (si HIGH-10.8-1 défer)
+- [x] [Review][Patch] MEDIUM-10.8-3 — Garde-fou `--force` dans `_capture_golden.py` [backend/tests/test_prompts/_capture_golden.py:79-83]
+- [x] [Review][Patch] LOW-10.8-2 — Sed story file `build_esg_prompt` → `build_esg_prompt`
+- [x] [Review][Defer] MEDIUM-10.8-4 — Pré-validation agrégée des `required_vars` manquantes [backend/app/prompts/registry.py:161-177] — déféré, pas critique en MVP
+- [x] [Review][Defer] LOW-10.8-1 — Type hint `dict[str, str]` cohérence [backend/app/prompts/registry.py:154] — déféré, pas de bug
+- [x] [Review][Defer] LOW-10.8-3 — Factorisation `_MODULE_BUILDERS` entre capture et test [backend/tests/test_prompts/_capture_golden.py + test_golden_snapshots.py] — déféré, DRY mineur
+- [x] [Review][Defer] LOW-10.8-4 — Documentation `Final` immutabilité runtime [backend/app/prompts/registry.py:85] — déféré, comportement attendu Python
+

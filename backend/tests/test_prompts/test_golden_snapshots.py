@@ -126,7 +126,11 @@ def test_golden_snapshot_matches_post_refactor(module: str) -> None:
 
 
 _EXPECTED_MARKERS: dict[str, tuple[str, ...]] = {
-    "system": ("## STYLE DE COMMUNICATION", "## OUTIL GUIDAGE VISUEL"),
+    "system": (
+        "## STYLE DE COMMUNICATION",
+        "## OUTIL INTERACTIF",
+        "## OUTIL GUIDAGE VISUEL",
+    ),
     "esg_scoring": (
         "## STYLE DE COMMUNICATION",
         "## OUTIL INTERACTIF",
@@ -176,5 +180,7 @@ def test_golden_files_meta_markers_present() -> None:
     assert "## OUTIL GUIDAGE VISUEL" not in application_content
     assert "trigger_guided_tour" not in application_content
 
+    # Post HIGH-10.8-1 : system.txt contient maintenant WIDGET (## OUTIL INTERACTIF)
+    # car build_system_prompt passe par build_prompt(module="chat") via registre.
     system_content = _load_golden("system")
-    assert "## OUTIL INTERACTIF" not in system_content
+    assert "## OUTIL INTERACTIF" in system_content

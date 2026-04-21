@@ -24,15 +24,16 @@ GUIDED_TOUR_MARKER = "## OUTIL GUIDAGE VISUEL"
 
 
 @pytest.mark.unit
-def test_system_prompt_integration_style_and_guided_tour() -> None:
-    """system.py (chat) : STYLE (conditionnel post-onboarding) + GUIDED_TOUR.
-    Pas de WIDGET (parite historique — widget n'etait pas dans system.py)."""
+def test_system_prompt_integration_all_three_instructions() -> None:
+    """system.py (chat) post HIGH-10.8-1 : STYLE (conditionnel post-onboarding)
+    + WIDGET + GUIDED_TOUR — toutes via le registre (module='chat').
+    WIDGET etait avant injecte manuellement dans nodes.py:1197."""
     prompt = build_system_prompt(
         user_profile={"company_name": "X", "sector": "recyclage"}
     )
     assert STYLE_MARKER in prompt
+    assert WIDGET_MARKER in prompt
     assert GUIDED_TOUR_MARKER in prompt
-    assert WIDGET_MARKER not in prompt
 
 
 @pytest.mark.unit

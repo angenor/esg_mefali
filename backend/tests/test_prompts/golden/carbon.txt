@@ -109,7 +109,6 @@ Profil: Mefali Test SARL, secteur recyclage, Côte d'Ivoire, 25 employés.
 ## CATEGORIES APPLICABLES
 energy, transport, waste
 
-
 ## STYLE DE COMMUNICATION — OBLIGATOIRE
 
 Règle fondamentale : chaque mot doit apporter une information nouvelle ou une action concrète.
