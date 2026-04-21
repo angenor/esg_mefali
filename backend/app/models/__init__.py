@@ -25,6 +25,7 @@ from app.models.action_plan import (  # noqa: F401
     Reminder,
 )
 from app.models.tool_call_log import ToolCallLog  # noqa: F401
+from app.models.domain_event import DomainEvent  # noqa: F401
 from app.models.interactive_question import (  # noqa: F401
     InteractiveQuestion,
     InteractiveQuestionState,
