@@ -118,6 +118,29 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Worker Outbox (Story 10.10) ---
+    # Kill-switch + intervalle batch APScheduler (architecture.md §D11).
+    # Lu au startup uniquement (pas de toggle live runtime — APScheduler
+    # peut pause_job mais cela complique le shutdown ; kill-switch = redéploy).
+    domain_events_worker_enabled: bool = Field(
+        default=True,
+        description=(
+            "Kill-switch worker Outbox APScheduler (architecture.md §D11). "
+            "Désactiver en DEV pour debug handler — les events s'accumulent "
+            "en 'pending' mais ne sont jamais consommés. Lu au startup."
+        ),
+    )
+    domain_events_worker_interval_s: int = Field(
+        default=30,
+        ge=5,
+        le=3600,
+        description=(
+            "Intervalle batch Outbox en secondes (architecture.md §D11 "
+            "défaut 30 s). Borné 5-3600 : évite hot-loop (ge=5) et worker "
+            "dormant 1 jour (le=3600) qui masquerait la latence métier."
+        ),
+    )
+
     # Quotas utilisateur (dette spec 004 §3.2)
     # ge=1 : refuse 0 au boot pour éviter les sémantiques ambigues
     # (disabled vs unlimited) — cf. review D1.

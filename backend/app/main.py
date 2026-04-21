@@ -12,6 +12,10 @@ from slowapi.errors import RateLimitExceeded
 from app.core.admin_audit_listener import register_admin_access_listener
 from app.core.config import settings
 from app.core.database import engine as _db_engine
+from app.core.outbox.worker import (
+    start_outbox_scheduler,
+    stop_outbox_scheduler,
+)
 from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -19,15 +23,22 @@ logger = logging.getLogger(__name__)
 # Référence globale au graphe compilé LangGraph
 compiled_graph = None
 
+# Référence globale au scheduler Outbox (Story 10.10)
+outbox_scheduler = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Cycle de vie de l'application : initialisation et nettoyage."""
-    global compiled_graph
+    global compiled_graph, outbox_scheduler
 
     # Story 10.5 — attacher le listener before_flush qui log les bypass
     # admin dans admin_access_audit (architecture.md §D7). Idempotent.
     register_admin_access_listener(_db_engine)
+
+    # Story 10.10 — démarrer le worker Outbox APScheduler (batch 30 s +
+    # purge prefill_drafts 1 h). Skippé si DOMAIN_EVENTS_WORKER_ENABLED=false.
+    outbox_scheduler = start_outbox_scheduler(_db_engine)
 
     # Démarrage : initialiser le graphe LangGraph
     if settings.openrouter_api_key:
@@ -79,7 +90,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
-    # Arrêt
+    # Arrêt — stopper le scheduler AVANT la libération du pool de connexions
+    # (évite les jobs en vol quand la pool ferme).
+    await stop_outbox_scheduler(outbox_scheduler)
     compiled_graph = None
 
 
