@@ -35,8 +35,14 @@ class LLMProvider(ABC):
     model: str = ""
 
     @abstractmethod
-    def get_chat_llm(self):
-        """Retourne un BaseChatModel LangChain (ChatAnthropic/ChatOpenAI)."""
+    def get_chat_llm(self, *, streaming: bool = True):
+        """Retourne un BaseChatModel LangChain (ChatAnthropic/ChatOpenAI).
+
+        Args:
+            streaming: active le streaming token-par-token (SSE LangGraph).
+                Default ``True`` pour préserver le comportement historique
+                ``graph/nodes.py::get_llm()``.
+        """
 
 
 class AnthropicLLMProvider(LLMProvider):
@@ -44,24 +50,28 @@ class AnthropicLLMProvider(LLMProvider):
 
     name = "anthropic_direct"
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514") -> None:
+    def __init__(self, model: str = "claude-sonnet-4-5-20251022") -> None:
         self.model = model
         self._chat = None
 
-    def get_chat_llm(self):
-        if self._chat is None:
+    def get_chat_llm(self, *, streaming: bool = True):
+        # Instances distinctes per-streaming pour éviter la pollution cache.
+        cached = getattr(self, f"_chat_{streaming}", None)
+        if cached is None:
             from langchain_anthropic import ChatAnthropic
 
             from app.core.config import settings
 
-            self._chat = ChatAnthropic(
+            cached = ChatAnthropic(
                 api_key=settings.anthropic_api_key,
                 base_url=settings.anthropic_base_url,
                 model=self.model,
                 max_tokens=4096,
                 timeout=60,
+                streaming=streaming,
             )
-        return self._chat
+            setattr(self, f"_chat_{streaming}", cached)
+        return cached
 
 
 class OpenRouterLLMProvider(LLMProvider):
@@ -73,21 +83,24 @@ class OpenRouterLLMProvider(LLMProvider):
         self.model = model or ""
         self._chat = None
 
-    def get_chat_llm(self):
-        if self._chat is None:
+    def get_chat_llm(self, *, streaming: bool = True):
+        cached = getattr(self, f"_chat_{streaming}", None)
+        if cached is None:
             from langchain_openai import ChatOpenAI
 
             from app.core.config import settings
 
             model = self.model or settings.openrouter_model
-            self._chat = ChatOpenAI(
+            cached = ChatOpenAI(
                 api_key=settings.openrouter_api_key,
                 base_url=settings.openrouter_base_url,
                 model=model,
                 max_tokens=4096,
-                timeout=60,
+                request_timeout=60,
+                streaming=streaming,
             )
-        return self._chat
+            setattr(self, f"_chat_{streaming}", cached)
+        return cached
 
 
 @lru_cache(maxsize=1)

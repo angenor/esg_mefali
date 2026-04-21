@@ -71,6 +71,10 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         if not texts:
             return []
 
+        import time
+
+        started = time.perf_counter()
+
         if model and model != self.model:
             # Modèle ponctuel : instancier un client ad-hoc (rare).
             from langchain_openai import OpenAIEmbeddings
@@ -83,21 +87,54 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         else:
             client = self._get_client()
 
+        # Import explicite des exceptions vendor (leçon 9.7 C1 — pas de
+        # try/except Exception, classification typée) :
+        try:
+            from openai import (
+                APIConnectionError,
+                APIError,
+                APITimeoutError,
+                RateLimitError,
+            )
+        except ImportError:  # pragma: no cover — dep openai obligatoire
+            RateLimitError = APITimeoutError = APIConnectionError = APIError = ()  # type: ignore[assignment]
+
         try:
             vectors = await client.aembed_documents(texts)
-        except Exception as exc:  # noqa: BLE001 — wrap en canoniques
-            # Classification légère sans try/except Exception catch-all fantôme :
-            # on mappe les exceptions connues des clients openai vers notre
-            # hiérarchie canonique. Le `Exception` brut reste re-raise comme
-            # ``EmbeddingError`` pour éviter de fuiter un type vendor.
-            msg = str(exc).lower()
-            if "rate" in msg or "429" in msg:
-                raise EmbeddingRateLimitError(str(exc)) from exc
-            raise EmbeddingError(f"OpenAI embedding failed: {exc}") from exc
+        except RateLimitError as exc:
+            logger.warning(
+                "embedding_provider.embed",
+                extra={
+                    "metric": "embedding_provider.embed",
+                    "provider": self.name,
+                    "model": model or self.model,
+                    "batch_size": len(texts),
+                    "duration_ms": int((time.perf_counter() - started) * 1000),
+                    "status": "rate_limited",
+                },
+            )
+            raise EmbeddingRateLimitError(str(exc)) from exc
+        except (APITimeoutError, APIConnectionError) as exc:
+            raise EmbeddingError(f"OpenAI connection/timeout: {exc}") from exc
+        except APIError as exc:
+            raise EmbeddingError(f"OpenAI API error: {exc}") from exc
 
         # Invariant dimension (défense en profondeur).
         if vectors and len(vectors[0]) != self.dimension:
             raise EmbeddingDimensionMismatchError(
                 f"OpenAI returned dim={len(vectors[0])} expected {self.dimension}"
             )
+
+        # AC7 — observabilité log structuré (MEDIUM-6 post-review 2026-04-21).
+        logger.info(
+            "embedding_provider.embed",
+            extra={
+                "metric": "embedding_provider.embed",
+                "provider": self.name,
+                "model": model or self.model,
+                "batch_size": len(texts),
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+                "status": "success",
+            },
+        )
         return vectors

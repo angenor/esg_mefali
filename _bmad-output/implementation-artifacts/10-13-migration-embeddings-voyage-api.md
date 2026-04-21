@@ -1,6 +1,6 @@
 # Story 10.13 : Migration embeddings OpenAI → Voyage API (MVP) + bench LLM providers × 5 tools Phase 0
 
-Status: review
+Status: done
 
 > **Contexte** : 15ᵉ story Phase 4, **la plus lourde Phase 0 restante** (sizing **XL**, ~6-8 h). Bascule infra backend vers UI Foundation (10.14-10.21) sera déclenchée APRÈS Task 5 (provider abstraction + migration Voyage livrée) — le bench LLM (Task 6-10) peut se dérouler en parallèle de 10.14+ si split adopté. Boucle la **D10 architecture LLM Provider Layer** au complet : (a) étend D10 aux embeddings via `EmbeddingProvider` ABC (pas seulement LLM chat), (b) valide R-04-1 business-decisions tranché 2026-04-19 via bench 3 providers × 5 tools × 150 échantillons qualité, (c) livre la **recommandation provider primaire MVP actée avant Sprint 1 Phase 1**.
 >

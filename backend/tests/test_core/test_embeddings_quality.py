@@ -43,11 +43,31 @@ def _recall_at_5(retrieved_ids: list[str], expected_ids: list[str]) -> float:
 
 @pytest.mark.asyncio
 async def test_corpus_structure_is_valid(corpus):
-    """Meta-test non-network : le corpus a bien 15 queries + chunks."""
-    assert len(corpus["queries"]) == 15
-    assert len(corpus["chunks"]) >= 10
-    for q in corpus["queries"]:
-        assert len(q["expected_top5_chunk_ids"]) == 5
+    """Meta-test non-network durci post-review CRITICAL-1 (2026-04-21).
+
+    Garanties :
+      1. Exactement 15 queries (10 FR ESG + 5 EN EUDR).
+      2. Exactement 50 chunks (AC6 spec — pas de corpus tronqué masqué).
+      3. Chaque query expose 5 ``expected_top5_chunk_ids`` uniques.
+      4. **Chaque ``expected_top5_chunk_ids`` référence un chunk réel** —
+         fail-fast si le corpus est désynchronisé vs ground-truth.
+    """
+    queries = corpus["queries"]
+    chunks = corpus["chunks"]
+    available_ids = {c["id"] for c in chunks}
+
+    assert len(queries) == 15, f"expected 15 queries, got {len(queries)}"
+    assert len(chunks) == 50, f"expected 50 chunks AC6, got {len(chunks)}"
+    assert len(available_ids) == 50, "chunk ids must be unique"
+
+    for q in queries:
+        expected = q["expected_top5_chunk_ids"]
+        assert len(expected) == 5, f"{q['id']}: must list 5 expected chunks"
+        assert len(set(expected)) == 5, f"{q['id']}: expected ids must be unique"
+        missing = [cid for cid in expected if cid not in available_ids]
+        assert not missing, (
+            f"{q['id']}: expected_top5 references non-existent chunks: {missing}"
+        )
 
 
 @pytest.mark.asyncio

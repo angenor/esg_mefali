@@ -325,16 +325,20 @@ def _build_profiling_instructions(profile: dict | None) -> str:
     )
 
 
-def get_llm() -> ChatOpenAI:
-    """Créer une instance du LLM configurée pour OpenRouter."""
-    return ChatOpenAI(
-        model=settings.openrouter_model,
-        base_url=settings.openrouter_base_url,
-        api_key=settings.openrouter_api_key,
-        streaming=True,
-        max_tokens=4096,
-        request_timeout=60,
-    )
+def get_llm():
+    """Créer une instance du LLM via ``LLMProvider`` abstraction.
+
+    Story 10.13 AC10 (patch post-review HIGH-5, 2026-04-21) : shim byte-
+    identique qui délègue à ``get_llm_provider().get_chat_llm(streaming=True)``.
+    Le provider primaire est configuré via ``Settings.llm_provider``
+    (``openrouter`` par défaut ; ``anthropic_direct`` post-bench R-04-1).
+
+    Signature publique inchangée (pattern shims legacy 10.6) — aucun
+    caller LangGraph n'est impacté.
+    """
+    from app.core.llm import get_llm_provider
+
+    return get_llm_provider().get_chat_llm(streaming=True)
 
 
 def _detect_profile_info(text: str) -> bool:

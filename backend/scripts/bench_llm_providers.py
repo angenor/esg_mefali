@@ -146,7 +146,7 @@ def _build_chat_model(provider_id: str):
         return ChatAnthropic(
             api_key=settings.anthropic_api_key,
             base_url=settings.anthropic_base_url,
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20251022",
             max_tokens=1024,
             timeout=60,
         )
@@ -156,7 +156,7 @@ def _build_chat_model(provider_id: str):
         return ChatOpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
-            model="anthropic/claude-sonnet-4-20250514",
+            model="anthropic/claude-sonnet-4-5-20251022",
             max_tokens=1024,
             timeout=60,
         )

@@ -71,3 +71,51 @@ def test_get_llm_provider_is_cached(monkeypatch):
     first = get_llm_provider()
     second = get_llm_provider()
     assert first is second
+
+
+# ---------------------------------------------------------------------------
+# HIGH-5 patch post-review 2026-04-21 — shim get_llm() vraiment tenu
+# ---------------------------------------------------------------------------
+
+
+def test_get_llm_shim_delegates_to_provider(monkeypatch):
+    """``graph/nodes.py::get_llm()`` doit déléguer à ``get_llm_provider()``."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(settings, "openrouter_api_key", "sk-test")
+    _reset_llm_provider_cache()
+
+    from app.graph.nodes import get_llm
+
+    llm = get_llm()
+    # L'instance retournée doit provenir de get_llm_provider().get_chat_llm()
+    # — pour OpenRouter : ChatOpenAI avec streaming=True.
+    from langchain_openai import ChatOpenAI
+
+    assert isinstance(llm, ChatOpenAI)
+    assert getattr(llm, "streaming", False) is True
+
+
+def test_get_llm_shim_anthropic_when_configured(monkeypatch):
+    """AC10 — switch ``llm_provider=anthropic_direct`` propage au shim."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "llm_provider", "anthropic_direct")
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-" + "x" * 60)
+    _reset_llm_provider_cache()
+
+    from app.graph.nodes import get_llm
+
+    llm = get_llm()
+    from langchain_anthropic import ChatAnthropic
+
+    assert isinstance(llm, ChatAnthropic)
+
+
+def test_provider_streaming_toggle_isolated_instances():
+    """streaming=True vs False → 2 instances séparées (pas de pollution)."""
+    provider = OpenRouterLLMProvider(model="test-model")
+    llm_streaming = provider.get_chat_llm(streaming=True)
+    llm_batch = provider.get_chat_llm(streaming=False)
+    assert llm_streaming is not llm_batch

@@ -141,9 +141,28 @@ données — celles-ci sont définitivement perdues au drop.
    par `tool_name LIKE 'embedding%'` pour distinguer embeddings vs tool
    chat LLM.
 
-5. **Fund embeddings legacy** — `modules/financing/service.py` et `seed.py`
-   continuent à utiliser `OpenAIEmbeddings(` direct (hors scope 10.13).
-   Tracé `deferred-work.md` §HIGH-10.13-2 pour migration Phase 1.
+5. **Fund embeddings homogénéisés** — post-review HIGH-3 (2026-04-21),
+   `modules/financing/service.py::search_financing_chunks` et
+   `modules/financing/seed.py::generate_embeddings` consomment désormais
+   `get_embedding_provider()` byte-identique à `documents.service`. La
+   colonne `financing_chunks.embedding_vec_v2 Vector(1024)` est ajoutée
+   par la migration 032 (parallèle v1+v2, rollback garanti).
+
+6. **Pattern corpus golden + expected_ids validation** — post-review
+   CRITICAL-1 (2026-04-21), tout corpus de référence RAG avec
+   `expected_top5_chunk_ids` doit respecter l'invariant :
+
+   ```python
+   available_ids = {c["id"] for c in chunks}
+   for q in queries:
+       for cid in q["expected_top5_chunk_ids"]:
+           assert cid in available_ids  # fail-fast si désynchronisé
+   ```
+
+   Sans cette garantie, un test `recall@5` peut silencieusement
+   calculer des scores biaisés sur un ground-truth inexistant. Tout
+   nouveau corpus (MTEB extension, EUDR, Annexe F Story 10.11) doit
+   inclure un meta-test équivalent à `test_corpus_structure_is_valid`.
 
 ## Références
 

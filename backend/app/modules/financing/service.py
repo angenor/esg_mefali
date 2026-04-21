@@ -156,33 +156,32 @@ async def search_financing_chunks(
     source_type: str | None = None,
     limit: int = 5,
 ) -> list[FinancingChunk]:
-    """Recherche semantique sur les chunks financing par cosine distance."""
+    """Recherche sémantique sur les chunks financing par cosine distance.
+
+    Story 10.13 post-review HIGH-3 (2026-04-21) : migré vers
+    ``get_embedding_provider()`` (Voyage voyage-3 1024 dim par défaut +
+    OpenAI fallback). Lit ``embedding_vec_v2`` en priorité ; les chunks v1
+    non re-embeddés sont exclus (cas acceptable : re-seed via ``financing/seed``).
+    """
+    from app.core.embeddings import EmbeddingError, get_embedding_provider
+
+    provider = get_embedding_provider()
     try:
-        from langchain_openai import OpenAIEmbeddings
-
-        from app.core.config import settings
-    except ImportError:
+        vectors = await provider.embed([query_text])
+    except EmbeddingError:
         return []
-
-    if not settings.openrouter_api_key:
+    if not vectors:
         return []
-
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=settings.openrouter_api_key,
-        openai_api_base="https://openrouter.ai/api/v1",
-    )
-
-    query_vector = await embeddings_model.aembed_query(query_text)
+    query_vector = vectors[0]
 
     query = select(FinancingChunk).where(
-        FinancingChunk.embedding.is_not(None)
+        FinancingChunk.embedding_vec_v2.is_not(None)
     )
     if source_type:
         query = query.where(FinancingChunk.source_type == source_type)
 
     query = query.order_by(
-        FinancingChunk.embedding.cosine_distance(query_vector)
+        FinancingChunk.embedding_vec_v2.cosine_distance(query_vector)
     ).limit(limit)
 
     result = await db.execute(query)

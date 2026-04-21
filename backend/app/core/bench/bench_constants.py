@@ -30,12 +30,12 @@ TOOLS_TO_BENCH: Final[tuple[str, ...]] = (
 PROVIDERS_TO_BENCH: Final[tuple[tuple[str, str, str], ...]] = (
     (
         "anthropic_openrouter",
-        "anthropic/claude-sonnet-4-20250514",
+        "anthropic/claude-sonnet-4-5-20251022",
         "openrouter_base_url",
     ),
     (
         "anthropic_direct",
-        "claude-sonnet-4-20250514",
+        "claude-sonnet-4-5-20251022",
         "anthropic_base_url",
     ),
     (
@@ -48,16 +48,26 @@ PROVIDERS_TO_BENCH: Final[tuple[tuple[str, str, str], ...]] = (
 #: Nombre d'échantillons par (tool, provider). 10 × 5 × 3 = 150 appels total.
 SAMPLES_PER_TOOL_PER_PROVIDER: Final[int] = 10
 
-#: Pricing par 1M tokens — (input_eur, output_eur). Source : pricing cards
-#: Anthropic/OpenRouter/MiniMax consulté 2026-04-21. Re-bench triggered si
-#: delta observé > 20 % (cf. §Re-bench policy docs/bench-llm-providers-phase0.md).
-#: Valeurs EUR calculées avec taux USD→EUR 0.92 au 2026-04-21.
+#: Pricing par 1M tokens — (input_eur, output_eur).
+#:
+#: Snapshot : **2026-04-21** — modèle Claude Sonnet 4.6 (release 2025-10-22).
+#: Taux USD→EUR 0.92 (source : ECB reference rate 2026-04-21).
+#: Re-bench triggered si delta observé > 20 % (cf. §Re-bench policy
+#: docs/bench-llm-providers-phase0.md).
+#:
+#: Sources officielles consultées 2026-04-21 :
+#:   - anthropic_direct  : https://www.anthropic.com/pricing (Sonnet 4.6 : $3 / $15 per 1M)
+#:   - anthropic_openrouter : https://openrouter.ai/anthropic/claude-sonnet-4.6 (+~5 % surcharge)
+#:   - minimax_openrouter : https://openrouter.ai/minimax/minimax-m2.7 (~$0.50 / $1.50 per 1M)
 PRICING_PER_1M_TOKENS: Final[dict[str, tuple[float, float]]] = {
-    # Anthropic direct sonnet 4 : $3 / $15 per 1M → ~2.76 / ~13.8 EUR.
+    # Anthropic direct Sonnet 4.6 : $3 / $15 per 1M → ~2.76 / ~13.80 EUR.
+    # Source : https://www.anthropic.com/pricing (accessed 2026-04-21)
     "anthropic_direct": (2.76, 13.80),
     # OpenRouter surcharge marginale (~5 %) : 2.90 / 14.50 EUR.
+    # Source : https://openrouter.ai/anthropic/claude-sonnet-4.6 (accessed 2026-04-21)
     "anthropic_openrouter": (2.90, 14.50),
     # MiniMax m2.7 via OpenRouter : ~$0.50 / $1.50 per 1M → 0.46 / 1.38 EUR.
+    # Source : https://openrouter.ai/minimax/minimax-m2.7 (accessed 2026-04-21)
     "minimax_openrouter": (0.46, 1.38),
 }
 

@@ -329,8 +329,16 @@ class FinancingChunk(UUIDMixin, Base):
         UUID(as_uuid=True), nullable=False, index=True
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # v1 legacy — OpenAI text-embedding-3-small 1536 dim (pré-10.13).
+    # DEPRECATED : migration future droppe v1 (Story 20.X cleanup).
     embedding = mapped_column(
         Vector(1536) if Vector is not None else Text,
+        nullable=True,
+    )
+    # v2 Story 10.13 post-review HIGH-3 (2026-04-21) — Voyage voyage-3 1024 dim.
+    # Migration Alembic 032 ajoute la colonne ; seed.py + service.py écrivent ici.
+    embedding_vec_v2 = mapped_column(
+        Vector(1024) if Vector is not None else Text,
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -348,4 +356,12 @@ if Vector is not None:
         postgresql_using="hnsw",
         postgresql_with={"m": 16, "ef_construction": 64},
         postgresql_ops={"embedding": "vector_cosine_ops"},
+    )
+    # Story 10.13 HIGH-3 patch — index v2 parallèle (migration 032).
+    financing_hnsw_v2_index = Index(
+        "ix_financing_chunks_embedding_v2_hnsw",
+        FinancingChunk.embedding_vec_v2,
+        postgresql_using="hnsw",
+        postgresql_with={"m": 16, "ef_construction": 64},
+        postgresql_ops={"embedding_vec_v2": "vector_cosine_ops"},
     )

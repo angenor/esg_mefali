@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # OpenRouter / LLM
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "anthropic/claude-sonnet-4-20250514"
+    openrouter_model: str = "anthropic/claude-sonnet-4-5-20251022"
 
     # Aliases pour compatibilite avec le .env existant
     llm_api_key: str = ""
@@ -188,6 +188,31 @@ class Settings(BaseSettings):
     llm_fallback_provider: str = Field(
         default="openrouter", pattern="^(openrouter|anthropic_direct)$"
     )
+
+    @model_validator(mode="after")
+    def _validate_anthropic_api_key_when_selected(self) -> "Settings":
+        """MEDIUM-5 post-review 2026-04-21 — fail-fast boot si le provider
+        Anthropic direct est sélectionné (primary OU fallback) sans clé.
+
+        Évite la ``AnthropicAuthenticationError`` runtime lors du premier
+        appel LLM. La clé Anthropic a le format historique ``sk-ant-...``
+        (min 40 chars) — on valide le préfixe pour éviter les typos.
+        """
+        selected = {self.llm_provider, self.llm_fallback_provider}
+        if "anthropic_direct" not in selected:
+            return self
+        key = self.anthropic_api_key
+        if not key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY requis quand llm_provider ou "
+                "llm_fallback_provider == 'anthropic_direct' (Story 10.13 AC10)."
+            )
+        if len(key) < 40 or not key.startswith("sk-ant-"):
+            raise ValueError(
+                "ANTHROPIC_API_KEY format invalide : attendu 'sk-ant-*' "
+                f"(min 40 chars). Got len={len(key)}."
+            )
+        return self
 
     @field_validator("aws_region")
     @classmethod

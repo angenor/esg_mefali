@@ -835,43 +835,49 @@ async def seed_financing_data(db: AsyncSession) -> dict:
 
 
 async def generate_embeddings(db: AsyncSession) -> int:
-    """Genere les embeddings pour les chunks financing sans embedding."""
-    try:
-        from langchain_openai import OpenAIEmbeddings
+    """Genere les embeddings pour les chunks financing sans embedding v2.
 
-        from app.core.config import settings
-    except ImportError:
-        logger.warning("langchain_openai non disponible, embeddings ignores.")
-        return 0
+    Story 10.13 post-review HIGH-3 (2026-04-21) : migre de
+    ``OpenAIEmbeddings(text-embedding-3-small, 1536 dim)`` vers
+    ``get_embedding_provider()`` (Voyage voyage-3 1024 dim par défaut,
+    OpenAI fallback). Écrit dans la colonne ``embedding_vec_v2``
+    (migration 032). La colonne v1 ``embedding`` reste NULL sur les
+    nouveaux chunks — drop programmé Story 20.X cleanup.
+    """
+    from app.core.embeddings import EmbeddingError, get_embedding_provider
 
-    if not settings.openrouter_api_key:
-        logger.warning("OPENROUTER_API_KEY non configuree, embeddings ignores.")
-        return 0
-
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=settings.openrouter_api_key,
-        openai_api_base="https://openrouter.ai/api/v1",
-    )
+    provider = get_embedding_provider()
 
     result = await db.execute(
-        select(FinancingChunk).where(FinancingChunk.embedding.is_(None))
+        select(FinancingChunk).where(FinancingChunk.embedding_vec_v2.is_(None))
     )
     chunks_without_embedding = result.scalars().all()
 
     if not chunks_without_embedding:
-        logger.info("Tous les chunks financing ont deja des embeddings.")
+        logger.info("Tous les chunks financing ont deja des embeddings v2.")
         return 0
 
     texts = [c.content for c in chunks_without_embedding]
-    vectors = await embeddings_model.aembed_documents(texts)
+    try:
+        vectors = await provider.embed(texts)
+    except EmbeddingError as exc:
+        logger.warning(
+            "Erreur provider embedding pour seed financing (provider=%s): %s",
+            provider.name,
+            exc,
+        )
+        return 0
 
     for chunk, vector in zip(chunks_without_embedding, vectors):
-        chunk.embedding = vector
+        chunk.embedding_vec_v2 = vector
 
     await db.flush()
     await db.commit()
-    logger.info("Embeddings generes pour %d chunks financing.", len(vectors))
+    logger.info(
+        "Embeddings v2 generes pour %d chunks financing (provider=%s).",
+        len(vectors),
+        provider.name,
+    )
     return len(vectors)
 
 

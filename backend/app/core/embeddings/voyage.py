@@ -142,6 +142,8 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
         if not texts:
             return []
 
+        import time
+
         from app.graph.tools.common import _breaker
 
         effective_model = model or self.model
@@ -162,10 +164,23 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
                 return await self._fallback.embed(texts, model=None)
             raise EmbeddingError("Voyage breaker open and no fallback configured")
 
+        started = time.perf_counter()
         try:
             vectors = await self._embed_direct(texts, model=effective_model)
         except EmbeddingRateLimitError:
             await _breaker.record_failure(tool_name, node_name, is_llm_5xx=True)
+            # AC7 — observabilité log structuré (MEDIUM-6 post-review).
+            logger.warning(
+                "embedding_provider.embed",
+                extra={
+                    "metric": "embedding_provider.embed",
+                    "provider": self.name,
+                    "model": effective_model,
+                    "batch_size": len(texts),
+                    "duration_ms": int((time.perf_counter() - started) * 1000),
+                    "status": "rate_limited",
+                },
+            )
             if self._fallback is not None:
                 logger.warning(
                     "Voyage rate-limit, falling back to %s",
@@ -179,7 +194,29 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
             raise
         except EmbeddingError:
             await _breaker.record_failure(tool_name, node_name, is_llm_5xx=True)
+            logger.error(
+                "embedding_provider.embed",
+                extra={
+                    "metric": "embedding_provider.embed",
+                    "provider": self.name,
+                    "model": effective_model,
+                    "batch_size": len(texts),
+                    "duration_ms": int((time.perf_counter() - started) * 1000),
+                    "status": "error",
+                },
+            )
             raise
 
         await _breaker.record_success(tool_name, node_name)
+        logger.info(
+            "embedding_provider.embed",
+            extra={
+                "metric": "embedding_provider.embed",
+                "provider": self.name,
+                "model": effective_model,
+                "batch_size": len(texts),
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+                "status": "success",
+            },
+        )
         return vectors

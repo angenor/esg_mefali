@@ -137,7 +137,7 @@ development_status:
   10-10-micro-outbox-domain-events: done
   10-11-sourcing-documentaire-annexe-f-ci: done
   10-12-audit-trail-catalogue: done
-  10-13-migration-embeddings-voyage-api: review
+  10-13-migration-embeddings-voyage-api: done
   10-14-setup-storybook-6-stories: backlog
   10-15-ui-button-4-variantes: backlog
   10-16-ui-input-textarea-select: backlog

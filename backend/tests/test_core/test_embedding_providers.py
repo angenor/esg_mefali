@@ -151,7 +151,6 @@ def test_get_embedding_provider_raises_on_unknown(monkeypatch):
 async def test_voyage_embed_returns_1024_dim_vectors():
     provider = VoyageEmbeddingProvider(api_key="test-key")
     fake_vector = [0.1] * 1024
-    fake_result = type("Obj", (), {"embeddings": [fake_vector, fake_vector]})()
 
     with patch.object(
         provider,
@@ -241,6 +240,99 @@ async def test_voyage_rate_limit_triggers_fallback():
     assert result == fake_openai_result
 
 
+def test_embedding_breaker_key_is_separate_from_tool_breakers():
+    """MEDIUM-2 post-review — la clé ``('embedding', 'voyage')`` du breaker
+    ne collisionne pas avec les clés ``(tool_name, node_name)`` des tools
+    LangGraph (Story 9.7). Validation schéma de clés.
+    """
+    provider = VoyageEmbeddingProvider(api_key="test-key")
+    key = provider._breaker_key()
+    assert key == ("embedding", "voyage")
+    # Collision théorique : un tool nommé "embedding" dans le graph n'existe
+    # pas — scan du registry graph/tools/ confirme (aucun tool embed_*).
+    from pathlib import Path
+    tools_dir = Path(__file__).resolve().parents[2] / "app" / "graph" / "tools"
+    for py_file in tools_dir.rglob("*.py"):
+        content = py_file.read_text()
+        # Un tool registré porterait ``name="embedding"`` — scan défensif.
+        assert 'name="embedding"' not in content, (
+            f"Collision risque : {py_file.name} enregistre un tool nommé "
+            "'embedding' — renommer ou durcir la clé du breaker."
+        )
+
+
+def test_financing_service_uses_embedding_provider():
+    """HIGH-3 post-review — le scan no-duplicate règle 10.5 doit passer :
+    ``OpenAIEmbeddings(`` n'apparaît plus dans le **code exécutable** de
+    ``modules/financing/`` (les docstrings et commentaires d'historique
+    sont tolérés — cf. `get_embedding_provider()` est utilisé runtime).
+    """
+    import ast
+    import re
+    from pathlib import Path
+
+    financing_dir = (
+        Path(__file__).resolve().parents[2] / "app" / "modules" / "financing"
+    )
+    pattern = re.compile(r"\bOpenAIEmbeddings\(")
+    offenders: list[str] = []
+    for py_file in financing_dir.rglob("*.py"):
+        source = py_file.read_text()
+        # Strip docstrings via AST pour éviter faux positifs sur commentaires
+        # historiques qui mentionnent "OpenAIEmbeddings(".
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        docstring_ranges: list[tuple[int, int]] = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if (node.body and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)):
+                    doc = node.body[0]
+                    docstring_ranges.append((doc.lineno, doc.end_lineno or doc.lineno))
+        for line_no, line in enumerate(source.splitlines(), 1):
+            if any(lo <= line_no <= hi for lo, hi in docstring_ranges):
+                continue
+            if line.lstrip().startswith("#"):
+                continue
+            if pattern.search(line):
+                offenders.append(f"{py_file.name}:{line_no}")
+    assert offenders == [], f"financing/ uses OpenAIEmbeddings directly: {offenders}"
+
+
+def test_financing_chunks_has_embedding_vec_v2():
+    """HIGH-3 post-review — la colonne ``embedding_vec_v2 Vector(1024)``
+    doit exister sur ``FinancingChunk`` (migration 032).
+    """
+    from app.models.financing import FinancingChunk
+
+    assert hasattr(FinancingChunk, "embedding_vec_v2"), (
+        "FinancingChunk.embedding_vec_v2 absent — migration 032 non wirée ?"
+    )
+
+
+def test_voyageai_sdk_surface_compat():
+    """MEDIUM-3 post-review 2026-04-21 — fail-fast si le SDK voyageai
+    (0.2.x compat Python 3.14, pivot vs 0.3.4 spec) change de surface.
+
+    Le pivot ``voyageai-0.2.3`` utilise :
+      - ``voyageai.Client`` (sync, toujours présent)
+      - ``voyageai.AsyncClient`` (optional, détecté via ``hasattr``)
+      - ``voyageai.error.RateLimitError`` + ``voyageai.error.APIError``
+
+    Si le SDK renomme ``voyageai.error`` → ``voyageai.exceptions`` en 0.3+,
+    ce test détecte la régression au prochain bump dep avant le runtime.
+    """
+    import voyageai
+
+    assert hasattr(voyageai, "Client"), "voyageai.Client absent"
+    assert hasattr(voyageai, "error"), "voyageai.error module absent (renommé ?)"
+    assert hasattr(voyageai.error, "RateLimitError"), "RateLimitError absent"
+    assert hasattr(voyageai.error, "APIError"), "APIError absent"
+
+
 @pytest.mark.asyncio
 async def test_voyage_error_without_fallback_propagates():
     """Sans fallback configuré, l'erreur remonte (pas de silent fail)."""
@@ -262,8 +354,10 @@ async def test_voyage_error_without_fallback_propagates():
 def test_no_generic_except_in_embeddings_module():
     """Leçon 9.7 C1 — zéro ``except Exception`` dans le module embeddings.
 
-    Exception documentée : ``openai.py`` a un ``except Exception`` contrôlé
-    qui re-raise en canonique ``EmbeddingError`` (mapping vendor-neutre).
+    Post-patch HIGH-4 (2026-04-21) : ``openai.py`` catche désormais des
+    exceptions vendor explicites (``openai.RateLimitError``, ``APIError``,
+    ``APITimeoutError``, ``APIConnectionError``) — plus de substring match
+    ``"rate" in msg``. Scan strict : 0 offender.
     """
     import re
     from pathlib import Path
@@ -271,8 +365,6 @@ def test_no_generic_except_in_embeddings_module():
     module_root = Path(__file__).resolve().parents[2] / "app" / "core" / "embeddings"
     offenders: list[str] = []
     pattern = re.compile(r"^\s*except\s+Exception\b")
-    # Fichiers tolérés : openai.py a 1 ``except Exception`` documenté
-    # (wrap en ``EmbeddingError``) — accepte ≤ 1 hit pour ce fichier.
     for py_file in module_root.rglob("*.py"):
         for line in py_file.read_text().splitlines():
             stripped = line.lstrip()
@@ -281,5 +373,79 @@ def test_no_generic_except_in_embeddings_module():
             if pattern.match(line):
                 offenders.append(f"{py_file.name}: {line.strip()}")
 
-    # openai.py a 1 except Exception contrôlé (mapping canonique) — toléré.
-    assert len(offenders) <= 1, f"generic except found: {offenders}"
+    assert offenders == [], f"generic except Exception found: {offenders}"
+
+
+# ---------------------------------------------------------------------------
+# HIGH-4 — Exceptions vendor OpenAI explicites (3 cas)
+# ---------------------------------------------------------------------------
+
+
+def _fake_httpx_request():
+    """Fabrique un ``httpx.Request`` stub minimal pour les exceptions openai."""
+    import httpx
+
+    return httpx.Request("POST", "https://api.openai.com/v1/embeddings")
+
+
+def _fake_httpx_response(status_code: int):
+    """Fabrique un ``httpx.Response`` stub avec ``.request`` attaché."""
+    import httpx
+
+    return httpx.Response(status_code=status_code, request=_fake_httpx_request())
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_maps_rate_limit_error():
+    """``openai.RateLimitError`` → ``EmbeddingRateLimitError`` canonique."""
+    from openai import RateLimitError
+
+    provider = OpenAIEmbeddingProvider()
+
+    class _FakeClient:
+        async def aembed_documents(self, texts):
+            raise RateLimitError(
+                message="429 rate exceeded",
+                response=_fake_httpx_response(429),
+                body=None,
+            )
+
+    provider._client = _FakeClient()
+    with pytest.raises(EmbeddingRateLimitError):
+        await provider.embed(["x"])
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_maps_api_timeout_error():
+    """``openai.APITimeoutError`` → ``EmbeddingError`` canonique."""
+    from openai import APITimeoutError
+
+    provider = OpenAIEmbeddingProvider()
+
+    class _FakeClient:
+        async def aembed_documents(self, texts):
+            raise APITimeoutError(request=_fake_httpx_request())
+
+    provider._client = _FakeClient()
+    with pytest.raises(EmbeddingError, match="connection/timeout"):
+        await provider.embed(["x"])
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_maps_api_error():
+    """``openai.APIError`` générique → ``EmbeddingError`` canonique."""
+    from openai import APIError
+
+    provider = OpenAIEmbeddingProvider()
+
+    class _FakeClient:
+        async def aembed_documents(self, texts):
+            raise APIError(
+                message="500 server error",
+                request=_fake_httpx_request(),
+                body=None,
+            )
+
+    provider._client = _FakeClient()
+    with pytest.raises(EmbeddingError, match="API error"):
+        await provider.embed(["x"])

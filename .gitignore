@@ -57,3 +57,9 @@ _bmad-output/**/*.tmp
 # E2E live (agent-browser) — captures de runs locaux (story 8.3+)
 frontend/tests/e2e-live/screenshots/*
 !frontend/tests/e2e-live/screenshots/.gitkeep
+
+# Bench LLM providers (Story 10.13) — outputs JSON contiennent prompts + réponses
+# + métriques coût/tokens, à ne jamais committer (risque fuite PII re-bench Phase 1).
+bench-results*.json
+bench-report-*.json
+/tmp/bench-*.json

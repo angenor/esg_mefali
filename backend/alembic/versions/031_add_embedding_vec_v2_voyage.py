@@ -56,11 +56,14 @@ def downgrade() -> None:
     irrémédiablement perdues. ``pg_dump -t document_chunks`` recommandé
     en pré-rollback prod.
     """
+    # Note (LOW-1 post-review 2026-04-21) : ``postgresql_using``/``_with``/``_ops``
+    # sont ignorés par ``op.drop_index`` (alembic les tolère silencieusement).
+    # On les passe ici uniquement pour la symétrie visuelle avec ``upgrade()``
+    # — simplifiable en ``op.drop_index("ix_document_chunks_embedding_v2_hnsw",
+    # table_name="document_chunks")`` sans perte de comportement.
     op.drop_index(
         "ix_document_chunks_embedding_v2_hnsw",
         table_name="document_chunks",
         postgresql_using="hnsw",
-        postgresql_with={"m": 16, "ef_construction": 64},
-        postgresql_ops={"embedding_vec_v2": "vector_cosine_ops"},
     )
     op.drop_column("document_chunks", "embedding_vec_v2")
