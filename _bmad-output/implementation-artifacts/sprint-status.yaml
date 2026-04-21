@@ -136,7 +136,7 @@ development_status:
   10-9-feature-flag-enable-project-model: done
   10-10-micro-outbox-domain-events: done
   10-11-sourcing-documentaire-annexe-f-ci: done
-  10-12-audit-trail-catalogue: review
+  10-12-audit-trail-catalogue: done
   10-13-migration-embeddings-voyage-api: backlog
   10-14-setup-storybook-6-stories: backlog
   10-15-ui-button-4-variantes: backlog

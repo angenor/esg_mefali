@@ -39,6 +39,7 @@ pytestmark = pytest.mark.asyncio
         ("@SUM", "'@SUM"),
         ("\tTAB-start", "'\tTAB-start"),
         ("\rCR-start", "'\rCR-start"),
+        ("\nLF-start", "'\nLF-start"),
     ],
 )
 async def test_csv_safe_cell_prefixes_formula_injection(payload, expected_prefix):
@@ -59,10 +60,13 @@ async def test_csv_safe_cell_serializes_dict_as_json():
     assert result == '{"title": "T"}'
 
 
-async def test_csv_safe_cell_escapes_json_starting_with_at():
-    """Si un JSON commence par `@` apres serialisation, escape applique."""
-    # Dict dont le JSON serialized ne commence jamais par =/+/-/@ (toujours `{`),
-    # donc ce test valide le contrat : aucune mutation pour `{...}`.
+async def test_csv_safe_cell_preserves_dict_values_starting_with_curly_brace():
+    """Un dict JSON serialise commence toujours par `{` (non-vulnerable).
+
+    Le caractere `{` n'est pas dans `_FORMULA_INJECTION_PREFIXES` — donc
+    les JSONB `changes_before/after` ne sont jamais prefixes, meme si une
+    cle interne commence par `@` (la serialisation produit `{"@tag": ...}`).
+    """
     result = _csv_safe_cell({"@tag": "x"})
     assert result.startswith("{")  # pas d'escape (le `{` initial n'est pas vuln)
 
@@ -191,7 +195,9 @@ async def test_export_csv_hard_cap_truncation(
         "/api/admin/catalogue/audit-trail/export.csv"
     )
     assert resp.status_code == 200
-    assert resp.headers.get("X-Export-Truncated") == "true"
+    # Contrat de troncature cote client : sentinelle CSV en derniere ligne
+    # (voir audit-trail.md §Consultation). Header HTTP retire (HIGH-10.12-3 :
+    # evite double query + race + OOM pre-query UUIDs en RAM).
     assert audit_constants.EXPORT_TRUNCATED_SENTINEL in resp.text
     # Exactement 2 data rows + 1 header + 1 sentinelle
     non_empty_lines = [ln for ln in resp.text.split("\n") if ln.strip()]

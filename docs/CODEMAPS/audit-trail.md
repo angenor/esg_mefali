@@ -181,6 +181,21 @@ filters_hash, row_count, truncated})`. Traçabilité défense en profondeur
     worker uvicorn Phase Growth nécessitera Redis backend. Tracking
     `deferred-work.md` ligne `LOW-10.12-1` + marker CLEANUP dans
     `audit_constants.py`.
+11. **Cursor base64 non-signé — pas d'impact sécurité** — le cursor est
+    opaque mais **pas HMAC-signé**, donc trivialement forgeable par un
+    admin déjà authentifié. **Analyse** : le filtre `(ts, id) < cursor`
+    ne fait que **réduire** le jeu de résultats — un cursor forgé (par
+    exemple vers un timestamp futur) donne au pire ce que renvoie une
+    requête sans cursor. Il n'y a donc **aucune escalade d'autorisation**
+    possible : l'admin authentifié a déjà accès à toutes les rows via
+    pagination normale. HMAC-signé rejeté MVP (pattern industry aligné :
+    GitHub/Stripe/Slack n'HMAC pas leurs cursors non plus).
+12. **Export CSV : troncature signalée par sentinelle CSV (pas header HTTP)**
+    — le contrat client pour la détection de troncature est la ligne
+    sentinelle `# TRUNCATED_AT_50000_ROWS` en dernière ligne du CSV.
+    Le header HTTP `X-Export-Truncated` a été retiré (HIGH-10.12-3) pour
+    éviter double query + race window + OOM (pré-query UUIDs en RAM
+    Python). Le streaming `yield_per=500` reste mémoire-borné à ~100 Ko.
 
 ---
 

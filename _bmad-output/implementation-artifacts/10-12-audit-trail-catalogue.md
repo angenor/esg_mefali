@@ -1,6 +1,6 @@
 # Story 10.12 : Audit trail catalogue — endpoint consultation + export CSV + rate limiting + tamper-proof tests
 
-Status: review
+Status: done
 
 > **Contexte** : 14ᵉ story Phase 4, **dernière story infra backend** avant bascule UI Foundation (10.13-10.21). Sizing **M (~2 h)**. Clôt le volet **D6/NFR28 audit trail immuable** ouvert par Stories 10.1 (migration 026 — table `admin_catalogue_audit_trail`), 10.4 (schéma Pydantic `AdminCatalogueAuditTrailResponse` + stub `service.record_audit_event` NotImplementedError) et 10.5 (migration 028 — REVOKE UPDATE/DELETE + trigger PG `audit_table_is_immutable` ERRCODE 42501). Sans cette story, l'endpoint admin UI Epic 13.8 (hub catalogue) ne peut **ni consulter ni exporter** l'historique des mutations — or FR64 exige « rétention 5 ans minimum **+ UI consultation** » et NFR18 pen test Phase 1 exige un rapport audit lisible.
 >
@@ -269,6 +269,31 @@ Status: review
   - [x] 11.4 `pytest --cov=backend/app/modules/admin_catalogue --cov-report=term-missing` — assert ≥ 85 % sur audit_constants.py + service.record_audit_event body + endpoints audit-trail.
   - [x] 11.5 Scan post-dev `rg -n "INSERT INTO admin_catalogue_audit_trail" backend/ --glob '!backend/alembic/**' --glob '!backend/tests/**'` — assert 0 hit.
   - [x] 11.6 Remplir Completion Notes (Scan NFR66, baseline delta, coverage %, 3 commits SHA, pièges rencontrés).
+
+### Review Findings
+
+> Code review : `_bmad-output/implementation-artifacts/10-12-code-review-2026-04-21.md` (2026-04-21). Décision : **APPROVE-WITH-CHANGES** — 3 HIGH + 4 MEDIUM + 4 LOW + 6 INFO. Aucun CRITICAL.
+
+**HIGH (bloquants pour passer en done)**
+- [x] [Review][Patch] HIGH-10.12-1 — AC4 rate limit 429 testé fonctionnellement [backend/tests/test_admin_catalogue/test_audit_trail_endpoint.py:192-294] — **résolu** (Option A) : `@limiter.limit(_resolve_rate_limit_audit_trail)` prend désormais un callable (lambda réévaluée à chaque requête) + `response: Response` param ajouté pour que SlowAPI puisse injecter les headers `X-RateLimit-*`. 2 nouveaux tests fonctionnels prouvent AC4 : (a) `test_audit_trail_rate_limit_429_enforced` — 3 requêtes avec `"2/minute"`, la 3ᵉ retourne 429 + header `Retry-After` ; (b) `test_audit_trail_rate_limit_scopes_by_admin_user_id` — user A épuise son quota (1/minute), user B reçoit 200 sur sa 1ʳᵉ requête (clé distincte `admin_user_id`).
+- [x] [Review][Patch] HIGH-10.12-2 — Log méta-audit `audit_export_issued` perdu si client disconnect [backend/app/modules/admin_catalogue/router.py:484-517] — **résolu** : log `audit_export_started` avant premier yield + `try/finally` avec log `audit_export_completed|truncated` garanti même sur `CancelledError`.
+- [x] [Review][Patch] HIGH-10.12-3 — Double query + race window + OOM risk export CSV [backend/app/modules/admin_catalogue/router.py:519-540] — **résolu** : pre-query `ids_sample` supprimée + header `X-Export-Truncated` retiré. Contrat client = sentinelle CSV `# TRUNCATED_AT_50000_ROWS` (déjà documenté §Consultation). Test `test_export_csv_hard_cap_truncation` ajusté.
+
+**MEDIUM (à patcher sauf defer justifié)**
+- [x] [Review][Patch] MEDIUM-10.12-1 — Cursor base64 non-signé — **résolu** : bullet #11 §Pièges documente forgery triviale = sans gain attaquant (filtre `<` ne saute pas de rows protégées) [docs/CODEMAPS/audit-trail.md:184].
+- [x] [Review][Patch] MEDIUM-10.12-2 — Test pagination vérifie disjonction [backend/tests/test_admin_catalogue/test_audit_trail_endpoint.py:166-180] — **résolu** : `assert page1_ids.isdisjoint(page2_ids)` ajouté.
+- [x] [Review][Patch] MEDIUM-10.12-3 — `_RESPONSES_AUDIT` OpenAPI déclare 400 [backend/app/modules/admin_catalogue/router.py:89-96] — **résolu**.
+- [x] [Review][Defer] MEDIUM-10.12-4 — Signature `record_audit_event` Enum vs str ambiguë [backend/app/modules/admin_catalogue/service.py:122-158] — deferred Epic 13 S1 (premiers callers typés Enum lèveront le besoin de trancher A/B).
+
+**LOW**
+- [x] [Review][Patch] LOW-10.12-1 — `_FORMULA_INJECTION_PREFIXES` inclut `\n` [backend/app/modules/admin_catalogue/router.py:145] — **résolu** + test parametrize `\nLF-start`.
+- [x] [Review][Defer] LOW-10.12-2 — `and_(*clauses) if clauses else True` dupliqué 3× [backend/app/modules/admin_catalogue/router.py:388,474,534] — drive-by cosmétique.
+- [x] [Review][Patch] LOW-10.12-3 — Test renommé `test_csv_safe_cell_preserves_dict_values_starting_with_curly_brace` [backend/tests/test_admin_catalogue/test_audit_trail_export_csv.py:62-68] — **résolu**.
+- [x] [Review][Patch] LOW-10.12-4 — Entrée `LOW-10.12-1` SlowAPI + 4 autres tracés dans `deferred-work.md` sous section « Deferred from: code review of story-10.12 (2026-04-21) » — **résolu**.
+
+**INFO (acknowledge, pas d'action story-bound)**
+- [x] [Review][Defer] INFO-10.12-1 — Pattern pytest+FastAPI limiter override à capitaliser — candidat skill BMAD `test-fastapi-limiter-override` (lors d'une future story 10.13+ touchant rate limit).
+- [x] [Review][Defer] INFO-10.12-6 — Index composite `(ts DESC, id DESC)` keyset à observer en prod [backend/alembic/versions/026_*] — déféré Epic 20 Ops si latence dégrade sur table > 10k rows.
 
 ---
 

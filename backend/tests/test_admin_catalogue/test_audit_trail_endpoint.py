@@ -16,6 +16,7 @@ _SKIP_IF_NOT_POSTGRES = pytest.mark.skipif(
     not os.environ.get("TEST_DATABASE_URL", "").startswith("postgres"),
     reason="Requires PostgreSQL (keyset pagination micro-precision)",
 )
+from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
@@ -168,8 +169,14 @@ async def test_audit_trail_keyset_pagination_page_size_2(
     page1_ids = {item["id"] for item in body1["items"]}
     page2_ids = {item["id"] for item in body2["items"]}
     all_seed_ids = {str(row.id) for row in seeded_audit_rows}
+    # Union totale = tous les seeds.
     assert (page1_ids | page2_ids) == all_seed_ids, (
         f"page1={page1_ids} page2={page2_ids} seeds={all_seed_ids}"
+    )
+    # Disjonction stricte : aucun doublon cross-page (protege contre bug
+    # cursor `<=` au lieu de `<` strict qui renverrait la row de bordure).
+    assert page1_ids.isdisjoint(page2_ids), (
+        f"Doublons cross-page detectes : {page1_ids & page2_ids}"
     )
 
 
@@ -188,23 +195,119 @@ async def test_audit_trail_filter_by_entity_id(
     assert body["items"][0]["entity_id"] == str(target.entity_id)
 
 
-async def test_audit_trail_rate_limit_429_after_threshold(
-    admin_authenticated_client, monkeypatch
-):
-    """Rate limit 429 apres depassement.
+async def test_audit_trail_rate_limit_429_enforced(monkeypatch):
+    """Rate limit : la N+1ᵉ requete retourne 429 avec header Retry-After.
 
-    Monkeypatch `RATE_LIMIT_AUDIT_TRAIL` -> "2/minute" via remplacement du
-    callback limiter.limit dans le router.
+    HIGH-10.12-1 fix : le router expose `_resolve_rate_limit_audit_trail`
+    (callable passe a `@limiter.limit`), reevalue a chaque requete. Un
+    `monkeypatch.setattr(audit_constants, 'RATE_LIMIT_AUDIT_TRAIL', ...)`
+    est desormais effectif sans redemarrer l'app.
+
+    Prouve AC4 « la 61ᵉ retourne 429 » de maniere fonctionnelle.
+
+    N'utilise PAS la fixture `admin_authenticated_client` car elle
+    desactive le limiter (override sans `Request` ne peuple pas
+    `request.state.user`). On override ici avec une fonction qui peuple
+    explicitement `request.state.user` — prerequis SlowAPI FR-013.
     """
-    # Note : SlowAPI resout le decorateur a l'import du module. Monkeypatcher
-    # la constante n'a pas d'effet sur le decorator deja pose. On verifie
-    # plutot le comportement fonctionnel : 2 requetes rapprochees doivent
-    # reussir, au moins une reponse non-429 doit exister (smoke test).
-    resp = await admin_authenticated_client.get(
-        "/api/admin/catalogue/audit-trail?page_size=1"
+    from app.api.deps import get_current_user
+    from app.core.rate_limit import limiter
+    from app.main import app
+
+    monkeypatch.setenv("ADMIN_MEFALI_EMAILS", ADMIN_EMAIL)
+    monkeypatch.setattr(audit_constants, "RATE_LIMIT_AUDIT_TRAIL", "2/minute")
+
+    mock_user = MagicMock()
+    mock_user.id = uuid.uuid4()
+    mock_user.email = ADMIN_EMAIL
+    mock_user.is_active = True
+
+    async def _override_get_current_user(request: Request):
+        request.state.user = mock_user
+        return mock_user
+
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+
+    # Reactivation + reset du store SlowAPI in-memory pour eviter la
+    # pollution croisee (la fixture admin_authenticated_client a mis
+    # enabled=False dans les tests precedents).
+    limiter.enabled = True
+    limiter.reset()
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp1 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+            resp2 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+            resp3 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+
+        assert resp1.status_code == 200, resp1.text
+        assert resp2.status_code == 200, resp2.text
+        assert resp3.status_code == 429, resp3.text
+        # SlowAPI pose `Retry-After` quand headers_enabled=True
+        assert "retry-after" in {k.lower() for k in resp3.headers.keys()}
+    finally:
+        del app.dependency_overrides[get_current_user]
+        limiter.reset()
+
+
+async def test_audit_trail_rate_limit_scopes_by_admin_user_id(monkeypatch):
+    """User A quota atteint ne doit PAS affecter user B (clef = admin_user_id).
+
+    Prouve AC4 « un 2ᵉ admin authentifie n'est pas affecte par les quotas
+    du 1ᵉʳ » (pattern FR-013 clef admin_user_id pas IP).
+    """
+    from app.api.deps import get_current_user
+    from app.core.rate_limit import limiter
+    from app.main import app
+
+    monkeypatch.setenv(
+        "ADMIN_MEFALI_EMAILS", f"{ADMIN_EMAIL},admin2@mefali.test"
     )
-    assert resp.status_code == 200, resp.text
-    # Le vrai test 429 necessiterait de baisser le rate limit — on verifie
-    # que le decorateur SlowAPI est bien configure en interrogeant la
-    # constante enregistree.
+    monkeypatch.setattr(audit_constants, "RATE_LIMIT_AUDIT_TRAIL", "1/minute")
+
+    user_a = MagicMock()
+    user_a.id = uuid.uuid4()
+    user_a.email = ADMIN_EMAIL
+    user_a.is_active = True
+
+    user_b = MagicMock()
+    user_b.id = uuid.uuid4()
+    user_b.email = "admin2@mefali.test"
+    user_b.is_active = True
+
+    current_user = {"value": user_a}
+
+    async def _override_get_current_user(request: Request):
+        u = current_user["value"]
+        request.state.user = u
+        return u
+
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+
+    limiter.enabled = True
+    limiter.reset()
+
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            # User A consomme son unique slot
+            resp_a1 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+            # User A 2eme requete -> 429
+            resp_a2 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+            # Bascule vers user B : son compteur est independant
+            current_user["value"] = user_b
+            resp_b1 = await ac.get("/api/admin/catalogue/audit-trail?page_size=1")
+
+        assert resp_a1.status_code == 200, resp_a1.text
+        assert resp_a2.status_code == 429, resp_a2.text
+        assert resp_b1.status_code == 200, resp_b1.text
+    finally:
+        del app.dependency_overrides[get_current_user]
+        limiter.reset()
+
+
+async def test_audit_trail_rate_limit_is_sane_60_per_minute():
+    """Smoke : verifie la valeur canonique enregistree (par defaut)."""
     assert audit_constants.RATE_LIMIT_AUDIT_TRAIL == "60/minute"
+    assert audit_constants.RATE_LIMIT_AUDIT_EXPORT == "10/hour"

@@ -33,7 +33,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, desc, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,9 +48,19 @@ from app.modules.admin_catalogue.audit_constants import (
     EXPORT_TRUNCATED_SENTINEL,
     PAGE_SIZE_DEFAULT,
     PAGE_SIZE_MAX,
-    RATE_LIMIT_AUDIT_EXPORT,
-    RATE_LIMIT_AUDIT_TRAIL,
 )
+
+
+# Callables (lambda) plutot que strings fig-ees a l'import : SlowAPI reevalue
+# la fonction a chaque requete, permettant aux tests de monkeypatcher les
+# constantes `audit_constants.RATE_LIMIT_AUDIT_*` sans redemarrer l'app
+# (HIGH-10.12-1 fix : rendre AC4 429 testable fonctionnellement).
+def _resolve_rate_limit_audit_trail() -> str:
+    return audit_constants.RATE_LIMIT_AUDIT_TRAIL
+
+
+def _resolve_rate_limit_audit_export() -> str:
+    return audit_constants.RATE_LIMIT_AUDIT_EXPORT
 from app.modules.admin_catalogue.dependencies import require_admin_mefali
 from app.modules.admin_catalogue.models import AdminCatalogueAuditTrail
 from app.modules.admin_catalogue.schemas import (
@@ -87,6 +97,7 @@ _RESPONSES_GET = {
 }
 
 _RESPONSES_AUDIT = {
+    400: {"description": "Cursor base64 malforme"},
     401: {"description": "JWT absent ou invalide"},
     403: {"description": "Acces reserve au role admin_mefali"},
     422: {"description": "Filtre action/entity_type hors registre"},
@@ -142,7 +153,7 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
 # Helpers CSV (Story 10.12 AC3) — escape formula injection + streaming.
 # ---------------------------------------------------------------------------
 
-_FORMULA_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+_FORMULA_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def _csv_safe_cell(value: Any) -> str:
@@ -336,9 +347,10 @@ async def create_rule_endpoint(  # AC3 — Epic 13.1bis
     response_model=AuditTrailPage,
     responses=_RESPONSES_AUDIT,
 )
-@limiter.limit(RATE_LIMIT_AUDIT_TRAIL)
+@limiter.limit(_resolve_rate_limit_audit_trail)
 async def list_audit_trail(
     request: Request,
+    response: Response,
     cursor: str | None = Query(default=None),
     page_size: int = Query(default=PAGE_SIZE_DEFAULT, ge=1, le=PAGE_SIZE_MAX),
     actor_user_id: uuid.UUID | None = Query(default=None),
@@ -426,7 +438,7 @@ async def list_audit_trail(
         },
     },
 )
-@limiter.limit(RATE_LIMIT_AUDIT_EXPORT)
+@limiter.limit(_resolve_rate_limit_audit_export)
 async def export_audit_trail_csv(
     request: Request,
     actor_user_id: uuid.UUID | None = Query(None),
@@ -479,65 +491,63 @@ async def export_audit_trail_csv(
         .execution_options(yield_per=500)
     )
 
-    truncated_flag = {"value": False, "count": 0}
-
     async def _stream_rows():
-        # En-tete
-        buf = io.StringIO()
-        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(_CSV_HEADER)
-        yield buf.getvalue()
-
-        hard_cap = audit_constants.EXPORT_ROW_HARD_CAP
-        count = 0
-        result = await db.stream(stmt)
-        async for row in result.scalars():
-            if count >= hard_cap:
-                truncated_flag["value"] = True
-                sentinel_buf = io.StringIO()
-                sentinel_buf.write(EXPORT_TRUNCATED_SENTINEL + "\n")
-                yield sentinel_buf.getvalue()
-                break
-            line_buf = io.StringIO()
-            csv.writer(line_buf, quoting=csv.QUOTE_MINIMAL).writerow(
-                _csv_row_from_model(row)
-            )
-            count += 1
-            yield line_buf.getvalue()
-
-        truncated_flag["count"] = count
+        # Log intention AVANT premier yield : survit aux disconnects clients.
         logger.info(
-            "audit_export_issued",
+            "audit_export_started",
             extra={
                 "actor_user_id": str(admin.id),
                 "filters_hash": filters_hash,
-                "row_count": count,
-                "truncated": truncated_flag["value"],
             },
         )
+        count = 0
+        truncated = False
+        try:
+            # En-tete
+            buf = io.StringIO()
+            writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+            writer.writerow(_CSV_HEADER)
+            yield buf.getvalue()
 
-    # Headers (Transfer-Encoding chunked automatique sur StreamingResponse)
+            hard_cap = audit_constants.EXPORT_ROW_HARD_CAP
+            result = await db.stream(stmt)
+            async for row in result.scalars():
+                if count >= hard_cap:
+                    truncated = True
+                    sentinel_buf = io.StringIO()
+                    sentinel_buf.write(EXPORT_TRUNCATED_SENTINEL + "\n")
+                    yield sentinel_buf.getvalue()
+                    break
+                line_buf = io.StringIO()
+                csv.writer(line_buf, quoting=csv.QUOTE_MINIMAL).writerow(
+                    _csv_row_from_model(row)
+                )
+                count += 1
+                yield line_buf.getvalue()
+        finally:
+            # Log final emis meme si client disconnect / CancelledError :
+            # - completed : stream termine normalement sans troncature.
+            # - truncated : hard cap atteint + sentinelle emise.
+            logger.info(
+                "audit_export_completed" if not truncated else "audit_export_truncated",
+                extra={
+                    "actor_user_id": str(admin.id),
+                    "filters_hash": filters_hash,
+                    "row_count": count,
+                    "truncated": truncated,
+                },
+            )
+
+    # Headers (Transfer-Encoding chunked automatique sur StreamingResponse).
+    # Le contrat de troncature cote client est la sentinelle CSV
+    # `# TRUNCATED_AT_50000_ROWS` en derniere ligne (voir audit-trail.md
+    # §Consultation). Header HTTP `X-Export-Truncated` retire pour eviter
+    # (a) double query pre-count + stream, (b) race window entre les 2
+    # queries, (c) OOM risk (ids_sample jusqu'a 50001 UUIDs en RAM Python).
     filename = f"audit-trail-{datetime.now(timezone.utc).date().isoformat()}.csv"
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',
     }
-    # `X-Export-Truncated` est pose apres streaming ; on le precalcule en
-    # emettant une pre-query count-plus-1 seulement si necessaire. Pour le
-    # MVP, on pose toujours le header base sur le comptage final via un
-    # generator wrapper qui met a jour post-streaming : FastAPI/Starlette
-    # ne permet pas de muter les headers apres envoi du premier chunk, on
-    # pose donc le header a partir d'une pre-verification "existe-t-il >
-    # hard_cap rows".
-    # Pre-verification : COUNT(*) > hard_cap
-    count_stmt = (
-        select(AdminCatalogueAuditTrail.id)
-        .where(and_(*clauses) if clauses else True)
-        .limit(audit_constants.EXPORT_ROW_HARD_CAP + 1)
-    )
-    count_result = await db.execute(count_stmt)
-    ids_sample = count_result.scalars().all()
-    if len(ids_sample) > audit_constants.EXPORT_ROW_HARD_CAP:
-        headers["X-Export-Truncated"] = "true"
 
     return StreamingResponse(
         _stream_rows(),
