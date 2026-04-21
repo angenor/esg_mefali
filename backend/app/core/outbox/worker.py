@@ -22,6 +22,13 @@ Anti-patterns (voir ``docs/CODEMAPS/outbox.md §5 Pièges``) :
       ``payload_keys`` est loggué.
     - ``now()`` dans un index partiel PostgreSQL : non-IMMUTABLE refusé.
       Le filtre vit dans la query worker, pas dans le DDL.
+
+Isolation handler (HIGH-10.10-1 patch) :
+    Chaque event est traité dans un SAVEPOINT (``db.begin_nested()``) pour
+    isoler les effets SQL d'un handler en échec. Si un handler écrit puis
+    ``raise``, le savepoint est rollback et la session parent reste saine —
+    les autres events du batch sont traités normalement + leurs métadonnées
+    (retry_count / next_retry_at / status) persistent au commit final.
 """
 
 from __future__ import annotations
@@ -37,7 +44,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.config import settings
-from app.core.outbox.handlers import dispatch_event
+from app.core.outbox.handlers import HandlerResult, dispatch_event
 from app.models.domain_event import DomainEvent
 
 logger = logging.getLogger(__name__)
@@ -54,7 +61,11 @@ logger = logging.getLogger(__name__)
 #: fenêtres 30-600 s, pas des retries synchrones courts < 10 s.
 BACKOFF_SCHEDULE: Final[tuple[int, ...]] = (30, 120, 600)
 
-#: Cap applicatif — après ``MAX_RETRIES``, l'event est marqué ``failed``.
+#: Nombre maximal de **retries** autorisés (sémantique §D11 : 3 retries après
+#: la tentative initiale = 4 tentatives totales). Après ``MAX_RETRIES`` échecs
+#: de retry, l'event est marqué ``failed``. Chaque retry consomme
+#: ``BACKOFF_SCHEDULE[retry_count - 1]`` ; ``len(BACKOFF_SCHEDULE) == MAX_RETRIES``
+#: est un invariant (MEDIUM-10.10-1 correctif).
 #: Défense en profondeur vs contrainte DB ``retry_count <= 5``.
 MAX_RETRIES: Final[int] = 3
 
@@ -64,8 +75,21 @@ BATCH_SIZE: Final[int] = 100
 #: Intervalle purge ``prefill_drafts`` (MEDIUM-10.1-5 absorbé).
 PREFILL_PURGE_INTERVAL_S: Final[int] = 3600
 
-#: Batch size purge ``prefill_drafts``.
+#: Batch size purge ``prefill_drafts`` (taille par itération du DELETE).
 PREFILL_PURGE_BATCH_SIZE: Final[int] = 500
+
+#: Nombre maximal d'itérations d'une passe purge = cap 10 000 lignes / tick
+#: (MEDIUM-10.10-2 correctif : résorption backlog sans lock-table excessif).
+MAX_PURGE_ITERATIONS: Final[int] = 20
+
+#: Seuil d'alerte backlog purge (logs WARNING si backlog > seuil).
+PREFILL_PURGE_BACKLOG_ALERT_THRESHOLD: Final[int] = 10000
+
+# Invariant : len(BACKOFF_SCHEDULE) doit couvrir MAX_RETRIES retries.
+assert len(BACKOFF_SCHEDULE) == MAX_RETRIES, (
+    "BACKOFF_SCHEDULE doit avoir exactement MAX_RETRIES entrées "
+    f"(got {len(BACKOFF_SCHEDULE)} vs {MAX_RETRIES})."
+)
 
 
 def _utcnow() -> datetime:
@@ -78,6 +102,26 @@ def _truncate_error(message: str, limit: int = 500) -> str:
     if len(message) <= limit:
         return message
     return message[: limit - 3] + "..."
+
+
+class _SavepointRollbackSignal(Exception):
+    """Signal interne : force ROLLBACK TO SAVEPOINT sur un handler en retry.
+
+    Levée **dans** le contexte ``async with db.begin_nested()`` pour que
+    SQLAlchemy rollback le savepoint (et donc tout SQL partiel émis par le
+    handler) avant le ``__aexit__``. Capturée immédiatement après le
+    ``async with`` — jamais propagée au-delà de ``_process_single_event``.
+
+    HIGH-10.10-1 patch : sans ce signal, ``dispatch_event`` catch l'exception
+    du handler et renvoie ``HandlerResult(status='retry')`` sans lever, donc
+    le ``__aexit__`` du savepoint ferait ``RELEASE`` (commit savepoint) et
+    les écritures partielles du handler seraient conservées → session en
+    ``PendingRollback`` si l'écriture initiale avait levé un ``DBAPIError``.
+    """
+
+    def __init__(self, result: "HandlerResult") -> None:
+        super().__init__("savepoint rollback requested")
+        self.result = result
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +152,11 @@ async def process_outbox_batch(engine: AsyncEngine) -> None:
             select(DomainEvent)
             .where(
                 DomainEvent.processed_at.is_(None),
-                DomainEvent.retry_count < MAX_RETRIES,
+                # MEDIUM-10.10-1 patch : retry_count <= MAX_RETRIES — un event
+                # avec retry_count=3 doit être repêché pour sa 3ᵉ tentative
+                # de retry (BACKOFF_SCHEDULE[2]=600s). Il est marqué failed
+                # quand retry_count atteint MAX_RETRIES+1 dans le dispatch.
+                DomainEvent.retry_count <= MAX_RETRIES,
                 DomainEvent.status == "pending",
                 or_(
                     DomainEvent.next_retry_at.is_(None),
@@ -133,9 +181,25 @@ async def process_outbox_batch(engine: AsyncEngine) -> None:
 
 
 async def _process_single_event(db: AsyncSession, event: DomainEvent) -> None:
-    """Dispatche un event + update sa ligne + log structuré."""
+    """Dispatche un event + update sa ligne + log structuré.
+
+    HIGH-10.10-1 patch : chaque event est dispatché dans un SAVEPOINT
+    (``db.begin_nested()``). Si le handler a écrit du SQL puis renvoie un
+    résultat ``retry`` (via ``dispatch_event``), on lève
+    ``_SavepointRollbackSignal`` pour forcer ROLLBACK TO SAVEPOINT — les
+    écritures partielles sont annulées et la session parent reste saine
+    pour traiter les events suivants du batch.
+    """
     start_monotonic = time.monotonic()
-    result = await dispatch_event(event, db)
+    try:
+        async with db.begin_nested():
+            result = await dispatch_event(event, db)
+            if result.status == "retry":
+                # Force ROLLBACK TO SAVEPOINT — undo les writes partiels
+                # du handler, la session parent reste usable.
+                raise _SavepointRollbackSignal(result)
+    except _SavepointRollbackSignal as signal:
+        result = signal.result
     duration_ms = int((time.monotonic() - start_monotonic) * 1000)
 
     attempt = event.retry_count + 1
@@ -188,7 +252,10 @@ async def _process_single_event(db: AsyncSession, event: DomainEvent) -> None:
     event.retry_count = event.retry_count + 1
     event.error_message = _truncate_error(result.error_message or "")
 
-    if event.retry_count >= MAX_RETRIES:
+    # Dead-letter : MEDIUM-10.10-1 patch — architecture §D11 annonce 3 retries
+    # (retries 1/2/3 → BACKOFF_SCHEDULE[0]/[1]/[2]). Un 4ᵉ échec bascule en
+    # failed. ``retry_count > MAX_RETRIES`` est l'invariant (MAX_RETRIES == 3).
+    if event.retry_count > MAX_RETRIES:
         event.status = "failed"
         event.processed_at = _utcnow()
         logger.error(
@@ -203,9 +270,9 @@ async def _process_single_event(db: AsyncSession, event: DomainEvent) -> None:
         )
         return
 
-    # Retry scheduled : calcul next_retry_at selon BACKOFF_SCHEDULE.
+    # Retry scheduled : BACKOFF_SCHEDULE[retry_count - 1] (0, 1, 2).
+    # L'invariant ``len(BACKOFF_SCHEDULE) == MAX_RETRIES`` garantit l'accès.
     backoff_index = event.retry_count - 1
-    backoff_index = min(backoff_index, len(BACKOFF_SCHEDULE) - 1)
     delta_s = BACKOFF_SCHEDULE[backoff_index]
     event.next_retry_at = _utcnow() + timedelta(seconds=delta_s)
     logger.warning(
@@ -227,14 +294,39 @@ async def _process_single_event(db: AsyncSession, event: DomainEvent) -> None:
 
 
 async def purge_expired_prefill_drafts(engine: AsyncEngine) -> None:
-    """Supprime les ``prefill_drafts`` expirés (batch ``PREFILL_PURGE_BATCH_SIZE``).
+    """Supprime les ``prefill_drafts`` expirés (multi-batch borné — MEDIUM-10.10-2).
+
+    Boucle ``while`` par batches de ``PREFILL_PURGE_BATCH_SIZE`` (500) jusqu'à
+    épuisement (rowcount < batch_size) ou cap ``MAX_PURGE_ITERATIONS`` (20).
+    Cap effectif = 10 000 lignes / tick — suffisant pour résorber un backlog
+    horaire, borné pour éviter lock-table prolongé.
+
+    Alerting : si backlog > ``PREFILL_PURGE_BACKLOG_ALERT_THRESHOLD`` (10 000),
+    log WARNING ``metric=prefill_drafts_purge_backlog_high`` — signal à l'ops
+    qu'un incident trafic / panne prolongée a accumulé des drafts expirés.
 
     Co-localisé avec le scheduler Outbox pour éviter 2 schedulers concurrents
     dans le même process (anti-race, NFR37).
     """
     async with AsyncSession(engine, expire_on_commit=False) as db:
-        # On utilise une sous-requête LIMIT pour borner la taille du batch
-        # (sinon une purge géante bloquerait la boucle).
+        # Signal backlog excessif : SELECT COUNT(*) sur une table avec index
+        # partiel sur ``expires_at`` (fréquence horaire → coût négligeable).
+        backlog_result = await db.execute(
+            text("SELECT COUNT(*) FROM prefill_drafts WHERE expires_at < now()")
+        )
+        backlog = backlog_result.scalar_one() or 0
+        if backlog > PREFILL_PURGE_BACKLOG_ALERT_THRESHOLD:
+            logger.warning(
+                "prefill_drafts purge backlog high",
+                extra={
+                    "metric": "prefill_drafts_purge_backlog_high",
+                    "backlog": backlog,
+                    "threshold": PREFILL_PURGE_BACKLOG_ALERT_THRESHOLD,
+                },
+            )
+
+        total_purged = 0
+        iterations = 0
         subquery = text(
             """
             DELETE FROM prefill_drafts
@@ -245,14 +337,28 @@ async def purge_expired_prefill_drafts(engine: AsyncEngine) -> None:
             )
             """
         )
-        result = await db.execute(subquery, {"batch_size": PREFILL_PURGE_BATCH_SIZE})
-        await db.commit()
+        while iterations < MAX_PURGE_ITERATIONS:
+            result = await db.execute(
+                subquery, {"batch_size": PREFILL_PURGE_BATCH_SIZE}
+            )
+            await db.commit()
+            count = result.rowcount if result.rowcount is not None else 0
+            total_purged += count
+            iterations += 1
+            # Arrêt naturel : plus rien à purger (batch partiel).
+            if count < PREFILL_PURGE_BATCH_SIZE:
+                break
 
-        count = result.rowcount if result.rowcount is not None else 0
-        if count > 0:
+        if total_purged > 0:
+            saturated = iterations >= MAX_PURGE_ITERATIONS
             logger.info(
                 "prefill_drafts purged",
-                extra={"metric": "prefill_drafts_purged", "count": count},
+                extra={
+                    "metric": "prefill_drafts_purged",
+                    "count": total_purged,
+                    "iterations": iterations,
+                    "saturated": saturated,
+                },
             )
 
 

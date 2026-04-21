@@ -160,8 +160,12 @@ async def test_worker_retry_schedules_next_retry_at_on_handler_exception(
     assert expected_min <= event.next_retry_at <= expected_max
 
 
-async def test_worker_marks_failed_after_3_retries(postgres_engine, monkeypatch):
-    """3 passes worker avec handler qui raise toujours → status='failed'.
+async def test_worker_marks_failed_after_max_retries(postgres_engine, monkeypatch):
+    """4 passes worker avec handler qui raise toujours → status='failed'.
+
+    §D11 architecture : 3 retries (BACKOFF [30,120,600]s) + la tentative
+    initiale = 4 tentatives totales. Bascule en failed quand retry_count
+    dépasse MAX_RETRIES (4ᵉ échec).
 
     On force ``next_retry_at = NULL`` entre chaque passe pour que l'event
     soit immédiatement éligible (simulation d'attente backoff écoulée).
@@ -177,7 +181,8 @@ async def test_worker_marks_failed_after_3_retries(postgres_engine, monkeypatch)
 
     event_id = await _insert_event(postgres_engine, event_type="noop.test")
 
-    for _ in range(3):
+    # 4 passes : attempt 1 (initiale) + retries 1/2/3 → failed sur attempt 4.
+    for _ in range(4):
         # Reset next_retry_at pour que l'event soit immédiatement éligible.
         async with AsyncSession(postgres_engine) as db:
             await db.execute(
@@ -189,15 +194,137 @@ async def test_worker_marks_failed_after_3_retries(postgres_engine, monkeypatch)
 
     event = await _fetch_event(postgres_engine, event_id)
     assert event.status == "failed"
-    assert event.retry_count == 3
+    assert event.retry_count == 4  # 4 échecs enregistrés
     assert event.processed_at is not None
     assert event.error_message is not None
 
-    # Une 4ᵉ passe ne repêche pas l'event (sort de l'index / filtre).
+    # Une 5ᵉ passe ne repêche pas l'event (sort du filtre processed_at IS NULL).
     await process_outbox_batch(postgres_engine)
     event_after = await _fetch_event(postgres_engine, event_id)
     assert event_after.status == "failed"
-    assert event_after.retry_count == 3  # pas ré-incrémenté
+    assert event_after.retry_count == 4  # pas ré-incrémenté
+
+
+async def test_worker_uses_full_backoff_schedule_30_120_600(postgres_engine, monkeypatch):
+    """Les 3 entrées BACKOFF_SCHEDULE sont utilisées successivement.
+
+    MEDIUM-10.10-1 correctif : BACKOFF_SCHEDULE[0]=30s (retry 1),
+    BACKOFF_SCHEDULE[1]=120s (retry 2), BACKOFF_SCHEDULE[2]=600s (retry 3).
+    """
+    async def _boom(event, db):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(
+        handlers_mod,
+        "EVENT_HANDLERS",
+        (HandlerEntry(event_type="noop.test", handler=_boom, description="boom"),),
+    )
+
+    event_id = await _insert_event(postgres_engine, event_type="noop.test")
+
+    expected_delays_s = [30, 120, 600]
+    for expected_delay in expected_delays_s:
+        async with AsyncSession(postgres_engine) as db:
+            await db.execute(
+                text("UPDATE domain_events SET next_retry_at = NULL WHERE id = :id"),
+                {"id": event_id},
+            )
+            await db.commit()
+
+        before = datetime.now(timezone.utc)
+        await process_outbox_batch(postgres_engine)
+        after = datetime.now(timezone.utc)
+
+        event = await _fetch_event(postgres_engine, event_id)
+        assert event.status == "pending"  # toujours en retry
+        assert event.next_retry_at is not None
+
+        lower_bound = before + timedelta(seconds=expected_delay - 10)
+        upper_bound = after + timedelta(seconds=expected_delay + 10)
+        assert lower_bound <= event.next_retry_at <= upper_bound, (
+            f"retry {event.retry_count} : next_retry_at {event.next_retry_at} "
+            f"hors fenêtre [{lower_bound}, {upper_bound}] pour delay={expected_delay}s"
+        )
+
+
+async def test_worker_savepoint_isolates_handler_sql_failure(postgres_engine, monkeypatch):
+    """HIGH-10.10-1 : handler qui écrit du SQL puis raise → autres events du
+    batch traités normalement (pas de PendingRollbackError).
+
+    Scénario :
+        - 2 events A, B dans le batch (même event_type).
+        - Handler A : INSERT users puis raise RuntimeError.
+        - Handler B : succès.
+    Attendu :
+        - Event A : status='pending', retry_count=1, next_retry_at fixé.
+        - Event B : status='processed', processed_at fixé.
+        - Table users : 0 ligne (savepoint A rollback).
+    """
+    calls: list[str] = []
+
+    async def _handler(event, db):
+        calls.append(str(event.aggregate_id))
+        if event.payload.get("fail"):
+            # SQL partiel qui devrait être rollback par le savepoint.
+            await db.execute(
+                text(
+                    "INSERT INTO users (id, email, hashed_password) "
+                    "VALUES (:id, :email, :pwd)"
+                ),
+                {"id": uuid.uuid4(), "email": f"leaked-{uuid.uuid4()}@test", "pwd": "x"},
+            )
+            raise RuntimeError("handler failed after partial SQL")
+
+    monkeypatch.setattr(
+        handlers_mod,
+        "EVENT_HANDLERS",
+        (HandlerEntry(event_type="noop.test", handler=_handler, description="savepoint test"),),
+    )
+
+    # Insert 2 events : A (fail) + B (ok). Ordre créé_at → A avant B.
+    async with AsyncSession(postgres_engine, expire_on_commit=False) as db:
+        event_a = await write_domain_event(
+            db,
+            event_type="noop.test",
+            aggregate_type="project",
+            aggregate_id=uuid.uuid4(),
+            payload={"fail": True},
+        )
+        event_b = await write_domain_event(
+            db,
+            event_type="noop.test",
+            aggregate_type="project",
+            aggregate_id=uuid.uuid4(),
+            payload={"fail": False},
+        )
+        event_a_id = event_a.id
+        event_b_id = event_b.id
+        await db.commit()
+
+    await process_outbox_batch(postgres_engine)
+
+    # Les 2 handlers ont tourné (pas de PendingRollback qui couperait la boucle).
+    assert len(calls) == 2
+
+    # Event A : retry scheduled.
+    event_a_after = await _fetch_event(postgres_engine, event_a_id)
+    assert event_a_after.status == "pending"
+    assert event_a_after.retry_count == 1
+    assert event_a_after.next_retry_at is not None
+    assert event_a_after.error_message is not None
+    assert "RuntimeError" in event_a_after.error_message
+
+    # Event B : processed.
+    event_b_after = await _fetch_event(postgres_engine, event_b_id)
+    assert event_b_after.status == "processed"
+    assert event_b_after.processed_at is not None
+
+    # INSERT du handler A rollback par le savepoint : 0 user "leaked-" en BDD.
+    async with AsyncSession(postgres_engine) as db:
+        leaked = await db.execute(
+            text("SELECT COUNT(*) FROM users WHERE email LIKE 'leaked-%@test'")
+        )
+        assert leaked.scalar_one() == 0
 
 
 async def test_worker_marks_unknown_handler_fail_fast_without_retry(postgres_engine):

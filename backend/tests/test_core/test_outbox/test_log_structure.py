@@ -4,13 +4,29 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncGenerator
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.outbox.worker import _process_single_event
 from app.models.domain_event import DomainEvent
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+async def db() -> AsyncGenerator[AsyncSession, None]:
+    """Session SQLite pour l'appel ``_process_single_event`` (savepoint HIGH-10.10-1).
+
+    Le savepoint ``db.begin_nested()`` requiert une session réelle ; SQLite
+    supporte nativement les SAVEPOINT.
+    """
+    from tests.conftest import test_session_factory
+
+    async with test_session_factory() as session:
+        async with session.begin():
+            yield session
 
 
 def _make_event(event_type: str = "noop.test", retry_count: int = 0) -> DomainEvent:
@@ -39,11 +55,11 @@ _REQUIRED_EXTRA_KEYS = frozenset({
 })
 
 
-async def test_log_structure_contains_all_expected_keys_for_processed(caplog):
+async def test_log_structure_contains_all_expected_keys_for_processed(caplog, db):
     """Log 'outbox_event_processed' porte tous les champs extra attendus (NFR37)."""
     caplog.set_level(logging.INFO, logger="app.core.outbox.worker")
     event = _make_event()
-    await _process_single_event(db=None, event=event)  # type: ignore[arg-type]
+    await _process_single_event(db=db, event=event)
 
     processed_records = [
         r for r in caplog.records
@@ -64,11 +80,11 @@ async def test_log_structure_contains_all_expected_keys_for_processed(caplog):
         assert hasattr(record, key), f"clé manquante dans log extra: {key}"
 
 
-async def test_log_structure_unknown_handler(caplog):
+async def test_log_structure_unknown_handler(caplog, db):
     """Log 'outbox_event_unknown_handler' marqué ERROR + metric dédié."""
     caplog.set_level(logging.INFO, logger="app.core.outbox.worker")
     event = _make_event(event_type="unregistered.event")
-    await _process_single_event(db=None, event=event)  # type: ignore[arg-type]
+    await _process_single_event(db=db, event=event)
 
     records = [
         r for r in caplog.records
@@ -81,11 +97,11 @@ async def test_log_structure_unknown_handler(caplog):
     assert "unregistered.event" in records[0].error_message
 
 
-async def test_log_does_not_contain_payload_values(caplog):
+async def test_log_does_not_contain_payload_values(caplog, db):
     """NFR18 — le payload entier n'est jamais dans le log (seulement payload_keys)."""
     caplog.set_level(logging.INFO, logger="app.core.outbox.worker")
     event = _make_event()
-    await _process_single_event(db=None, event=event)  # type: ignore[arg-type]
+    await _process_single_event(db=db, event=event)
 
     for record in caplog.records:
         # Aucune valeur PII dans les attributs du record.

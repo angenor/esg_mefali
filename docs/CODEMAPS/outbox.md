@@ -99,14 +99,32 @@ réplica a son scheduler ; `FOR UPDATE SKIP LOCKED` garantit qu'un event
 verrouillé par A est skippé par B (pas bloqué). Le verrou est libéré au commit
 final.
 
-**Retry exponentiel** — `BACKOFF_SCHEDULE = (30, 120, 600)` secondes. Sur
-échec du handler :
+**Isolation handler (SAVEPOINT par event)** — chaque event est dispatché dans
+un `async with db.begin_nested():` (SAVEPOINT). Si le handler écrit du SQL
+partiel puis `raise`, le worker lève `_SavepointRollbackSignal` dans le
+contexte pour forcer `ROLLBACK TO SAVEPOINT` : les écritures sont annulées,
+la session parent reste saine, les events suivants du batch sont traités
+normalement. Sans ce pattern, un handler qui `raise` après un `db.execute(...)`
+laisserait la session en `PendingRollback` → `commit()` final échoue → tous
+les events du batch restent `pending` avec `retry_count=0` → hot-loop. Pattern
+HIGH-10.10-1 (correctif post-review).
 
-1. `retry_count += 1`, `error_message = f"{ExceptionType}: {msg}"[:500]`.
-2. Si `retry_count < MAX_RETRIES` (3) → `next_retry_at = now() +
-   BACKOFF_SCHEDULE[retry_count - 1]`, `status` reste `pending`.
-3. Si `retry_count >= MAX_RETRIES` → `status = 'failed'`, `processed_at = now()`,
-   sort de l'index partiel. Consultable via `SELECT ... WHERE status='failed'`.
+**Retry exponentiel** — `BACKOFF_SCHEDULE = (30, 120, 600)` secondes,
+`MAX_RETRIES = 3` (architecture §D11 : 3 retries après la tentative initiale
+= 4 tentatives totales). Invariant `len(BACKOFF_SCHEDULE) == MAX_RETRIES`
+(assert au module).
+
+| Tentative | `retry_count` après échec | Action                                          |
+| --------- | ------------------------- | ----------------------------------------------- |
+| 1 (init)  | 1                         | `next_retry_at = now() + 30s`   (BACKOFF[0])    |
+| 2 (retry) | 2                         | `next_retry_at = now() + 120s`  (BACKOFF[1])    |
+| 3 (retry) | 3                         | `next_retry_at = now() + 600s`  (BACKOFF[2])    |
+| 4 (retry) | 4                         | `status='failed'`, `processed_at=now()` (dead-letter) |
+
+Sur chaque échec : `retry_count += 1`, `error_message =
+f"{ExceptionType}: {msg}"[:500]`.
+Dead-letter quand `retry_count > MAX_RETRIES` — l'event sort du filtre
+`processed_at IS NULL`, consultable via `SELECT ... WHERE status='failed'`.
 
 **Configuration** (Settings Pydantic, Story 10.10 AC6) :
 
@@ -185,6 +203,11 @@ Un `event_type` dupliqué provoque un **fail-at-import** via
 10. **Session pool leak** : toujours `async with AsyncSession(engine) as db:`
     (garantit release en `__aexit__`). Une session non fermée tient un slot
     du connection pool → épuisement sous charge.
+11. **Handler qui écrit puis `raise` sans savepoint** : sans le `begin_nested`
+    autour du dispatch, une écriture SQL partielle laisse la session en
+    `PendingRollback` → tous les events du batch restent `pending` →
+    hot-loop. Correctif HIGH-10.10-1 : dispatch systématiquement dans un
+    savepoint, rollback signalé via `_SavepointRollbackSignal`.
 
 ---
 
