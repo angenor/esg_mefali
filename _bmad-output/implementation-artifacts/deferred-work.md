@@ -1,5 +1,19 @@
 # Deferred Work
 
+## Deferred from: story 10.13 — dev-story discovery (2026-04-21)
+
+- **HIGH-10.13-1 — Re-bench 5 tools canoniques Phase 1 post-Epic 13** — Le bench Story 10.13 Livrable B utilise 5 **proxies Phase 0** (Spec 005/006/008/011) car les tools canoniques (`query_cube_4d` cube 4D, `derive_verdicts_multi_ref` ESG 3 couches, `generate_formalization_plan` Aminata niveau 0 Copilot) ne sont pas livrés MVP. Cible Epic 13.X Phase 1. Re-bench à conduire quand les tools canoniques émergent pour confirmer/ajuster la recommandation provider primaire. Coût remédiation : ~3-4h (exécution bench 150 samples + rédaction report update).
+
+- **HIGH-10.13-2 — Migrer Fund embeddings vers VoyageEmbeddingProvider** — `backend/app/modules/financing/seed.py:851` et `backend/app/modules/financing/service.py:170` instancient encore `OpenAIEmbeddings(model="text-embedding-3-small")` directement, hors scope 10.13 MVP (focalisé `document_chunks`). Le scan règle 10.5 `rg "OpenAIEmbeddings("` hors `app/core/embeddings/` retourne ces 2 hits. Cible Phase 1 Story 13.X ou Story 20.X cleanup : migrer vers `get_embedding_provider()` + ajouter colonne `funds.embedding_vec_v2 Vector(1024)` (migration Alembic 033). Coût : 1-2h.
+
+- **MEDIUM-10.13-1 — Wiring `LLMProvider` abstraction dans les 8 nœuds LangGraph** — `backend/app/graph/nodes.py:328` `get_llm()` instantie encore `ChatOpenAI` direct. L'abstraction `LLMProvider` + factory `get_llm_provider()` est livrée Story 10.13 AC10 mais le shim `get_llm()` n'est pas encore branché pour déléguer à `get_llm_provider().get_chat_llm()`. Déféré 10.13b (si split adopté) ou Story 13.X Phase 1. Coût : 30 min + tests.
+
+- **MEDIUM-10.13-2 — Migration 032 drop colonne v1 `embedding vector(1536)`** — Coexistence v1+v2 Q2 tranchée garantit rollback non-destructif. Post-validation qualité prod ≥ 3 mois, migration 032 dédiée droppera `embedding`, droppera `ix_document_chunks_embedding_hnsw`, renommera `embedding_vec_v2 → embedding`. Cible Story 20.X Phase 1. Coût : 30 min.
+
+- **MEDIUM-10.13-3 — Exécution effective du bench 150 échantillons** — Story 10.13 Livrable B livre l'infrastructure bench mais **n'exécute pas** le bench live. Dev lead local doit faire tourner `BENCH_LLM_CHECK=1 + ANTHROPIC_API_KEY + OPENROUTER_API_KEY python scripts/bench_llm_providers.py` pour remplir les tables `_tbd_` de `docs/bench-llm-providers-phase0.md` §3-4 et hardcoder le winner dans `Settings.llm_provider` default. Cible Sprint 1 kickoff. Coût : 1h.
+
+- **LOW-10.13-1 — Coverage `openai.py` 46 %** — chemins `_get_client()` lazy init + `aembed_documents` non-testés (nécessitent mock LangChain profond). Acceptable MVP (legacy fallback), à augmenter si openai.py devient plus utilisé. Cible opportuniste drive-by.
+
 ## Deferred from: code review of story-10.12 (2026-04-21)
 
 - **MEDIUM-10.12-4 — Signature `record_audit_event` typée Enum mais accepte `str` par duck-typing** — [backend/app/modules/admin_catalogue/service.py:122-158] La signature déclare `action: CatalogueActionEnum` / `workflow_level: WorkflowLevelEnum`, mais le body normalise `isinstance(...) else str(action)`. Fonctionnel mais divergence type hint / comportement. **Cible Epic 13 S1** : les premiers callers typés Enum trancheront entre (A) élargir signature publique à `CatalogueActionEnum | str`, (B) convertir `CatalogueActionEnum(action_str)` côté router et garder service typé Enum strict. Coût remédiation : 5-10 min.
