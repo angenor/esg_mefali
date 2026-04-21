@@ -96,6 +96,7 @@ function handlePublish(): void {
     <div
       v-else-if="isPublished"
       role="status"
+      aria-live="polite"
       class="mt-4 rounded border border-brand-green/30 bg-brand-green/10 p-3 text-sm text-verdict-pass"
     >
       Migration publiee.

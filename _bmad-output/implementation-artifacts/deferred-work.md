@@ -1,5 +1,28 @@
 # Deferred Work
 
+## Deferred from: code review of story-10.14 (2026-04-21)
+
+- **LOW-10.14-6 — CI `storybook:test` divergent du spec AC5** — [.github/workflows/storybook.yml:62-68] La CI lance `http-server` + `wait-on` + `test-storybook --url http://127.0.0.1:6006` alors que le spec AC5 prévoyait `test-storybook -- --ci --url file://…`. Le pattern `file://` crashe sur certaines ressources relatives Vite build, donc http-server est plus robuste. **Décision** : défer — modification > 15 min (documenter rationale, mettre à jour spec, valider CI sur PR test). **Cible drive-by** Story 10.15 quand ajout step CI `ui/Button`. Coût estimé : 15-20 min.
+- **INFO-10.14-1 — Flaky pré-existant `useGuidedTour.resilience`** — [frontend/tests/composables/useGuidedTour.resilience.test.ts:362] Test « emits one message per skipped step when multiple steps are absent » échoue ~50% du temps (async timing). **Hors scope 10.14** (pré-existant Story 7.1). À traiter par une mini-story « stabilisation useGuidedTour » ou drive-by Epic 12 (UI). Filet : test ne bloque pas la CI car isolé dans sa suite.
+- **INFO-10.14-2 — Pattern UX Patterns Dialog/Drawer/Popover capitalisé** — codemap `docs/CODEMAPS/storybook.md` §UX Patterns documente la règle de décision ARIA role selon bloquant/parallèle. Réutilisable Stories 10.15-10.21 (`ui/Dialog`, `ui/Drawer`, `ui/Popover`). Pas de travail déféré, juste trace méthodologique.
+
+## Resolved in Story 10.14 code-review patches (2026-04-21)
+
+- ✅ **HIGH-10.14-1 — Phantom dep `@storybook/test`** : déclaré explicitement dans `frontend/package.json:devDependencies` `^8.6.18`. Plus de dépendance transitive fragile via `@storybook/addon-interactions`.
+- ✅ **HIGH-10.14-2 — `SourceCitationDrawer` role drawer complementary** : refactor de `DialogRoot`/`DialogContent` vers `<Teleport to="body"><aside role="complementary" aria-label="Sources documentaires">` avec `ScrollAreaRoot` Reka UI, bouton fermeture explicite, Escape key bonus (listener `document.keydown` opt-in, pas focus trap). Doc UX Patterns ajoutée codemap §UX Patterns. Stories mises à jour (`OpenWithLongContent`). 4 tests Vitest nouveaux (role assert, pas aria-modal, v-if closed, Escape émet close).
+- ✅ **MEDIUM-10.14-1 — Tests rendu SignatureModal/SourceCitationDrawer dégradés** : assertions DOM réelles ajoutées (`document.body.querySelector('[role="dialog"]')` + `aria-modal`, `aria-labelledby`). 9 tests `test_each_component_renders` (vs 7).
+- ✅ **MEDIUM-10.14-2 — Duplication tokens verdict ≡ brand** : Option B découplage. `verdict-pass/fail/reported` = Tailwind 600 (emerald-600 `#059669`, red-600 `#DC2626`, amber-600 `#D97706`), brand-* reste 500. Commentaire explicatif `main.css`. Rationale : un rebrand ne doit pas modifier la perception sémantique pass/fail. Scan `test_no_hex_hardcoded` toujours vert (tokens @theme only).
+- ✅ **MEDIUM-10.14-3 — A11y runtime non prouvé localement** : couverture jest-axe étendue à SignatureModal + SourceCitationDrawer (6 tests a11y vs 4). `nextTick` ×2 après mount pour laisser Teleport matérialiser. 0 violation WCAG AA confirmée en Vitest + addon-a11y CI runtime.
+- ✅ **MEDIUM-10.14-4 — CI sans tsc --noEmit stories** : step `Type-check Storybook stories` ajouté dans `.github/workflows/storybook.yml` avant `storybook:build`. TS strict AC2 enforcé sur `.storybook/**/*.ts` + stories.
+- ✅ **MEDIUM-10.14-5 — Upgrade path reka-ui 3.0 non documenté** : section « Upgrade strategy » ajoutée `docs/CODEMAPS/storybook.md` avec table primitives utilisées × breaking à surveiller, procédure step-by-step upgrade Reka 3.0 + Storybook 9.
+- ✅ **LOW-10.14-1 — Commentaire viteFinal `.storybook/main.ts`** : rationale pivot `@vitejs/plugin-vue` inline devant `viteFinal` + lien codemap §5.
+- ✅ **LOW-10.14-2 — Hex hardcodés preview.ts backgrounds** : commentaires inline `// === var(--color-surface-bg)` et `// === var(--color-surface-dark-bg)` pour garantir synchro lors d'un rebrand (Storybook backgrounds n'évaluent pas les CSS vars dans l'iframe).
+- ✅ **LOW-10.14-3 — `:disabled` + `:aria-disabled` redondant** : `SectionReviewCheckpoint.vue:112` — `:aria-disabled` retiré, `disabled` HTML natif suffit.
+- ✅ **LOW-10.14-4 — Touch target `SgesBetaBanner` bouton** : `py-1` → `py-2 min-h-[44px]` pour respecter cible mobile WCAG.
+- ✅ **LOW-10.14-5 — `aria-live` manquant `ImpactProjectionPanel` published** : ajouté `aria-live="polite"` sur bloc `role="status"` état publié pour annonce lecteur d'écran.
+
+**Baseline frontend patches round 1** : tests gravity 23 → **26 passed** (+3 : 4 drawer tests - 1 remplacé). Full baseline `vitest --run` : 383 passed + 1 flaky pré-existant (`useGuidedTour.resilience`, INFO-10.14-1). Zéro régression sur 60 composants brownfield. Stories runtime : 37 + 1 (`OpenWithLongContent`) = 38.
+
 ## Deferred from: story 10.13 — dev-story discovery (2026-04-21)
 
 - **HIGH-10.13-1 — Re-bench 5 tools canoniques Phase 1 post-Epic 13** — Le bench Story 10.13 Livrable B utilise 5 **proxies Phase 0** (Spec 005/006/008/011) car les tools canoniques (`query_cube_4d` cube 4D, `derive_verdicts_multi_ref` ESG 3 couches, `generate_formalization_plan` Aminata niveau 0 Copilot) ne sont pas livrés MVP. Cible Epic 13.X Phase 1. Re-bench à conduire quand les tools canoniques émergent pour confirmer/ajuster la recommandation provider primaire. Coût remédiation : ~3-4h (exécution bench 150 samples + rédaction report update).

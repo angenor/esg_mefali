@@ -66,7 +66,7 @@ function handleRequest(): void {
     <button
       v-if="isPending"
       type="button"
-      class="rounded border border-current px-3 py-1 text-xs font-medium hover:bg-white/50 dark:hover:bg-black/30"
+      class="min-h-[44px] rounded border border-current px-3 py-2 text-xs font-medium hover:bg-white/50 dark:hover:bg-black/30"
       @click="handleRequest"
     >
       Demander la revue

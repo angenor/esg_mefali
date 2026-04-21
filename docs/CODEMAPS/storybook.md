@@ -158,6 +158,41 @@ npm run storybook:test    # tests addon-a11y + play functions (Chromium requis)
 
 ---
 
+### UX Patterns — Dialog vs Drawer vs Popover
+
+| Pattern | Rôle ARIA | `aria-modal` | Focus trap | Escape ferme | Exemple |
+|---------|-----------|--------------|------------|--------------|---------|
+| **Dialog modal** | `role="dialog"` | `"true"` | **Oui** (Reka UI natif) | Obligatoire | `SignatureModal` (signature cryptographique, action critique bloquante) |
+| **Drawer (side panel)** | `role="complementary"` + `aria-label` | **Absent** | **Non** (consultation parallèle) | Bonus (UX attendue, pas imposé par ARIA) | `SourceCitationDrawer` (consultation sources RAG) |
+| **Popover (hover / click)** | `role="dialog"` non-modal ou `role="tooltip"` | `"false"` ou absent | Non | Oui pour dialog non-modal | Futur `ui/Popover` (Story 10.18) |
+
+**Règle de décision** : un composant est-il **bloquant pour l'utilisateur** (doit terminer l'action avant de revenir au contenu principal) ? Oui → Dialog modal. Non → Drawer/Popover. Cette discipline évite les verrouillages de focus intempestifs dénoncés par les utilisateurs de lecteurs d'écran (cf. review 10.14 HIGH-2).
+
+### Upgrade strategy — primitives Reka UI
+
+Primitives utilisées dans les 6 squelettes (pin `^2.9.x`) :
+
+| Composant | Primitives Reka UI 2.9 | Surveiller en 3.0 |
+|-----------|------------------------|-------------------|
+| `SignatureModal` | `DialogRoot`, `DialogPortal`, `DialogOverlay`, `DialogContent`, `DialogTitle`, `DialogDescription` | Breaking sur portail / focus trap / API `@update:open`. |
+| `SourceCitationDrawer` | `ScrollAreaRoot`, `ScrollAreaViewport`, `ScrollAreaScrollbar`, `ScrollAreaThumb` (+ `Teleport` natif Vue) | API ScrollArea (rare breaking historique). |
+| `ReferentialComparisonView` | `TabsRoot`, `TabsList`, `TabsTrigger`, `TabsContent` | API Tabs (stable depuis 2.0). |
+| `ImpactProjectionPanel` | `ScrollAreaRoot` et enfants | cf. drawer. |
+| `SectionReviewCheckpoint` | — (HTML natif `fieldset`/`input[checkbox]`) | — |
+| `SgesBetaBanner` | — | — |
+
+**Procédure upgrade Reka 3.0 (quand publié)** :
+1. Lire `reka-ui/CHANGELOG.md` et filtrer par primitives listées ci-dessus.
+2. Créer branche `chore/reka-ui-3-upgrade` → `npm install reka-ui@3`.
+3. `npm run storybook:build` + `npm run storybook:test` — la CI détecte les régressions API.
+4. `npm run test` — les tests Vitest `test_each_component_renders` + `test_a11y_axe` sont les filets.
+5. Revue visuelle Storybook manuelle : 37 stories × 2 thèmes (light/dark).
+
+**Procédure upgrade Storybook 9** (résout `--legacy-peer-deps` Vite 6) :
+1. `npx storybook@latest upgrade` — génère un rapport de migrations auto.
+2. Vérifier que `viteFinal` + `@vitejs/plugin-vue` reste requis (possiblement corrigé).
+3. Tester `npm ci` sans `--legacy-peer-deps` — si OK, retirer le flag de `storybook.yml` + README.
+
 ### Décisions verrouillées pré-dev (Q1–Q5)
 
 | # | Question | Décision | Rationale |

@@ -138,7 +138,7 @@ development_status:
   10-11-sourcing-documentaire-annexe-f-ci: done
   10-12-audit-trail-catalogue: done
   10-13-migration-embeddings-voyage-api: done
-  10-14-setup-storybook-6-stories: review
+  10-14-setup-storybook-6-stories: done
   10-15-ui-button-4-variantes: backlog
   10-16-ui-input-textarea-select: backlog
   10-17-ui-badge-tokens-semantiques: backlog

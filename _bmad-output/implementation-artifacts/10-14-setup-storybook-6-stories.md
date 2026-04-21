@@ -1,6 +1,6 @@
 # Story 10.14 : Setup Storybook partiel + 6 stories à gravité (SignatureModal, SourceCitationDrawer, ReferentialComparisonView, ImpactProjectionPanel, SectionReviewCheckpoint, SgesBetaBanner)
 
-Status: review
+Status: done
 
 > **Contexte** : 16ᵉ story Phase 4 et **première story UI Foundation** après 15 stories backend/infra. Bascule explicite **Phase 0 infra → UI** (10.14 → 10.21). Sizing **L** (~2–3 h) selon sprint-plan v2. Cette story pose le socle documentaire (Storybook 8 + addons `a11y` + `interactions`) + **6 squelettes Vue 3 TypeScript strict** pour les composants à gravité juridique/émotionnelle maximale — la logique métier (FR40/FR41/FR44/FR26) est intentionnellement hors scope, déléguée aux Epic 11-15.
 >

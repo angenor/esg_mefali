@@ -19,15 +19,19 @@
   --color-dark-hover: #374151;
   --color-dark-input: #1F2937;
 
-  /* === Verdicts ESG (Q21 strict MVP, Step 8 ligne 790-797) === */
-  --color-verdict-pass:          #10B981;
-  --color-verdict-pass-soft:     #D1FAE5;
-  --color-verdict-fail:          #EF4444;
-  --color-verdict-fail-soft:     #FEE2E2;
-  --color-verdict-reported:      #F59E0B;
-  --color-verdict-reported-soft: #FEF3C7;
-  --color-verdict-na:            #9CA3AF;
-  --color-verdict-na-soft:       #F3F4F6;
+  /* === Verdicts ESG (Q21 strict MVP, Step 8 ligne 790-797) ===
+   * Decouplage delibere de brand-* (UX Step 8 Q21) :
+   * verdict-* = Tailwind 600 (semantique saturee), brand-* = 500 (visuel marque).
+   * Un rebrand ne doit PAS modifier la perception pass/fail/reported.
+   */
+  --color-verdict-pass:          #059669; /* emerald-600 */
+  --color-verdict-pass-soft:     #D1FAE5; /* emerald-100 */
+  --color-verdict-fail:          #DC2626; /* red-600 */
+  --color-verdict-fail-soft:     #FEE2E2; /* red-100 */
+  --color-verdict-reported:      #D97706; /* amber-600 */
+  --color-verdict-reported-soft: #FEF3C7; /* amber-100 */
+  --color-verdict-na:            #6B7280; /* gray-500 */
+  --color-verdict-na-soft:       #F3F4F6; /* gray-100 */
 
   /* === Lifecycle FundApplication (FR32, Step 8 ligne 800-808) === */
   --color-fa-draft:             #9CA3AF;

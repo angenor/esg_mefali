@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Type-check Storybook stories (TS strict AC2)
+        run: npx tsc -p .storybook/tsconfig.json --noEmit
+
       - name: Install Playwright Chromium (test-storybook requirement)
         run: npx playwright install --with-deps chromium
 

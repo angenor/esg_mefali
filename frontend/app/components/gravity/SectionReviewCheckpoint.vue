@@ -109,7 +109,6 @@ function onToggle(sectionId: string): void {
         type="button"
         class="rounded bg-brand-green px-3 py-2 text-sm text-white disabled:opacity-50"
         :disabled="!canExport"
-        :aria-disabled="!canExport"
         :aria-busy="isExporting"
         @click="emit('export')"
       >

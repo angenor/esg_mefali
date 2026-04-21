@@ -31,9 +31,13 @@ const preview: Preview = {
   parameters: {
     backgrounds: {
       default: 'light',
+      // Valeurs alignees sur tokens @theme surface-bg / surface-dark-bg (main.css).
+      // Storybook backgrounds n'evalue pas les CSS vars au runtime (rendu via iframe
+      // pre-injection) donc on duplique ici les memes hex que les tokens, et un
+      // commentaire garantit la synchronisation lors d'un rebrand futur.
       values: [
-        { name: 'light', value: '#F9FAFB' },
-        { name: 'dark', value: '#111827' },
+        { name: 'light', value: '#F9FAFB' }, // === var(--color-surface-bg)
+        { name: 'dark', value: '#111827' },  // === var(--color-surface-dark-bg)
       ],
     },
     a11y: {
