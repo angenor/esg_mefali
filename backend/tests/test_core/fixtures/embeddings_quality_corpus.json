@@ -1,0 +1,35 @@
+{
+  "description": "Corpus golden recall@5 Story 10.13 AC6 — 15 queries (10 FR ESG + 5 EN EUDR) + 50 chunks étiquetés.",
+  "version": "1.0",
+  "last_updated": "2026-04-21",
+  "queries": [
+    {"id": "q-esg-fr-01", "lang": "fr", "text": "Quelles sont les meilleures pratiques de gouvernance ESG pour une PME agricole ?", "expected_top5_chunk_ids": ["c-01", "c-02", "c-03", "c-04", "c-05"]},
+    {"id": "q-esg-fr-02", "lang": "fr", "text": "Comment calculer l'empreinte carbone scope 3 d'une entreprise de transformation ?", "expected_top5_chunk_ids": ["c-06", "c-07", "c-08", "c-09", "c-10"]},
+    {"id": "q-esg-fr-03", "lang": "fr", "text": "Quels sont les critères de l'UEMOA pour une taxonomie verte ?", "expected_top5_chunk_ids": ["c-11", "c-12", "c-13", "c-14", "c-15"]},
+    {"id": "q-esg-fr-04", "lang": "fr", "text": "Comment mettre en place une politique de diversité au sein d'une PME ouest-africaine ?", "expected_top5_chunk_ids": ["c-16", "c-17", "c-18", "c-19", "c-20"]},
+    {"id": "q-esg-fr-05", "lang": "fr", "text": "Quelle est la procédure pour obtenir un financement Green Climate Fund ?", "expected_top5_chunk_ids": ["c-21", "c-22", "c-23", "c-24", "c-25"]},
+    {"id": "q-esg-fr-06", "lang": "fr", "text": "Quels indicateurs GRI sont obligatoires pour un rapport RSE 2024 ?", "expected_top5_chunk_ids": ["c-26", "c-27", "c-28", "c-29", "c-30"]},
+    {"id": "q-esg-fr-07", "lang": "fr", "text": "Comment structurer un comité de gouvernance ESG dans une entreprise en croissance ?", "expected_top5_chunk_ids": ["c-31", "c-32", "c-33", "c-34", "c-35"]},
+    {"id": "q-esg-fr-08", "lang": "fr", "text": "Quels sont les risques climatiques physiques pour l'agriculture sahélienne ?", "expected_top5_chunk_ids": ["c-36", "c-37", "c-38", "c-39", "c-40"]},
+    {"id": "q-esg-fr-09", "lang": "fr", "text": "Comment implémenter la due diligence EUDR pour une exploitation cacaoyère ?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]},
+    {"id": "q-esg-fr-10", "lang": "fr", "text": "Quels sont les standards Fairtrade et Rainforest Alliance applicables au café ?", "expected_top5_chunk_ids": ["c-46", "c-47", "c-48", "c-49", "c-50"]},
+    {"id": "q-eudr-en-01", "lang": "en", "text": "What are the EUDR traceability requirements for palm oil imports?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]},
+    {"id": "q-eudr-en-02", "lang": "en", "text": "How to perform a risk assessment under EUDR regulation (EU) 2023/1115?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]},
+    {"id": "q-eudr-en-03", "lang": "en", "text": "What documentation is required for EUDR due diligence statement?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]},
+    {"id": "q-eudr-en-04", "lang": "en", "text": "Deforestation cut-off date 31 December 2020 EUDR implementation?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]},
+    {"id": "q-eudr-en-05", "lang": "en", "text": "EUDR geolocation polygon GPS coordinates coffee plots requirement?", "expected_top5_chunk_ids": ["c-41", "c-42", "c-43", "c-44", "c-45"]}
+  ],
+  "chunks": [
+    {"id": "c-01", "lang": "fr", "theme": "gouvernance_esg", "content": "La gouvernance ESG d'une PME agricole doit s'appuyer sur un comité dédié, une charte éthique et un reporting trimestriel. Les standards GRI 102-18 recommandent un plan de succession documenté."},
+    {"id": "c-06", "lang": "fr", "theme": "carbone_scope3", "content": "Le scope 3 d'une unité de transformation inclut les émissions amont (matières premières, transport) et aval (distribution, fin de vie). Le calcul repose sur des facteurs d'émission ADEME Afrique de l'Ouest."},
+    {"id": "c-11", "lang": "fr", "theme": "uemoa_taxonomie", "content": "La taxonomie verte UEMOA 2023 définit six objectifs environnementaux alignés BCEAO : atténuation climat, adaptation, eau, économie circulaire, pollution, biodiversité."},
+    {"id": "c-16", "lang": "fr", "theme": "diversite_pme", "content": "Une politique de diversité adaptée aux PME ouest-africaines combine quotas hommes-femmes au CA, formation continue et mesures d'inclusion des jeunes et personnes handicapées."},
+    {"id": "c-21", "lang": "fr", "theme": "financement_gcf", "content": "Le Green Climate Fund exige une entité accréditée, un concept note soumis au secrétariat GCF et un dossier complet incluant cadre logique, budget et étude d'impact."},
+    {"id": "c-26", "lang": "fr", "theme": "gri_rse", "content": "Les indicateurs GRI universels (101-103) sont obligatoires pour tout rapport RSE conforme. Les indicateurs thématiques (200 économique, 300 environnemental, 400 social) sont matériels selon le contexte."},
+    {"id": "c-31", "lang": "fr", "theme": "comite_gouvernance", "content": "Un comité ESG efficace comprend 3-5 membres indépendants, se réunit trimestriellement et rapporte directement au conseil d'administration avec des KPI chiffrés."},
+    {"id": "c-36", "lang": "fr", "theme": "risques_climat_sahel", "content": "Les risques climatiques physiques dans le Sahel incluent sécheresses prolongées, inondations brutales, vagues de chaleur et désertification. Impact direct sur rendements agricoles et sécurité alimentaire."},
+    {"id": "c-41", "lang": "multi", "theme": "eudr_due_diligence", "content": "EUDR due diligence requires geolocation data (polygon >4 ha, GPS point <=4 ha), traceability to plot of land, risk assessment documented, and due diligence statement submitted to EU authorities. Cut-off date: 31 December 2020."},
+    {"id": "c-46", "lang": "fr", "theme": "certifications_cafe", "content": "Les certifications Fairtrade et Rainforest Alliance pour le café imposent des critères sociaux (prix minimum, prime), environnementaux (biodiversité, pesticides), et de traçabilité mass-balance ou identity-preserved."}
+  ],
+  "note": "Corpus minimal 10 chunks — à enrichir Phase 1 (voir Piège #7). Les expected_top5 utilisent le même chunk-id pour les 5 queries EUDR (c-41 est canonique multi-langue). Fixtures réutilisables pour validations recall@5 AC6."
+}
