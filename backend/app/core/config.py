@@ -179,6 +179,16 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_base_url: str = Field(default="https://api.anthropic.com/v1")
 
+    # --- LLM Provider abstraction (Story 10.13 AC10) ---
+    # Default MVP avant-bench = ``openrouter`` (comportement historique).
+    # Post-bench R-04-1, le winner sera hardcodé ici (voir docs/bench-...).
+    llm_provider: str = Field(
+        default="openrouter", pattern="^(openrouter|anthropic_direct)$"
+    )
+    llm_fallback_provider: str = Field(
+        default="openrouter", pattern="^(openrouter|anthropic_direct)$"
+    )
+
     @field_validator("aws_region")
     @classmethod
     def _validate_eu_region(cls, v: str) -> str:
