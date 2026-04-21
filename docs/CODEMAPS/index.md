@@ -6,6 +6,7 @@ backend réutilisable (abstraction, gate, migration, extension schéma) avec
 
 ## Pages
 
+- [audit-trail.md](./audit-trail.md) — D6 audit immuable catalogue, endpoint consultation + export CSV (Story 10.12).
 - [data-model-extension.md](./data-model-extension.md) — Extension du schéma BDD (Story 10.1 chaîne migrations 020–027).
 - [feature-flags.md](./feature-flags.md) — Feature flag `ENABLE_PROJECT_MODEL` + pattern « ajouter un flag » (Story 10.9).
 - [outbox.md](./outbox.md) — Micro-Outbox `domain_events` + worker APScheduler SKIP LOCKED (Story 10.10).
