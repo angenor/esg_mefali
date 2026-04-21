@@ -1,0 +1,7 @@
+{
+  "urls": [
+    {"url": "https://example.test/ok", "table": "sources"},
+    {"url": "https://example.test/missing", "table": "funds"},
+    {"url": "https://example.test/slow", "table": "intermediaries"}
+  ]
+}

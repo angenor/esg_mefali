@@ -15,5 +15,9 @@ moto[s3]>=5.0,<6.0
 # HCL parsing (Story 10.7 — tests IAM policies Terraform)
 python-hcl2>=4.3,<5
 
+# Mock HTTP + JSON Schema validation (Story 10.11)
+respx>=0.22,<1.0
+jsonschema>=4.21,<5
+
 # Linting
 ruff>=0.8.0
