@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@storybook/vue3", "node"]
+  },
+  "include": ["./**/*.ts", "../app/components/gravity/**/*.stories.ts"]
+}

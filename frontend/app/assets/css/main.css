@@ -18,6 +18,32 @@
   --color-dark-border: #374151;
   --color-dark-hover: #374151;
   --color-dark-input: #1F2937;
+
+  /* === Verdicts ESG (Q21 strict MVP, Step 8 ligne 790-797) === */
+  --color-verdict-pass:          #10B981;
+  --color-verdict-pass-soft:     #D1FAE5;
+  --color-verdict-fail:          #EF4444;
+  --color-verdict-fail-soft:     #FEE2E2;
+  --color-verdict-reported:      #F59E0B;
+  --color-verdict-reported-soft: #FEF3C7;
+  --color-verdict-na:            #9CA3AF;
+  --color-verdict-na-soft:       #F3F4F6;
+
+  /* === Lifecycle FundApplication (FR32, Step 8 ligne 800-808) === */
+  --color-fa-draft:             #9CA3AF;
+  --color-fa-snapshot-frozen:   #3B82F6;
+  --color-fa-signed:            #8B5CF6;
+  --color-fa-exported:          #F59E0B;
+  --color-fa-submitted:         #06B6D4;
+  --color-fa-in-review:         #EAB308;
+  --color-fa-accepted:          #10B981;
+  --color-fa-rejected:          #EF4444;
+  --color-fa-withdrawn:         #6B7280;
+
+  /* === Criticité admin (Step 8 ligne 811-813) === */
+  --color-admin-n1:             #10B981;
+  --color-admin-n2:             #F59E0B;
+  --color-admin-n3:             #EF4444;
 }
 
 /* === Driver.js overrides === */
