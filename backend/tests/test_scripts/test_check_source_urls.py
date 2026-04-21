@@ -162,25 +162,39 @@ def test_ssl_error_returns_status_ssl_error() -> None:
 
 @pytest.mark.unit
 @respx.mock
-def test_http_status_error_categorized_as_not_found() -> None:
-    """httpx.HTTPStatusError 404 → status `not_found` (branche exc dedicated)."""
+def test_rate_limit_429_mapped_to_server_error() -> None:
+    """HTTP 429 (rate-limit) → status `server_error` (mapping CODEMAPS §2).
 
-    url = "https://example.test/http-error"
+    MEDIUM-10.11-5 : 429 doit être catégorisé `server_error` pour que
+    `suggested_action = admin_check_mirror` soit cohérent.
+    """
 
-    async def _raise_http_status(request):
-        fake_response = httpx.Response(
-            404, request=request, content=b""
-        )
-        raise httpx.HTTPStatusError(
-            "404", request=request, response=fake_response
-        )
-
-    respx.head(url).mock(side_effect=_raise_http_status)
+    url = "https://ratelimited.test/"
+    respx.head(url).mock(return_value=httpx.Response(429))
 
     result = _run(_call_check_one(url))
 
-    assert result["status"] == "not_found"
-    assert result["http_code"] == 404
+    assert result["status"] == "server_error"
+    assert result["http_code"] == 429
+    assert result["suggested_action"] == "admin_check_mirror"
+
+
+@pytest.mark.unit
+@respx.mock
+def test_auth_401_mapped_to_server_error() -> None:
+    """HTTP 401 → status `server_error` (Sedex/EcoVadis-like portails auth).
+
+    MEDIUM-10.11-1 : 401/403 mappés comme auth-required (server_error +
+    admin_check_mirror) au lieu de tomber en `other_error`.
+    """
+
+    url = "https://auth.test/"
+    respx.head(url).mock(return_value=httpx.Response(401))
+
+    result = _run(_call_check_one(url))
+
+    assert result["status"] == "server_error"
+    assert result["http_code"] == 401
 
 
 @pytest.mark.unit

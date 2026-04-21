@@ -20,33 +20,51 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-BACKEND_APP = Path(__file__).resolve().parents[3] / "app"
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
+BACKEND_APP = BACKEND_ROOT / "app"
+BACKEND_ALEMBIC = BACKEND_ROOT / "alembic" / "versions"
+BACKEND_SCRIPTS = BACKEND_ROOT / "scripts"
+
 WRITER_PATH = BACKEND_APP / "core" / "outbox" / "writer.py"
 MODEL_PATH = BACKEND_APP / "models" / "domain_event.py"
 
 _INSERT_PATTERN = re.compile(r"\bINSERT\s+INTO\s+domain_events\b", re.IGNORECASE)
+
+# LOW-10.11-21 : scope élargi à `alembic/versions/` et `backend/scripts/` —
+# un backfill SQL one-shot dans une migration ou un script ops ne doit pas
+# échapper au garde-fou.
+_SCAN_ROOTS: tuple[Path, ...] = (
+    BACKEND_APP,
+    BACKEND_ALEMBIC,
+    BACKEND_SCRIPTS,
+)
 
 
 def test_writer_is_single_source_of_truth_for_insert_into_domain_events() -> None:
     """Le littéral `INSERT INTO domain_events` doit vivre uniquement dans
     `writer.py`, en excluant explicitement le modèle ORM `models/domain_event.py`
     (exclusion documentée — INFO-10.10-2).
+
+    LOW-10.11-21 : scanne aussi `alembic/versions/` + `backend/scripts/`.
     """
 
     hits: list[Path] = []
-    for path in BACKEND_APP.rglob("*.py"):
-        if "__pycache__" in path.parts:
+    for root in _SCAN_ROOTS:
+        if not root.exists():
             continue
-        if path == MODEL_PATH:
-            # Exclusion explicite : le modèle ORM peut contenir
-            # "domain_events" via __tablename__ ou metadata.
-            continue
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _INSERT_PATTERN.search(content):
-            hits.append(path)
+        for path in root.rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            if path == MODEL_PATH:
+                # Exclusion explicite : le modèle ORM peut contenir
+                # "domain_events" via __tablename__ ou metadata.
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if _INSERT_PATTERN.search(content):
+                hits.append(path)
 
     # Strictement 0 ou 1 hit, et s'il y en a 1 il DOIT être writer.py.
     # Aujourd'hui le writer utilise l'ORM (`session.add(event)`) et non

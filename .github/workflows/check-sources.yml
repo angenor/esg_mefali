@@ -7,6 +7,8 @@
 # Alerting  : issue GitHub auto via peter-evans/create-issue-from-file@v5 si
 #             au moins une source est KO (AC5 — pas de Mailgun MVP, Q4).
 # Permissions minimales : contents:read + issues:write (pas de write-all).
+# Supply-chain : actions pinnées par SHA immutable (MEDIUM-10.11-7). Mettre
+# à jour via Dependabot (tag à droite du hash pour lisibilité humaine).
 # ============================================================================
 
 name: Check Source URLs (nightly FR63)
@@ -20,6 +22,12 @@ permissions:
   contents: read
   issues: write  # création issue auto sur fail via peter-evans action
 
+# MEDIUM-10.11-8 : empêche 2 runs concurrents (cron + workflow_dispatch)
+# de créer 2 issues dupliquées et de saturer la BDD staging.
+concurrency:
+  group: check-source-urls
+  cancel-in-progress: false
+
 jobs:
   check-sources:
     name: Check source_url HTTP HEAD
@@ -28,10 +36,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c  # v5.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -46,10 +54,17 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_READ_ONLY }}
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           set -euo pipefail
-          python scripts/check_source_urls.py --output ../report.json
-          FAILURES=$(python -c "import json, sys; r=json.load(open('../report.json')); print(sum(v for k,v in r['counts'].items() if k != 'ok'))")
+          python scripts/check_source_urls.py \
+            --output "${{ github.workspace }}/report.json"
+          FAILURES=$(python -c "import json; r=json.load(open('${{ github.workspace }}/report.json')); print(sum(v for k,v in r['counts'].items() if k != 'ok'))")
+          # Validation défensive : FAILURES doit être un entier.
+          if ! [[ "${FAILURES}" =~ ^[0-9]+$ ]]; then
+            echo "::error::FAILURES n'est pas un entier : ${FAILURES}"
+            FAILURES=1
+          fi
           echo "failure_count=${FAILURES}" >> "$GITHUB_OUTPUT"
           if [ "${FAILURES}" -gt 0 ]; then
             echo "has_failures=true" >> "$GITHUB_OUTPUT"
@@ -58,24 +73,30 @@ jobs:
           fi
 
       - name: Upload report artifact
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         with:
           name: source-url-report
-          path: report.json
+          path: ${{ github.workspace }}/report.json
           retention-days: 14
 
       - name: Build issue body
         if: steps.check.outputs.has_failures == 'true'
         working-directory: backend
         run: |
-          python scripts/format_issue_body.py ../report.json > ../issue_body.md
+          python scripts/format_issue_body.py \
+            "${{ github.workspace }}/report.json" \
+            > "${{ github.workspace }}/issue_body.md"
 
       - name: Create GitHub issue (on KO)
         if: steps.check.outputs.has_failures == 'true'
-        uses: peter-evans/create-issue-from-file@v5
+        # MEDIUM-10.11-7 : SHA immutable (v5.0.1). Dependabot suit les majeures.
+        uses: peter-evans/create-issue-from-file@433e51abf769039ee20ba1293a088ca19d573b7f  # v5.0.1
         with:
-          title: "[source-tracking] ${{ steps.check.outputs.failure_count }} sources KO detectees ${{ github.run_started_at }}"
-          content-filepath: issue_body.md
+          # MEDIUM-10.11-9 : titre stable (sans run_started_at) pour dedup
+          # visuel — la date précise est dans le body + artifact.
+          title: "[source-tracking] Sources KO détectées par le nightly"
+          content-filepath: ${{ github.workspace }}/issue_body.md
           labels: |
             source-tracking
             admin-action-required

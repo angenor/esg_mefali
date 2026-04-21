@@ -1,6 +1,6 @@
 # Story 10.11 : Sourcing documentaire Annexe F + CI nightly `source_url` health-check (HTTP HEAD)
 
-Status: review
+Status: done
 
 > **Contexte** : 13ᵉ story Phase 4, retour à une story **M (~2 h)** infra/observabilité après la plomberie lourde 10.10 (Outbox). Clôt le volet **NFR-SOURCE-TRACKING** ouvert par 10.1 (migration 025 — colonnes + CHECK) : l'enforcement schéma existe déjà, mais le **contenu réel (Annexe F PRD) n'a jamais été semé** et la **CI nightly FR63** n'a jamais tourné. Sans cette story, le catalogue admin N1/N2/N3 (Epic 13 Story 13.8) ne peut **rien publier** (DRAFT non-publiable sans `source_url` NOT NULL) et les 3 colonnes vides deviennent une dette dormante.
 >
@@ -659,3 +659,61 @@ _Claude Opus 4.7 (1M context), bmad-dev-story skill, 2026-04-21._
 | Date | Version | Description |
 |---|---|---|
 | 2026-04-21 | 1.0 | Story 10.11 implémentée et prête pour review — 8/8 AC + 10/11 tasks (Task 11 différée post-merge par design) + 3 commits traçabilité + 32 tests nouveaux (1601 → 1633) + coverage scripts 94 % ≥ 85 % + 3 dettes 10.10 absorbées. |
+| 2026-04-21 | 1.1 | Code review `bmad-code-review` — APPROVE-WITH-CHANGES. 0 CRITICAL, 2 HIGH, 13 MEDIUM, 23 LOW, 6 INFO. Rapport : `10-11-code-review-2026-04-21.md`. |
+| 2026-04-21 | 1.2 | Code review — patch round 1 + 2 + CI + LOW appliqués (batch) : 2 HIGH + 13 MEDIUM + 13 LOW résolus. **HIGH-10.11-1** import `SCAN_TABLES`/`USER_AGENT`/`SENTINEL_LEGACY_PREFIX` depuis `types.py` (règle 10.5). **HIGH-10.11-2** fail-fast `DATABASE_URL` absent + rapport minimal `_boot_error_report`. **MEDIUM-10.11-1/5** 401/403/429 → `server_error`. **MEDIUM-10.11-2** SSL robuste via `exc.__cause__ isinstance SSLError` + tokens `SSL|TLS|X509|CERTIFICATE`. **MEDIUM-10.11-3** `asyncio.Semaphore(10)` + `httpx.Limits`. **MEDIUM-10.11-4** `gather(return_exceptions=True)` + coerce `other_error`. **MEDIUM-10.11-6** fallback GET utilise `response.url`. **MEDIUM-10.11-7** actions CI pinnées par SHA. **MEDIUM-10.11-8** `concurrency: group`. **MEDIUM-10.11-9** titre issue stable. **MEDIUM-10.11-10** try/except dernier recours `main()`. **MEDIUM-10.11-11** `_md_cell` échappe `\|` `` ` `` `\` `\n` dans issue body. **MEDIUM-10.11-12** `test_single_source_of_truth` itère sur 22 URLs + `backend/scripts/`. **MEDIUM-10.11-13** `client.stream()` pour ne pas télécharger body complet si serveur ignore Range. **LOW-1** branche morte `HTTPStatusError` supprimée. **LOW-2** assert module-level `DEFAULT_TIMEOUT ∈ [5,60]`. **LOW-3** `basicConfig` scopé à `__main__` + `force=True`. **LOW-6** `format: uri` dans `REPORT_SCHEMA`. **LOW-13/14** liens/paths absolus `${{ github.workspace }}` + `#artifacts`. **LOW-17** marker `network_smoke` ajouté en alias. **LOW-18** `_redact_url` supprime query+fragment. **LOW-20** `>= 5` sections + vérif titres canoniques. **LOW-21** scan writer élargi `alembic/versions/` + `backend/scripts/`. **LOW-22** assert whitelist table name. Nouveau flag CLI `--concurrency` (défaut 10). Nouvelles fonctions : `_is_ssl_error`, `_build_empty_report`, `_boot_error_report`, `_check_with_semaphore`. Tests ajustés : `HTTPStatusError` branche morte retirée (remplacé par `test_rate_limit_429_mapped_to_server_error` + `test_auth_401_mapped_to_server_error`). |
+
+## Review Findings
+
+Review du 2026-04-21 (3 layers : Blind Hunter + Edge Case Hunter + Acceptance Auditor). Détails dans `_bmad-output/implementation-artifacts/10-11-code-review-2026-04-21.md`. Décision : **APPROVE-WITH-CHANGES**.
+
+### Patch round 1 (obligatoire avant première nuit active)
+
+- [x] [Review][Patch] HIGH-10.11-1 — Retirer duplication `SCAN_TABLES` + `USER_AGENT` + `SENTINEL_LEGACY_PREFIX` entre `types.py` et `check_source_urls.py` ; importer depuis `types.py` [backend/scripts/check_source_urls.py:42-56]
+- [x] [Review][Patch] HIGH-10.11-2 — Fail-fast si `DATABASE_URL` absent (hors `--dry-run`) + écrire un rapport minimal pour déclencher l'issue GitHub [backend/scripts/check_source_urls.py:250-255]
+- [x] [Review][Patch] MEDIUM-10.11-4 — `asyncio.gather(*tasks, return_exceptions=True)` + filter exceptions → `other_error` [backend/scripts/check_source_urls.py:267]
+- [x] [Review][Patch] MEDIUM-10.11-10 — try/except dernier recours dans `main()` écrivant un rapport minimal (silent-break combiné à H2) [backend/scripts/check_source_urls.py:347-352]
+
+### Patch round 2 — durcissement HTTP (recommandé)
+
+- [x] [Review][Patch] MEDIUM-10.11-1 — 401/403 → statut `auth_required` ou flag `expected_auth: bool` sur `SourceSeed` (Sedex/EcoVadis chroniques) [backend/scripts/check_source_urls.py:87-100]
+- [x] [Review][Patch] MEDIUM-10.11-2 — Détection SSL robuste via `isinstance(exc.__cause__, ssl.SSLError)` + tokens `TLS|X509|CERTIFICATE` [backend/scripts/check_source_urls.py:133-134]
+- [x] [Review][Patch] MEDIUM-10.11-3 — `asyncio.Semaphore(10)` + `httpx.Limits(max_connections=10)` pour borner la concurrence [backend/scripts/check_source_urls.py:260-267]
+- [x] [Review][Patch] MEDIUM-10.11-5 — 429 → `server_error` (mapping mentionné) + respect `Retry-After` borné [backend/scripts/check_source_urls.py:87-100]
+- [x] [Review][Patch] MEDIUM-10.11-6 — Fallback GET utilise `response.url` post-redirect, pas l'URL d'origine [backend/scripts/check_source_urls.py:124]
+- [x] [Review][Patch] MEDIUM-10.11-13 — `client.stream("GET", ...)` pour ne pas télécharger le body complet si serveur ignore `Range` [backend/scripts/check_source_urls.py:124-126]
+
+### Patch CI — durcissement workflow (peut être Story dédiée)
+
+- [x] [Review][Patch] MEDIUM-10.11-7 — Pinner `peter-evans/create-issue-from-file` + autres actions par SHA immutable [.github/workflows/check-sources.yml:31,34,61,75]
+- [x] [Review][Patch] MEDIUM-10.11-8 — Ajouter `concurrency: { group: check-source-urls, cancel-in-progress: false }` [.github/workflows/check-sources.yml:14]
+- [x] [Review][Patch] MEDIUM-10.11-9 — Titre issue stable (sans `run_started_at`) + dedup par label, ou action create-or-update [.github/workflows/check-sources.yml:77]
+- [x] [Review][Patch] MEDIUM-10.11-11 — Échapper `|`, backticks, newlines dans les cellules Markdown de `format_issue_body.py` [backend/scripts/format_issue_body.py]
+- [x] [Review][Patch] MEDIUM-10.11-12 — Corriger `search_dirs` du test single-source-of-truth : `REPO_ROOT / "scripts"` → `REPO_ROOT / "backend" / "scripts"` + inclure `alembic/versions` [backend/tests/test_core/test_sources/test_annexe_f_seed.py]
+
+### LOW (action items nice-to-have)
+
+- [x] [Review][Patch] LOW-10.11-1 — Supprimer branche morte `except httpx.HTTPStatusError` [backend/scripts/check_source_urls.py:135-137]
+- [x] [Review][Patch] LOW-10.11-2 — Valider `DEFAULT_TIMEOUT=10 ∈ [5, 60]` module-level [backend/scripts/check_source_urls.py:319]
+- [x] [Review][Patch] LOW-10.11-3 — Scoper `logging.basicConfig` à `if __name__ == "__main__"` ou `force=True` [backend/scripts/check_source_urls.py:350]
+- [x] [Review][Patch] LOW-10.11-5 — Factoriser le `python -c` inline dans `scripts/parse_report_counts.py` [.github/workflows/check-sources.yml:52]
+- [x] [Review][Patch] LOW-10.11-6 — Ajouter `"format": "uri"` + `FormatChecker` dans `REPORT_SCHEMA` [backend/app/core/sources/types.py:130-132]
+- [x] [Review][Patch] LOW-10.11-13 — Utiliser `upload-artifact@v4` output `artifact-url` dans le body issue [backend/scripts/format_issue_body.py]
+- [x] [Review][Patch] LOW-10.11-14 — `${{ github.workspace }}/report.json` au lieu de `../report.json` [.github/workflows/check-sources.yml:51,64,71]
+- [x] [Review][Patch] LOW-10.11-16 — Itérer sur les 22 URLs dans `test_seed_single_source_of_truth_no_duplication` [backend/tests/test_core/test_sources/test_annexe_f_seed.py]
+- [x] [Review][Patch] LOW-10.11-17 — Renommer marker `integration` → `network_smoke` (sémantique trop large) [backend/pytest.ini:10]
+- [x] [Review][Patch] LOW-10.11-18 — Redact query params des URLs affichées (fuite potentielle via artifact 14 j) [backend/scripts/format_issue_body.py:81-83]
+- [x] [Review][Patch] LOW-10.11-20 — `assert len(headings) >= 5` + vérifier les 5 titres par nom [backend/tests/test_core/test_sources/test_source_tracking_doc.py:19-26]
+- [x] [Review][Patch] LOW-10.11-21 — Élargir `test_writer_uniqueness.py` scope à `backend/alembic/versions/` + `backend/scripts/` [backend/tests/test_core/test_outbox/test_writer_uniqueness.py]
+- [x] [Review][Patch] LOW-10.11-22 — `assert table in SCAN_TABLES` avant f-string SQL [backend/scripts/check_source_urls.py:200]
+
+### Defer (tracés `deferred-work.md`)
+
+- [x] [Review][Defer] INFO-10.11-3 — Extension Phase 1 Catalogue : BSCI, 8 OIT conventions, UN Global Compact, Charte RSE Sénégal, Plateforme RSE Côte d'Ivoire, Label CGECI, IFC PS1-8 individuels, EUDR 2023/1115, RSPO, BCEAO, UEMOA taxonomie verte (~15 sources supplémentaires) — deferred, hors scope Phase 0.
+- [x] [Review][Defer] INFO-10.11-4 — Mettre à jour AC8 du spec avec baseline réelle 1633 (spec écrit 1527/1537 obsolète) — deferred doc-only.
+- [x] [Review][Defer] INFO-10.11-5 — Mini-story dédiée « provisionner STAGING_DATABASE_URL_READ_ONLY + smoke workflow_dispatch » avant première nuit active (remplace Task 11 différée par design) — deferred, prérequis ops.
+- [x] [Review][Defer] LOW-10.11-10 — Dedup cross-table perd l'attribution multiple (« première table gagne ») — deferred, acceptable par design, nécessite refactor rapport pour tracer multi-table.
+- [x] [Review][Defer] LOW-10.11-11 — `max_redirects=3` potentiellement trop bas pour sites à 4+ hops locale — deferred, configurable via `--max-redirects`.
+- [x] [Review][Defer] LOW-10.11-12 — `last_valid_at = None` si KO (rapport instantané par design, historique en BDD `sources.last_verified_at`) — deferred doc-only CODEMAPS §3.
+- [x] [Review][Defer] LOW-10.11-15 — Downgrade migration 030 = `pass` non strictement réversible — deferred, choix défensif documenté.
+- [x] [Review][Defer] LOW-10.11-19 — `--dry-run` sur fixture factice au lieu d'`ANNEXE_F_SOURCES` réelles — deferred, ajouter `--dry-run-seed` nice-to-have.
+- [x] [Review][Defer] LOW-10.11-4, LOW-10.11-7, LOW-10.11-8, LOW-10.11-9, LOW-10.11-23, INFO-10.11-1, INFO-10.11-2, INFO-10.11-6 — defer, cosmetic ou acceptable par design.

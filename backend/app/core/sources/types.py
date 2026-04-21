@@ -128,7 +128,7 @@ REPORT_SCHEMA: Final[dict] = {
                     "duration_ms",
                 ],
                 "properties": {
-                    "source_url": {"type": "string"},
+                    "source_url": {"type": "string", "format": "uri"},
                     "table": {"type": "string"},
                     "status": {
                         "enum": [

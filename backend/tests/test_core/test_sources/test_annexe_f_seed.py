@@ -81,33 +81,41 @@ def test_seed_single_source_of_truth_no_duplication() -> None:
 
     Règle 10.5 : `ANNEXE_F_SOURCES` est l'unique source. La migration 030
     l'importe sans dupliquer les littéraux.
+
+    Patch LOW-10.11-16 : itère sur les 22 URLs (au lieu d'une seule needle).
+    Patch MEDIUM-10.11-12 : `backend/scripts/` au lieu de `scripts/` root.
     """
 
-    # On vérifie sur une URL suffisamment spécifique au seed Annexe F.
-    needle = "greenclimate.fund/projects"
     search_dirs = [
         REPO_ROOT / "backend" / "app",
         REPO_ROOT / "backend" / "alembic",
-        REPO_ROOT / "scripts",
+        REPO_ROOT / "backend" / "scripts",
     ]
-    hits: list[Path] = []
-    for base in search_dirs:
-        if not base.exists():
-            continue
-        for path in base.rglob("*.py"):
-            if "__pycache__" in path.parts:
-                continue
-            try:
-                if needle in path.read_text(encoding="utf-8"):
-                    hits.append(path)
-            except OSError:
-                continue
 
-    assert len(hits) == 1, (
-        f"URL {needle!r} doit apparaître dans exactement 1 fichier "
-        f"(annexe_f_seed.py) ; trouvé {len(hits)} : {hits}"
-    )
-    assert hits[0].name == "annexe_f_seed.py"
+    for seed in ANNEXE_F_SOURCES:
+        # On extrait la partie chemin distinctive de l'URL (host + path) pour
+        # éviter les faux-positifs sur des URLs partageant le même domaine.
+        needle = seed.url.split("://", 1)[-1]
+        hits: list[Path] = []
+        for base in search_dirs:
+            if not base.exists():
+                continue
+            for path in base.rglob("*.py"):
+                if "__pycache__" in path.parts:
+                    continue
+                try:
+                    if needle in path.read_text(encoding="utf-8"):
+                        hits.append(path)
+                except OSError:
+                    continue
+
+        assert len(hits) == 1, (
+            f"URL {seed.url!r} doit apparaître dans exactement 1 fichier "
+            f"(annexe_f_seed.py) ; trouvé {len(hits)} : {hits}"
+        )
+        assert hits[0].name == "annexe_f_seed.py", (
+            f"URL {seed.url!r} trouvée dans {hits[0]} (attendu annexe_f_seed.py)"
+        )
 
 
 @pytest.mark.unit
