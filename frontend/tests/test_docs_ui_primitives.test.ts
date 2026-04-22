@@ -21,21 +21,32 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
     }
   });
 
-  it('AC12 Story 10.16 + AC11 Story 10.17 : §3 contient 4 sous-sections H3 (Button + Input + Textarea + Select + Badge)', () => {
+  it('AC14 Story 10.18 : §3 contient 5 sous-sections H3 (Button + Input + Textarea + Select + Badge + Drawer)', () => {
     expect(content).toContain('### 3.0 `ui/Button`');
     expect(content).toContain('### 3.1 `ui/Input`');
     expect(content).toContain('### 3.2 `ui/Textarea`');
     expect(content).toContain('### 3.3 `ui/Select`');
     expect(content).toContain('### 3.4 `ui/Badge`');
+    expect(content).toContain('### 3.5 `ui/Drawer`');
   });
 
-  it('AC11 Story 10.17 + patch code-review : §5 Pièges documentés contient >= 28 entrees numerotees', () => {
+  it('AC14 Story 10.18 : §5 Pièges documentés contient >= 32 entrees numerotees (26 -> 34 cumul Drawer)', () => {
     const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
-    // Delimite avant la section suivante (§6 A11y).
     const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
     const matches = body.match(/^\d+\.\s/gm) ?? [];
-    // Patch 10.17 code-review : #27 (soft-bg vs white) + #28 (nextTick flushPromises).
-    expect(matches.length).toBeGreaterThanOrEqual(28);
+    expect(matches.length).toBeGreaterThanOrEqual(32);
+  });
+
+  it('AC14 Story 10.18 : §3.5 Drawer contient >= 4 exemples Vue numerotes', () => {
+    const section35 = content.split('### 3.5')[1]?.split(/^##\s/m)[0] ?? '';
+    const numberedExamples = section35.match(/<!--\s*\d+\./g) ?? [];
+    expect(numberedExamples.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('AC14 Story 10.18 : §3.5 Drawer mentionne role="complementary" override', () => {
+    const section35 = content.split('### 3.5')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section35).toMatch(/role="complementary"/);
+    expect(section35).toMatch(/aria-modal="false"|Reka UI/i);
   });
 
   it('AC10 Story 10.15 : §3.0 (ui/Button) contient >= 4 exemples Vue numerotes', () => {

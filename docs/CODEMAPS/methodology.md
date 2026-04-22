@@ -205,6 +205,40 @@ La capitalisation en règle d'or permanente (pas seulement incident review)
 raccourcit la boucle : review Story 10.17 ne devrait plus remonter ni H-3
 ni M-3 (ou alors sur un autre axe qu'une répétition 10.16).
 
+### 4ter.bis Application proactive Story 10.18 (ui/Drawer) — 4 leçons cumulées
+
+Story 10.18 (20ᵉ dev-story Phase 4, 1ʳᵉ primitive `ui/` wrapper Reka UI)
+applique **avant code review** les 4 patterns capitalisés :
+
+1. **Pattern A (DOM observable, portal-aware)** — 10.16 H-3 + 10.17. Le
+   `DialogPortal` Reka UI monte le drawer hors de la racine du composant.
+   Les tests `test_drawer_behavior.test.ts` + `test_drawer_a11y.test.ts`
+   utilisent **exclusivement** `document.body.querySelector('[role=
+   "complementary"]')` — jamais `wrapper.vm.open` ni `wrapper.find(...)`
+   sur la racine (qui serait vide post-portal). `w.attachTo(document.body)`
+   + `await nextTick(); await nextTick();` avant assertion (double tick
+   nécessaire pour Reka UI DialogRoot → DialogPortal resolution).
+2. **Pattern B (comptage Storybook runtime OBLIGATOIRE)** — 10.16 M-3 +
+   10.17 piège #26. Task 7.3 capture `jq '[.entries | to_entries[] |
+   select(.value.id | startswith("ui-drawer"))] | length'` **AVANT** de
+   rédiger les Completion Notes du story file. Pas d'estimation a priori.
+3. **Leçon 10.14 HIGH-2 capitalisée infra (`role="complementary"`
+   override)** — ARIA override = **architecture par défaut** du composant,
+   pas correction post-hoc. Le piège #29 codemap documente la dérogation
+   `aria-allowed-attr` axe-core (axe ARIA 1.2 stricte réserve `aria-modal`
+   à `role="dialog"`) — désactivée uniquement dans le smoke vitest-axe,
+   validation runtime déléguée à Storybook.
+4. **Leçon 10.15 HIGH-2 capitalisée infra (Storybook runtime pour
+   portail)** — délégation explicite portail-dépendants à
+   `addon-a11y` runtime dans `test_drawer_a11y.test.ts`. Anti-fix
+   interdit : désactiver `color-contrast` axe-core pour masquer un
+   problème réel. Les seules règles désactivées sont documentées avec la
+   raison happy-dom (pas de layout box + portals multiples).
+
+Mesure anti-récurrence : si un 5ᵉ pattern émerge post-code-review 10.18,
+créer `§4quater`. Les 4 patterns ci-dessus sont **stables et permanents**
+pour les wrappers Reka UI futurs (10.19 Combobox/Tabs, 10.20 DatePicker).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité

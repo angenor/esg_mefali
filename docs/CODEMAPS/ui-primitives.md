@@ -49,18 +49,25 @@ frontend/
 │           ├── ToastNotification.vue     (brownfield, inchangé)
 │           ├── registry.ts               (BUTTON_VARIANTS + BUTTON_SIZES frozen)
 │           ├── Button.vue                (primitive 4 variants × 3 sizes)
-│           └── Button.stories.ts         (22 stories CSF 3.0 + 4 play functions)
+│           ├── Button.stories.ts         (22 stories CSF 3.0 + 4 play functions)
+│           ├── Drawer.vue                (NEW 10.18 wrapper Reka UI + role=complementary)
+│           └── Drawer.stories.ts         (NEW 10.18 ≥ 16 stories CSF 3.0)
 ├── tests/components/ui/
 │   ├── test_button_registry.test.ts      (4 tests frozen/length/dedup)
 │   ├── test_button_variants.test.ts      (14 tests 4×3 + defaults + focus)
 │   ├── test_button_states.test.ts        (7 tests click/loading/disabled/warn)
 │   ├── test_button_a11y.test.ts          (8 audits jest-axe)
 │   ├── test_button_types.ts              (assertions TS compile-time)
-│   └── test_no_hex_hardcoded_ui.test.ts  (scan Button.vue + registry.ts)
+│   ├── test_no_hex_hardcoded_ui.test.ts  (scan Button.vue + registry.ts)
+│   ├── test_drawer_registry.test.ts      (NEW 10.18 7 tests 2 tuples)
+│   ├── test_drawer_behavior.test.ts      (NEW 10.18 26 tests Pattern A DOM portal-aware)
+│   ├── test_drawer_a11y.test.ts          (NEW 10.18 6 tests ARIA + vitest-axe smoke)
+│   ├── test_no_hex_hardcoded_drawer.test.ts (NEW 10.18 2 scans Drawer.vue + stories)
+│   └── Drawer.test-d.ts                  (NEW 10.18 15 @ts-expect-error assertions)
 └── tests/test_docs_ui_primitives.test.ts (scan 5 sections + ≥ 8 pièges)
 
 docs/CODEMAPS/
-├── ui-primitives.md                (ce fichier, 5 sections H2 + 26 pièges §5)
+├── ui-primitives.md                (ce fichier, 5 sections H2 + 32 pièges §5)
 └── index.md                        (+1 ligne référence)
 ```
 
@@ -340,6 +347,85 @@ const bad2: BadgeProps = { variant: 'admin', state: 'n1', conditional: true };
 **jamais** 44 px touch-target. Si un filtrage cliquable est requis, wrapper
 `<button @click><Badge .../></button>` (piège #24 ci-dessous).
 
+### 3.5 `ui/Drawer` (Story 10.18)
+
+Wrapper Reka UI `DialogRoot` + `DialogPortal` + `DialogOverlay` + `DialogContent`
+avec **override ARIA** `role="complementary"` + `aria-modal="false"` (leçon 10.14
+HIGH-2 capitalisée infra — drawer consultatif **≠** modal bloquant). 4 positions
+(`right` default / `left` / `top` / `bottom`), 3 tailles desktop
+(`sm` 320 / `md` 480 / `lg` 560 px) + **fullscreen auto mobile `<md` 768 px
+CSS-only**, focus trap **opt-in** (default `false`), 3 chemins de fermeture
+composables (Escape + overlay click + close button), `ScrollArea` Reka UI
+intégrée.
+
+```vue
+<!-- 1. Drawer right md default (SourceCitationDrawer Epic 13 template migration) -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import Drawer from '~/components/ui/Drawer.vue';
+const isOpen = ref(false);
+</script>
+<template>
+  <button @click="isOpen = true">Voir les sources</button>
+  <Drawer v-model:open="isOpen" title="Sources documentaires" description="Citations RAG contextuelles">
+    <dl class="space-y-3 text-sm">
+      <div>
+        <dt class="font-medium">Décret UEMOA 2023-045</dt>
+        <dd>« Toute PME du secteur éligible… »</dd>
+      </div>
+    </dl>
+  </Drawer>
+</template>
+```
+
+```vue
+<!-- 2. Drawer right lg avec focus trap on (IntermediaryComparator Epic 15) -->
+<Drawer v-model:open="isOpen" title="Comparaison intermédiaires" side="right" size="lg" :trap-focus="true">
+  <div class="grid grid-cols-3 gap-3">
+    <!-- 3 cards intermédiaires côte à côte -->
+  </div>
+</Drawer>
+```
+
+```vue
+<!-- 3. Drawer left sm avec slot #footer (filtres catalogue) -->
+<Drawer v-model:open="isOpen" title="Filtres" side="left" size="sm">
+  <FilterForm />
+  <template #footer>
+    <div class="flex justify-end gap-2">
+      <button @click="reset">Réinitialiser</button>
+      <button @click="apply">Appliquer</button>
+    </div>
+  </template>
+</Drawer>
+```
+
+```vue
+<!-- 4. Drawer bottom mobile fullscreen (responsive showcase) -->
+<Drawer v-model:open="isOpen" title="Détails" side="bottom" size="md">
+  <!-- Sur <md le drawer occupe tout l'écran (piège #29 CSS-only). -->
+</Drawer>
+```
+
+```ts
+// 5. TypeScript — side hors union rejeté compile-time (Drawer.test-d.ts AC1).
+// @ts-expect-error drawer est toujours bord, pas centré.
+const bad: DrawerProps = { open: true, title: 'T', side: 'center' };
+```
+
+**Focus trap opt-in (Q4 verrouillée)** — default `false` : l'utilisateur peut
+Tab hors du drawer pour continuer à lire/interagir avec le contenu principal.
+Si le consommateur a un formulaire critique (ex. `PeerReviewThreadedPanel`
+Epic 19 avec textarea threaded), passer `:trap-focus="true"` explicitement.
+
+**Mobile fullscreen `<md` 768 px (Q5 verrouillée)** — CSS-only via
+`inset-0 w-full h-full md:inset-auto md:right-0 md:w-[480px] md:h-full`.
+Pas de `useMediaQuery` JS (hydration mismatch SSR Nuxt, piège #29).
+
+**Consommateur futur `SourceCitationDrawer` (Epic 13 FR71)** — migration
+mécanique byte-identique du squelette 10.14 `<aside role="complementary">...</aside>`
+vers `<Drawer v-model:open="isOpen" title="Source · {{ type }}">...</Drawer>`.
+
 ## 4. Ajouter une 8ᵉ primitive UI
 
 1. **Créer le squelette Vue** — `app/components/ui/NewPrimitive.vue` avec
@@ -594,6 +680,77 @@ const bad2: BadgeProps = { variant: 'admin', state: 'n1', conditional: true };
     après `mount()` — sinon le warn arrive après l'assertion et le test
     devient flaky. Snippet correct : `const w = mount(Host); await
     flushPromises(); expect(warnSpy).toHaveBeenCalled();`.
+29. **`role="complementary"` OVERRIDE vs Reka UI `DialogContent` default
+    `role="dialog"` + `aria-modal="true"`** (Story 10.18 · leçon 10.14 HIGH-2
+    capitalisée infra) — Reka UI impose par défaut la sémantique modale
+    bloquante. Pour un drawer **consultatif** (SourceCitationDrawer FR71 +
+    IntermediaryComparator Moussa + PeerReviewThreadedPanel admin N2),
+    cette sémantique est **incorrecte** : l'utilisateur doit pouvoir
+    continuer à lire/interagir avec le contenu principal. **Solution
+    architecturale** : override explicite `role="complementary"` +
+    `aria-modal="false"` sur `<DialogContent>` via attributs HTML (Reka UI
+    laisse passer les attrs non-reconnus). `aria-modal` hors `role="dialog"`
+    déclenche axe `aria-allowed-attr` — dérogation documentée dans le test
+    a11y (smoke seulement ; validation WCAG déléguée à Storybook runtime).
+    Test DOM strict : `document.body.querySelector('[role="complementary"]')
+    .getAttribute('aria-modal') === 'false'`.
+30. **Portail `Teleport` / `DialogPortal` — limitations happy-dom →
+    Storybook `addon-a11y` runtime prioritaire** (Story 10.18 · leçon 10.15
+    HIGH-2 capitalisée infra) — `vitest-axe` en happy-dom ne matérialise
+    pas de façon fiable : (a) les portails `Teleport to="body"` natifs Vue,
+    (b) les portails Reka UI `DialogPortal`, (c) les CSS custom properties
+    dark mode, (d) le layout box (règle axe `color-contrast`). Conséquence
+    : `toHaveNoViolations()` peut produire faux négatifs **ou** faux
+    positifs. **Solution** : (1) **vitest-axe en smoke** pour ARIA simple
+    (`role`/`aria-*` présents sur DOM accessible via `document.body.
+    querySelector`), (2) **Storybook `addon-a11y` test-runner en CI** pour
+    contraste/focus/keyboard portail-dépendants. **Ne JAMAIS désactiver
+    sélectivement `color-contrast`** pour forcer le vert vitest-axe — cela
+    masquerait une régression réelle. Préférer délégation runtime
+    documentée.
+31. **Mobile fullscreen breakpoint `<md` 768 px responsive-first (pas
+    `<sm` 640 px, pas `useMediaQuery` JS)** (Story 10.18 Q5 verrouillée) —
+    Tailwind standard `md: 768px`. En-dessous de 768 px, drawer `size="md"`
+    (480 px) occuperait 63-75 % viewport → UX dégradée. Deuxième piège :
+    `useMediaQuery` (`@vueuse/core`) ou `window.matchMedia` côté JS
+    génère **hydration mismatch SSR Nuxt** (serveur rend desktop, client
+    bascule mobile post-mount → flash visuel). **Solution** : CSS-only
+    Tailwind `inset-0 w-full h-full md:inset-auto md:right-0 md:w-[480px]
+    md:h-full` — SSR rend le même HTML partout. Tests Vitest : mock
+    `window.matchMedia` ou assertions `classList.contains('md:w-[480px]')`
+    (classes toujours présentes, breakpoint résolu côté client par CSS).
+32. **`ScrollArea` Reka UI tokens cohérents + garde-fou `max-w-[50vw]`
+    desktop ultra-large** (Story 10.18) — Reka UI ne style pas la
+    scrollbar par défaut. Pattern byte-identique `SourceCitationDrawer`
+    10.14 : `<ScrollAreaScrollbar orientation="vertical" class="w-2
+    bg-gray-200 dark:bg-dark-border">` + `<ScrollAreaThumb class="bg-gray-400
+    dark:bg-dark-hover rounded">`. Deuxième piège spécifique Drawer (vs
+    SourceCitationDrawer fixe 420 px) : `size="lg"` (560 px) sur écran
+    1000 px = 56 % viewport → content principal coupé. **Solution** :
+    garde-fou `max-w-[50vw]` sur `DialogContent`. Alternative
+    `w-[min(560px,50vw)]` équivalente.
+33. **Overlay `backdrop-filter: blur()` perf mobile + `pointer-events`
+    drawer consultatif vs modal** (Story 10.18) — Premier piège : tentation
+    d'ajouter `backdrop-blur-sm` sur `<DialogOverlay>` — **INTERDIT mobile**
+    (GPU faible + drain batterie + repaint cascade à chaque scroll body).
+    **Solution** : opacité seule `bg-black/50 dark:bg-black/70`. Deuxième
+    piège (sémantique drawer consultatif `aria-modal="false"`) : l'overlay
+    `pointer-events: auto` classique capture les clics → le contenu
+    principal devient non-interactif (contradiction). **Solution** :
+    overlay `pointer-events: auto` UNIQUEMENT si `closeOnOverlayClick:
+    true`, sinon `pointer-events: none` pour laisser passer les clics.
+34. **`Escape` + beforeclose intercept (unsaved changes — Phase Growth)**
+    (Story 10.18 piège #32 story file) — Un consommateur peut avoir des
+    modifications non sauvegardées (`IntermediaryComparator` v2 sélection
+    multi-pays, `PeerReviewThreadedPanel` textarea en cours). Naïvement
+    `:close-on-escape="false"` désactive aussi la fermeture intentionnelle.
+    **Solution MVP Phase 0** : consommateur écoute `@update:open` et
+    intercepte via `confirm('Fermer sans sauvegarder ?')`. Phase Growth :
+    prop `beforeClose?: () => boolean | Promise<boolean>` si > 2
+    occurrences. Complément : **3 chemins fermeture tous désactivés**
+    (`closeOnEscape: false`, `closeOnOverlayClick: false`, `showCloseButton:
+    false`) → utilisateur piégé. Runtime `console.warn` dev-only en
+    défense en profondeur.
 
 ---
 
