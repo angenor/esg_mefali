@@ -64,7 +64,9 @@ docs/CODEMAPS/
 └── index.md                        (+1 ligne référence)
 ```
 
-## 3. Utiliser `ui/Button` dans un composant
+## 3. Utiliser les primitives UI dans un composant
+
+### 3.0 `ui/Button` (Story 10.15)
 
 ```vue
 <script setup lang="ts">
@@ -111,6 +113,161 @@ async function handleSign(): Promise<void> {
     <Button variant="ghost">Enregistrer brouillon</Button>
     <Button variant="secondary">Annuler</Button>
   </div>
+</template>
+```
+
+### 3.1 `ui/Input` (Story 10.16)
+
+Primitive formulaire avec 7 types HTML5 natifs (text/email/number/password/url/tel/search)
+× 3 sizes (sm/md/lg). Slots `#iconLeft` / `#iconRight` cohérents avec `ui/Button`.
+Validation via prop `error` externe (pattern **dumb component**, Q4 verrouillée).
+
+```vue
+<script setup lang="ts">
+import Input from '~/components/ui/Input.vue';
+import { ref, computed } from 'vue';
+
+const email = ref('');
+const emailError = computed(() =>
+  email.value && !email.value.includes('@') ? 'Format email invalide' : undefined,
+);
+
+const amountFcfa = ref<number>(0);
+</script>
+
+<template>
+  <!-- 1. Input email standard avec validation parent (Zod/VeeValidate). -->
+  <Input
+    v-model="email"
+    label="Email professionnel"
+    type="email"
+    autocomplete="email"
+    placeholder="jean@entreprise.ci"
+    required
+    :error="emailError"
+    hint="Utilisé pour les notifications ESG"
+  />
+
+  <!-- 2. Input password avec icone left. -->
+  <Input
+    v-model="password"
+    label="Mot de passe"
+    type="password"
+    autocomplete="current-password"
+    required
+  >
+    <template #iconLeft><LockIcon class="h-4 w-4" /></template>
+  </Input>
+
+  <!-- 3. Input numerique FCFA avec inputmode mobile natif. -->
+  <Input
+    v-model.number="amountFcfa"
+    label="Montant (FCFA)"
+    type="number"
+    inputmode="numeric"
+    hint="Montant en XOF"
+  />
+
+  <!-- 4. Input tel avec autocomplete HTML5 standard. -->
+  <Input
+    v-model="phone"
+    label="Téléphone"
+    type="tel"
+    autocomplete="tel-national"
+    placeholder="+221 XX XXX XX XX"
+  />
+</template>
+```
+
+### 3.2 `ui/Textarea` (Story 10.16)
+
+Primitive multi-ligne avec compteur 400 chars strict (spec 018 AC5, triple défense).
+**Pas de slots icônes** (UX : zone multi-ligne sans icône inline).
+
+```vue
+<script setup lang="ts">
+import Textarea from '~/components/ui/Textarea.vue';
+import { ref } from 'vue';
+
+const justification = ref('');
+const comment = ref('');
+</script>
+
+<template>
+  <!-- 1. Textarea justification spec 018 avec compteur 400 chars. -->
+  <Textarea
+    v-model="justification"
+    label="Pourquoi votre projet est-il aligné sur la taxonomie UEMOA ?"
+    :rows="5"
+    :maxlength="400"
+    :showCounter="true"
+    required
+    hint="400 caractères maximum — soyez concis et précis"
+  />
+
+  <!-- 2. Textarea breve sans compteur (optionnel). -->
+  <Textarea
+    v-model="comment"
+    label="Commentaire (optionnel)"
+    :showCounter="false"
+    :rows="3"
+  />
+
+  <!-- 3. Textarea 1500 chars pour resume executif. -->
+  <Textarea
+    v-model="executiveSummary"
+    label="Résumé exécutif"
+    :maxlength="1500"
+    :rows="8"
+  />
+</template>
+```
+
+### 3.3 `ui/Select` (Story 10.16)
+
+Wrapper **natif** `<select>` stylé Tailwind (Q3 verrouillée — Reka UI Combobox
+livré Story 10.19 pour recherche/typeahead). Options typées
+`Array<{ value: string; label: string; disabled?: boolean }>`.
+
+```vue
+<script setup lang="ts">
+import Select from '~/components/ui/Select.vue';
+import { ref } from 'vue';
+
+const sector = ref('');
+const odds = ref<string[]>([]);
+
+const SECTORS = [
+  { value: 'agri', label: 'Agriculture' },
+  { value: 'energy', label: 'Énergie' },
+  { value: 'waste', label: 'Recyclage / Déchets' },
+  { value: 'transport', label: 'Transport', disabled: true },
+];
+
+const ODD_OPTIONS = [
+  { value: '8', label: 'ODD 8 — Travail décent' },
+  { value: '13', label: 'ODD 13 — Climat' },
+];
+</script>
+
+<template>
+  <!-- 1. Select simple avec placeholder et option disabled. -->
+  <Select
+    v-model="sector"
+    label="Secteur d'activité"
+    :options="SECTORS"
+    placeholder="-- Sélectionner un secteur --"
+    required
+    hint="Influence le scoring ESG sectoriel UEMOA"
+  />
+
+  <!-- 2. Select multiple (ODD cibles). -->
+  <Select
+    v-model="odds"
+    label="ODD cibles"
+    :options="ODD_OPTIONS"
+    multiple
+  />
 </template>
 ```
 
@@ -183,6 +340,57 @@ async function handleSign(): Promise<void> {
     `Record<variant, string>`. Tailwind 4 scanne les sources en mode complet
     mais les chaînes dynamiques peuvent être manquées → classes absentes du
     bundle final.
+11. **`v-model` sur `<input type="number">` retourne string (HTML5 legacy)** —
+    le DOM natif `<input type="number">` expose `value` en **string** (ex.
+    `"42"`, `"3.14"`). `emit('update:modelValue', target.value)` transmet une
+    string. **Solution consommateur** : utiliser le modifier Vue
+    `v-model.number="amount"` qui applique `Number(value)` automatiquement
+    OU coercer dans le parent `const amount = computed(() => Number(raw.value))`.
+    La primitive `ui/Input` **ne coerce pas** délibérément (évite surprise sur
+    `""` → `NaN`). Idem : `FORM_SIZES` tuple est intentionnellement indépendant
+    de `BUTTON_SIZES` (même valeurs `sm`/`md`/`lg` mais évolution future d'un
+    des 2 ne doit pas coupler l'autre).
+12. **Textarea `rows` fixe vs `resize-y` natif** — attribut `rows="4"` fixe la
+    hauteur initiale (4 lignes), mais l'utilisateur peut **redimensionner
+    verticalement par défaut** (CSS `resize-y`). **Piège** : layout critique
+    (carte compacte mobile) peut être cassé si user drag-resize. **Solution** :
+    passer `class="resize-none"` au parent pour désactiver, ou garder `resize-y`
+    (default) pour layout fluide. L'option globale `resize-none` sur la
+    primitive n'est pas exposée MVP (Phase Growth si besoin).
+13. **Select `value` toujours `string` côté DOM (pas `number`)** — même si
+    `options[i].value` était typé `number` côté TypeScript, l'attribut HTML
+    `value` du `<option>` est sérialisé string par le navigateur.
+    `event.target.value` retourne string. **Solution primitive 10.16** :
+    `SelectOption['value']: string` strict, le consommateur fait sa propre
+    coercion si nécessaire (`Number(sector.value)`). Alternative Phase Growth :
+    wrapper typé générique `<SelectTyped<number>>` si > 2 contextes.
+14. **`autocomplete` attribute tokens HTML5 standards** — `autocomplete="email"`,
+    `"tel-national"`, `"current-password"`, `"street-address"`, etc.
+    **Piège Chrome/Safari** : `autocomplete="off"` est **ignoré** sur champs
+    password/email (anti-feature pour forcer l'utilisation des gestionnaires
+    de mots de passe). **Solution** : utiliser exclusivement les tokens
+    standards [MDN autocomplete](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/autocomplete)
+    pour UX mobile iOS/Android optimale (QuickType suggestions). Pas de
+    custom token.
+15. **Label floating vs placeholder-as-label (anti-pattern WCAG)** — le pattern
+    « floating label » (Material Design) fait descendre le label à la place du
+    placeholder si vide, puis le remonte au focus. **Anti-pattern si** le
+    placeholder **remplace** totalement le label (invisible du screen reader,
+    disparaît au focus). **Règle primitives 10.16** : label **toujours visible
+    au-dessus** du champ (pattern UX Step 12 §3 Form Patterns). Le
+    `placeholder` est un texte d'exemple optionnel (ex. `"jean@exemple.ci"`),
+    **jamais** le label principal. Floating label = Phase Growth
+    `Input.variant="floating"` si design spécifique.
+16. **`maxlength` native browser + JS handler + backend = triple défense
+    en profondeur** — `maxlength="400"` HTML native empêche la saisie
+    clavier standard, mais **paste (Ctrl+V) bypass** sur certains navigateurs
+    (Firefox < 100 notamment), et API JavaScript `element.value = "a".repeat(1000)`
+    bypasse totalement. **Solution spec 018 AC5 appliquée `ui/Textarea`** :
+    (a) attribut HTML native (première défense user standard), (b) handler
+    `@input` tronque à 400 + re-émet (capture paste + JS), (c) validator
+    backend SQLAlchemy/Pydantic `@field_validator` length ≤ 400 (défense
+    finale). Les 3 niveaux sont **non-redondants** (chaque étage rattrape
+    un cas que les autres ratent).
 
 ---
 
@@ -199,6 +407,7 @@ et `--color-brand-red` ont été **darkened** pour respecter WCAG 2.1 AA `color-
 | `--color-brand-blue` | `#3B82F6` (blue-500) | 0,24 | 3,68:1 ❌ AA (texte normal) | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `--color-brand-purple` | `#8B5CF6` (violet-500) | 0,23 | 3,86:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `--color-brand-orange` | `#F59E0B` (amber-500) | 0,52 | 2,11:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
+| `text-brand-orange` (Textarea counter 350-399) | `#F59E0B` | — | **3,85:1** vs blanc | — *inchangé* | — | ⚠️ **texte auxiliaire acceptable** (Story 10.16 — compteur seuil warn non bloquant ; le seuil rouge `#DC2626` 4,83:1 AA s'applique à l'état limite 400 bloquant) |
 
 **Règle** : tout token `--color-brand-*` consommé en pattern `bg-brand-* text-white`
 avec `text-sm` (14 px) ou plus petit DOIT atteindre ≥ 4,5:1 contraste calculé

@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: story 10.16 (2026-04-22)
+
+- **DEF-10.16-1 — Reka UI `SelectRoot` wrapper pour `ui/Select`** — L'Epic 10 AC5 prévoyait initialement un wrapper Reka UI `SelectRoot` stylé Tailwind pour `ui/Select.vue`. **Q3 Story 10.16 verrouillée** en faveur du `<select>` natif MVP car : (a) a11y système ChromeVox/VoiceOver battle-tested sans code custom, (b) 0 dépendance Reka UI ajoutée (Reka UI Combobox livré Story 10.19 pour le besoin typeahead/recherche qui justifie vraiment le portail), (c) touch target iOS picker wheel + Android bottom sheet natifs gratuits, (d) livraison M 1h30 préservée. **Cible reprise** : Phase Growth uniquement si besoin custom styling cross-browser uniforme (Firefox flèche native masquée ok mais pas de portail pour liste > viewport) OU feature avancée (grouping options avec `optgroup` stylé, virtualisation > 500 options). Coût estimé : 2-3 h.
+- **DEF-10.16-2 — Remplacement stubs SVG inline par Lucide icons** — 3 composants (`Input.vue` : `AlertCircle` pour error / `Textarea.vue` : `AlertCircle` / `Select.vue` : `ChevronDown` + `AlertCircle`) utilisent aujourd'hui des SVG inline commentés `<!-- STUB: remplace par <LucideX /> Lucide Story 10.21 -->`. Une fois `lucide-vue-next` installé par Story 10.21 (`ui/EsgIcon.vue` + pile Lucide), remplacer mécaniquement les 4 SVG par les imports Lucide correspondants. **Traçage** : 4 locations identifiables via `rg 'STUB.*Lucide' frontend/app/components/ui/`. Coût estimé : 15 min.
+
 ## Deferred from: code review of story-10.14 (2026-04-21)
 
 - **LOW-10.14-6 — CI `storybook:test` divergent du spec AC5** — [.github/workflows/storybook.yml:62-68] La CI lance `http-server` + `wait-on` + `test-storybook --url http://127.0.0.1:6006` alors que le spec AC5 prévoyait `test-storybook -- --ci --url file://…`. Le pattern `file://` crashe sur certaines ressources relatives Vite build, donc http-server est plus robuste. **Décision** : défer — modification > 15 min (documenter rationale, mettre à jour spec, valider CI sur PR test). **Cible drive-by** Story 10.15 quand ajout step CI `ui/Button`. Coût estimé : 15-20 min.
