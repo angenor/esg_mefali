@@ -60,7 +60,7 @@ frontend/
 └── tests/test_docs_ui_primitives.test.ts (scan 5 sections + ≥ 8 pièges)
 
 docs/CODEMAPS/
-├── ui-primitives.md                (ce fichier, 5 sections H2 + 10 pièges §5)
+├── ui-primitives.md                (ce fichier, 5 sections H2 + 26 pièges §5)
 └── index.md                        (+1 ligne référence)
 ```
 
@@ -271,6 +271,65 @@ const ODD_OPTIONS = [
 </template>
 ```
 
+### 3.4 `ui/Badge` (Story 10.17)
+
+Primitive d'**affichage pur non-interactif** unifiant 3 familles sémantiques via une
+**union discriminée compile-time** `variant × state` : 4 verdicts ESG + 9 états
+lifecycle `FundApplication` + 3 niveaux criticité admin. Chaque rendu combine
+3 signaux redondants obligatoires (Règle 11 UX) : **couleur** (tokens `@theme`) +
+**icône** (slot `#icon` obligatoire) + **texte label** (slot `#default` obligatoire).
+
+```vue
+<script setup lang="ts">
+import Badge from '~/components/ui/Badge.vue';
+// Stubs SVG Lucide — Story 10.21 les remplacera par <CheckCircle />, etc.
+import { h } from 'vue';
+const IconCheck = () =>
+  h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+    [h('circle', { cx: 12, cy: 12, r: 10 }), h('path', { d: 'M9 12l2 2 4-4' })]);
+</script>
+
+<template>
+  <!-- 1. Verdict PASS par défaut (taille md, non-conditionnel). -->
+  <Badge variant="verdict" state="pass">
+    <template #icon><IconCheck /></template>
+    Validé
+  </Badge>
+
+  <!-- 2. Verdict PASS conditionnel (italique + aria-label "(conditionnel)"). -->
+  <Badge variant="verdict" state="pass" :conditional="true">
+    <template #icon><IconCheck /></template>
+    Validé
+  </Badge>
+
+  <!-- 3. Lifecycle signed en size sm (dashboard compact, dark mode automatique). -->
+  <Badge variant="lifecycle" state="signed" size="sm">
+    <template #icon><IconPenLine /></template>
+    Signé
+  </Badge>
+
+  <!-- 4. Admin criticité N2 (aria-label="Criticité admin N2" composé côté primitive). -->
+  <Badge variant="admin" state="n2">
+    <template #icon><IconAlertTriangle /></template>
+    N2
+  </Badge>
+</template>
+```
+
+**Union discriminée compile-time (AC1)** — les combinaisons invalides sont rejetées
+dès l'édition TS :
+
+```ts
+// @ts-expect-error state 'draft' est LifecycleState, pas VerdictState (cross-variant).
+const bad: BadgeProps = { variant: 'verdict', state: 'draft' };
+// @ts-expect-error conditional interdit hors variant=verdict.
+const bad2: BadgeProps = { variant: 'admin', state: 'n1', conditional: true };
+```
+
+**Sizes inline 20/24/32 px (Q4 verrouillée)** — Badge est d'affichage pur,
+**jamais** 44 px touch-target. Si un filtrage cliquable est requis, wrapper
+`<button @click><Badge .../></button>` (piège #24 ci-dessous).
+
 ## 4. Ajouter une 8ᵉ primitive UI
 
 1. **Créer le squelette Vue** — `app/components/ui/NewPrimitive.vue` avec
@@ -438,6 +497,73 @@ const ODD_OPTIONS = [
     `NaN` qui casse reactive watchers). Sinon émettre string. Le contrat
     emit devient `string | number` discriminé à l'exécution.
 
+21. **Tokens `verdict-*` vs `brand-*` confusion (aggravation post-10.15 darken)** —
+    Story 10.15 a darkened `brand-green #10B981 → #047857` + `brand-red
+    #EF4444 → #DC2626` pour WCAG AA. Les tokens `verdict-*` **restent à
+    leurs valeurs Q21 d'origine** (`verdict-pass #059669`, `verdict-fail
+    #DC2626`, `verdict-reported #D97706`, `verdict-na #6B7280`). **Piège** :
+    tentation de « matcher » `verdict-reported` sur `brand-orange #F59E0B`
+    (même famille chromatique). **INCORRECT** — `#F59E0B` sur blanc = 2,58:1
+    ❌ AA. Le choix `#D97706` amber-600 est **délibéré** pour contraste 4,69:1
+    ✅ AA (documenté §6). **Règle Badge** : `variant="verdict"` → `verdict-*` ;
+    états CTA primary/danger → `brand-*`. Jamais inversion.
+
+22. **Icon slot sizing non contraint par le parent (Badge + Button)** — le
+    slot `#icon` reçoit un SVG consommateur (stub Phase 0 ou Lucide Story
+    10.21) dont le parent ne contrôle pas la taille native. **Solution
+    Badge 10.17** : Tailwind arbitrary selector `[&_svg]:h-3 [&_svg]:w-3`
+    (sm) / `[&_svg]:h-3.5 [&_svg]:w-3.5` (md) / `[&_svg]:h-4 [&_svg]:w-4`
+    (lg) cible les SVG enfants directs — fonctionne pour Lucide (`<svg>`
+    racine) mais **pas pour wrappers** `<MyIcon>` qui seraient un
+    `<span><svg>…</svg></span>`. Alternative Phase Growth : provide/inject
+    `badgeSize` + wrapper Lucide adaptatif Story 10.21.
+
+23. **`role="status"` vs `role="img"` — choix A11y pour Badge** — un badge
+    ESG pourrait sembler être un « icône » sémantique (`role="img"`), mais
+    les lecteurs d'écran annoncent `img` avec le seul `aria-label`.
+    `role="status"` (région ARIA live-polite implicite) **annonce le
+    contenu** + **met à jour automatiquement** si l'état change de façon
+    asynchrone (re-scan ESG, tool calls LangGraph `submitted → in_review →
+    accepted`). **Choix primitive 10.17** : `role="status"` retenu.
+    **Piège** : `role="img"` forcerait `aria-label` obligatoire (redondant)
+    et perdrait l'update automatique SR.
+
+24. **Anti-pattern « badge-as-button » (Q5 verrouillée Story 10.17)** —
+    tentation de rendre un Badge cliquable (filtre table, tri verdict).
+    **INTERDIT MVP** pour 3 raisons :
+    (1) Native `<span>` n'a pas de touch target 44 px (AC5 hauteurs
+    20/24/32 px), mobile WCAG 2.5.5 ❌.
+    (2) `role="button"` sur `<span>` nécessite `tabindex="0"` +
+    `keydown` handlers + focus-visible — dupliquerait `ui/Button`.
+    (3) UX : un badge cliquable confond l'utilisateur (pas de feedback
+    hover/focus distinct du hover sur Badge statique).
+    **Solution** : wrapper `<button @click="filter"><Badge variant="verdict"
+    state="fail">…</Badge></button>` avec `<button>` natif porteur de
+    l'interaction. Deferred-work `DEF-10.17-1 Interactive Badge Phase
+    Growth` si pattern réutilisé > 2 fois.
+
+25. **Union discriminée Vue 3 `defineProps<Union>` — piège narrowing
+    template** — dans le template Vue, `props.state` est typé
+    `VerdictState | LifecycleState | AdminCriticality` (union merged) car
+    le narrowing cross-block n'existe pas dans les templates SFC.
+    **Solution Badge** : utiliser des `computed` avec `switch(props.variant)`
+    (JavaScript narrowing fonctionne) + mappings `Record<VerdictState,
+    string>`. **Piège** : si un dev ajoute `v-if="props.variant === 'verdict'
+    && props.conditional"` dans le template, TypeScript ne narrow **PAS**
+    `props` dans ce bloc — la prop `conditional` reste accessible
+    uniquement via `computed` narrowing JS.
+
+26. **Comptage Storybook runtime OBLIGATOIRE avant Completion Notes
+    (méthodologie 10.16 M-3 capitalisée)** — **méta-piège méthodologique** :
+    l'estimation a priori du nombre de stories CSF exports est trompeuse
+    car Storybook `tags: ['autodocs']` génère +1 docs page par CSF et
+    certains exports peuvent être ignorés par filtering. **Règle** :
+    exécuter `jq '.entries | keys | length' storybook-static/index.json`
+    **après** `npm run storybook:build` et consigner le chiffre exact
+    dans Completion Notes — **PAS d'estimation**. Pattern capitalisé
+    proactivement dès Story 10.17 pour éviter la récurrence de la dérive
+    post-10.16 (132 annoncés vs 122 réels).
+
 ---
 
 ## 6. A11y — Contraste WCAG 2.1 AA (calculs darken tokens 10.15)
@@ -454,6 +580,7 @@ et `--color-brand-red` ont été **darkened** pour respecter WCAG 2.1 AA `color-
 | `--color-brand-purple` | `#8B5CF6` (violet-500) | 0,23 | 3,86:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `--color-brand-orange` | `#F59E0B` (amber-500) | 0,52 | 2,11:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `text-brand-orange` (Textarea counter 350-399) | `#F59E0B` | — | **3,85:1** vs blanc | — *inchangé* | — | ⚠️ **texte auxiliaire acceptable** (Story 10.16 — compteur seuil warn non bloquant ; le seuil rouge `#DC2626` 4,83:1 AA s'applique à l'état limite 400 bloquant) |
+| `text-verdict-reported` (Badge 10.17 `reported`) | `#D97706` (amber-600) | 0,35 | **4,69:1** vs blanc | — *délibéré Q21* | — | ✅ AA (choix amber-600 au lieu de `#F59E0B` amber-500 = 2,58:1 ❌, documenté piège #21) |
 
 **Contraste mode sombre (post-review 10.16 L-4)** — Le compteur Textarea est rendu
 sur `bg-dark-card` (`#1F2937`) en dark mode. Les ratios calculés vs ce fond :

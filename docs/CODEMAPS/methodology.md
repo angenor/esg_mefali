@@ -169,6 +169,22 @@ git log --oneline <baseline>..HEAD
 **Exception légitime** : coverage c8 peut être batched post-merge (pattern
 10.15), mais doit être tracé dans `deferred-work.md` (ex: `DEF-10.16-4`).
 
+**Application proactive Story 10.17 (ui/Badge)** — les deux patterns A et B
+ci-dessus sont **appliqués proactivement** dès la rédaction des tests (pas
+après code-review) :
+
+- Pattern A (DOM ≠ state interne) : `test_badge_variants.test.ts` assert
+  `wrapper.find('span').classes()` + `attributes('aria-label')` +
+  `[data-testid="badge-label-slot"]` text — **jamais** `wrapper.vm.variant`.
+- Pattern B (comptage runtime obligatoire) : Task 8 exécute
+  `jq '.entries | keys | length' frontend/storybook-static/index.json`
+  **avant** Completion Notes et consigne le chiffre exact. Piège #26 du
+  codemap `ui-primitives.md` capitalise la règle pour les stories suivantes.
+
+La capitalisation en règle d'or permanente (pas seulement incident review)
+raccourcit la boucle : review Story 10.17 ne devrait plus remonter ni H-3
+ni M-3 (ou alors sur un autre axe qu'une répétition 10.16).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité
