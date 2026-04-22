@@ -146,3 +146,31 @@ export type BadgeProps =
   | (BadgePropsBase & { variant: 'verdict'; state: VerdictState; conditional?: boolean })
   | (BadgePropsBase & { variant: 'lifecycle'; state: LifecycleState })
   | (BadgePropsBase & { variant: 'admin'; state: AdminCriticality });
+
+/**
+ * Registre `ui/Drawer.vue` (Story 10.18) — panneau lateral accessible
+ * wrapper Reka UI DialogRoot + DialogPortal + DialogOverlay + DialogContent
+ * avec override ARIA `role="complementary"` + `aria-modal="false"`
+ * (lecon 10.14 HIGH-2 capitalisee infra — drawer consultatif != modal bloquant).
+ *
+ *  - `DRAWER_SIDES` : 4 positions (ordre canonique `right` default first —
+ *                     SourceCitationDrawer Epic 13 + IntermediaryComparator Epic 15
+ *                     + PeerReviewThreadedPanel Epic 19 consomment side=right).
+ *  - `DRAWER_SIZES` : 3 tailles desktop (sm=320px filtre / md=480px default
+ *                     sources+peer-review / lg=560px comparaison intermediaires).
+ *                     Mobile <md 768 px : fullscreen auto CSS-only (piege #29).
+ *
+ * Invariants : length 4 / 3 · Object.isFrozen === true · dedoublonne.
+ * Pattern CCC-9 frozen tuple byte-identique a 10.15 + 10.16 + 10.17.
+ */
+export const DRAWER_SIDES = Object.freeze([
+  'right',
+  'left',
+  'top',
+  'bottom',
+] as const);
+
+export const DRAWER_SIZES = Object.freeze(['sm', 'md', 'lg'] as const);
+
+export type DrawerSide = (typeof DRAWER_SIDES)[number];
+export type DrawerSize = (typeof DRAWER_SIZES)[number];
