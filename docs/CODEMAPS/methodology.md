@@ -239,6 +239,97 @@ Mesure anti-récurrence : si un 5ᵉ pattern émerge post-code-review 10.18,
 créer `§4quater`. Les 4 patterns ci-dessus sont **stables et permanents**
 pour les wrappers Reka UI futurs (10.19 Combobox/Tabs, 10.20 DatePicker).
 
+### 4quater Leçons post-review Story 10.18 (patches Option 0 Fix-All) — 2 patterns de traçabilité
+
+Les 2 HIGH remontés en code review 10.18 (APPROVE-WITH-CHANGES) portent
+tous les deux sur la **traçabilité** plutôt que sur la correctness
+architecturale. Les 4 patterns §4ter.bis sont appliqués proactivement ;
+ce qui a manqué, c'est la documentation explicite des écarts et la
+rigueur des assertions observables. Capitalisation :
+
+#### Leçon 20 — Écarts vs spec = Completion Notes obligatoires
+
+**Pattern** : tout AC non implémenté ou partiellement implémenté doit être
+**listé explicitement** dans la section « Ajustements mineurs vs spec »
+des Completion Notes, avec raison documentée. **Omettre silencieusement
+un écart = dette non traçable** = coût exponentiel de review des
+migrations futures.
+
+**Source** : Story 10.18 HIGH-1. AC6 prescrivait explicitement le pattern
+bottom-sheet mobile bascule (`translate-y-full` bottom-up pour cohérence
+iOS/Android natif). Le code livré a appliqué uniformément `inset-0` +
+`w-full h-full` quelle que soit la valeur de `side`, délivrant un
+fullscreen neutre. Cet écart **n'était pas listé** dans les Completion
+Notes (à la différence du changement `<header>/<footer>` → `<div>` qui
+lui était correctement documenté). Dette cachée.
+
+**Règle** : chaque AC non honoré ou partiellement honoré = **une ligne**
+dans « Ajustements vs spec » avec :
+
+- l'AC concerné (`AC6`, `AC8`, etc.) ;
+- la prescription originale (1 phrase) ;
+- la décision prise (**implémenté** / **déféré** / **refusé** / **délégué** à runtime autre) ;
+- la raison (layout box happy-dom, coût disproportionné, breaking migration, etc.) ;
+- le suivi s'il y en a (ticket `DEF-X.Y-N` dans `deferred-work.md` ou référence commit patch).
+
+**Absence d'item = spec intégralement honorée**. L'exhaustivité de la
+section est contractuelle.
+
+**Enforcement** : au moment de la review, confronter `Tasks/Subtasks`
+cochés [x] à la prescription spec ligne par ligne, puis croiser avec
+« Ajustements vs spec ». Un [x] sans couverture ni ajustement listé =
+omission silencieuse = dette cachée à remonter.
+
+**Application patch batch 10.18** : les Completion Notes ont été enrichies
+de **7 écarts complémentaires** (bottom-sheet bascule, focus return, focus
+trap, Escape strict, ScrollArea strict, autofocus délégué, closeLabel)
+en plus des 2 écarts originaux (header/footer, pièges renumérotés).
+
+#### Leçon 21 — Tests observables ≠ smoke d'existence
+
+**Pattern** : un test qui réfère un comportement observable (focus
+restoration, event émis, animation slide, classe CSS responsive) ne doit
+pas se réduire à `expect(queryEl()).not.toBeNull()` (« monte sans
+crash »). Soit **assertion stricte** sur l'effet attendu, soit
+**délégation explicite** (commentaire inline pointant le délégat
+Storybook play function / E2E Playwright).
+
+**Source** : Story 10.18 HIGH-2. Deux constats :
+
+1. **AC5 test Escape permissif** — `if (events) { expect(events.at(-1)).toEqual([false]) }`
+   transforme un test d'**assertion** en test **de non-régression conditionnelle**.
+   Si Reka UI cesse d'émettre `update:open` (breaking change), le test reste
+   vert car `events === undefined` et la branche est skippée.
+2. **AC8 focus trap / focus return smoke-only** — `it('drawer rendu sans
+   erreur quand trapFocus=false', () => expect(queryDrawer()).not.toBeNull())`.
+   Ne teste rien du comportement focus observable prescrit. Case vidée de
+   substance = **pire qu'un test manquant** (masque la régression).
+
+**Règle** : pour chaque test couvrant un AC observable :
+
+- soit **assert strict** sur l'effet (classe CSS exacte, event payload
+  exact, `document.activeElement` exact, attribut DOM exact) ;
+- soit **délégation explicite** : `// DELEGATED TO Storybook runtime
+  `{{StoryName}}`` + 1-2 lignes d'assertion smoke qui justifient le
+  maintien du test (au minimum : le composant monte, l'invariant structurel
+  tient).
+
+**Enforcement** : la patte « peut-on transformer cet assert en un
+one-liner `.not.toBeNull()` sans perdre le sens du test ? » est un
+signal. Si oui, le test est un smoke d'existence et doit être soit
+raffermi, soit converti en délégat.
+
+**Application patch batch 10.18** :
+
+- AC5 Escape : garde `if (events)` retirée, assert `expect(events).toBeDefined()` + `.toEqual([false])` strict.
+- AC8 focus return : observable strict (drawer retiré du DOM post-close + trigger reste focalisable + activeElement dans DOM monté) + délégation Storybook `FocusReturnOnClose` documentée inline (Reka UI FocusScope restoreFocus requiert layout box).
+- AC8 focus trap (`trapFocus=true`) : observable strict (descendant `[role="complementary"]` après `.focus()` multi-éléments) + délégation Storybook `FocusTrapCycle` pour le cycle Tab réel.
+- AC13 ScrollArea : query strict `[data-reka-scroll-area-viewport]` (+ fallback radix/class) au lieu de `textContent.contains(...)` laxiste.
+
+**Mesure anti-récurrence** : si un 6ᵉ pattern émerge post-code-review
+10.19 ou 10.20, créer `§4quinquies`. Les 6 patterns capitalisés (4 §4ter.bis
++ 2 §4quater) sont **stables et permanents**.
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité
