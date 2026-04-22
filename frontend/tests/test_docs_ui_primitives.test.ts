@@ -21,20 +21,47 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
     }
   });
 
-  it('AC14 Story 10.18 : §3 contient 5 sous-sections H3 (Button + Input + Textarea + Select + Badge + Drawer)', () => {
+  it('AC14 Story 10.19 : §3 contient 7 sous-sections H3 (Button + Input + Textarea + Select + Badge + Drawer + Combobox + Tabs)', () => {
     expect(content).toContain('### 3.0 `ui/Button`');
     expect(content).toContain('### 3.1 `ui/Input`');
     expect(content).toContain('### 3.2 `ui/Textarea`');
     expect(content).toContain('### 3.3 `ui/Select`');
     expect(content).toContain('### 3.4 `ui/Badge`');
     expect(content).toContain('### 3.5 `ui/Drawer`');
+    expect(content).toContain('### 3.6 `ui/Combobox`');
+    expect(content).toContain('### 3.7 `ui/Tabs`');
   });
 
-  it('AC14 Story 10.18 : §5 Pièges documentés contient >= 32 entrees numerotees (26 -> 34 cumul Drawer)', () => {
+  it('AC14 Story 10.19 : §5 Pièges documentés contient >= 40 entrees numerotees (34 -> 40 cumul Combobox/Tabs)', () => {
     const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
     const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
     const matches = body.match(/^\d+\.\s/gm) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(32);
+    expect(matches.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it('AC14 Story 10.19 : §3.6 Combobox contient >= 4 exemples Vue numerotes', () => {
+    const section36 = content.split('### 3.6')[1]?.split('### 3.7')[0] ?? '';
+    const numberedExamples = section36.match(/<!--\s*\d+\./g) ?? [];
+    expect(numberedExamples.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('AC14 Story 10.19 : §3.7 Tabs contient >= 4 exemples Vue numerotes', () => {
+    const section37 = content.split('### 3.7')[1]?.split(/^##\s/m)[0] ?? '';
+    const numberedExamples = section37.match(/<!--\s*\d+\./g) ?? [];
+    expect(numberedExamples.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('AC14 Story 10.19 : §3.6 Combobox mentionne IME composition guard + ignore-filter', () => {
+    const section36 = content.split('### 3.6')[1]?.split('### 3.7')[0] ?? '';
+    expect(section36).toMatch(/IME composition/i);
+    expect(section36).toMatch(/ignore-filter|ignoreFilter/i);
+  });
+
+  it('AC14 Story 10.19 : §3.7 Tabs mentionne orientation + activationMode + forceMount', () => {
+    const section37 = content.split('### 3.7')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section37).toMatch(/orientation/i);
+    expect(section37).toMatch(/activation[mM]ode/);
+    expect(section37).toMatch(/forceMount|force-mount/);
   });
 
   it('AC14 Story 10.18 : §3.5 Drawer contient >= 4 exemples Vue numerotes', () => {

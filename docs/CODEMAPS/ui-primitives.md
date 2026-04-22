@@ -51,7 +51,11 @@ frontend/
 │           ├── Button.vue                (primitive 4 variants × 3 sizes)
 │           ├── Button.stories.ts         (22 stories CSF 3.0 + 4 play functions)
 │           ├── Drawer.vue                (NEW 10.18 wrapper Reka UI + role=complementary)
-│           └── Drawer.stories.ts         (NEW 10.18 ≥ 16 stories CSF 3.0)
+│           ├── Drawer.stories.ts         (NEW 10.18 ≥ 16 stories CSF 3.0)
+│           ├── Combobox.vue              (NEW 10.19 wrapper Reka UI 14 primitives + IME guard + multi-select badges)
+│           ├── Combobox.stories.ts       (NEW 10.19 ≥ 7 stories CSF 3.0)
+│           ├── Tabs.vue                  (NEW 10.19 wrapper Reka UI 4 primitives + orientation/activationMode/forceMount)
+│           └── Tabs.stories.ts           (NEW 10.19 ≥ 7 stories CSF 3.0)
 ├── tests/components/ui/
 │   ├── test_button_registry.test.ts      (4 tests frozen/length/dedup)
 │   ├── test_button_variants.test.ts      (14 tests 4×3 + defaults + focus)
@@ -63,11 +67,20 @@ frontend/
 │   ├── test_drawer_behavior.test.ts      (NEW 10.18 26 tests Pattern A DOM portal-aware)
 │   ├── test_drawer_a11y.test.ts          (NEW 10.18 6 tests ARIA + vitest-axe smoke)
 │   ├── test_no_hex_hardcoded_drawer.test.ts (NEW 10.18 2 scans Drawer.vue + stories)
-│   └── Drawer.test-d.ts                  (NEW 10.18 15 @ts-expect-error assertions)
-└── tests/test_docs_ui_primitives.test.ts (scan 5 sections + ≥ 8 pièges)
+│   ├── Drawer.test-d.ts                  (NEW 10.18 15 @ts-expect-error assertions)
+│   ├── test_combobox_registry.test.ts    (NEW 10.19 4 tests COMBOBOX_MODES)
+│   ├── test_combobox_behavior.test.ts    (NEW 10.19 20 tests Pattern A user-event + IME guard)
+│   ├── test_combobox_a11y.test.ts        (NEW 10.19 4 tests ARIA + vitest-axe smoke)
+│   ├── test_tabs_registry.test.ts        (NEW 10.19 8 tests TABS_ORIENTATIONS + TABS_ACTIVATION_MODES)
+│   ├── test_tabs_behavior.test.ts        (NEW 10.19 22 tests Pattern A user-event + forceMount lazy)
+│   ├── test_tabs_a11y.test.ts            (NEW 10.19 6 tests ARIA + vitest-axe smoke)
+│   ├── test_no_hex_hardcoded_combobox_tabs.test.ts (NEW 10.19 4 scans Combobox+Tabs .vue + stories)
+│   ├── Combobox.test-d.ts                (NEW 10.19 12 @ts-expect-error assertions)
+│   └── Tabs.test-d.ts                    (NEW 10.19 10 @ts-expect-error assertions)
+└── tests/test_docs_ui_primitives.test.ts (scan 7 sections + ≥ 40 pièges)
 
 docs/CODEMAPS/
-├── ui-primitives.md                (ce fichier, 5 sections H2 + 32 pièges §5)
+├── ui-primitives.md                (ce fichier, 7 sections H2 + 40 pièges §5)
 └── index.md                        (+1 ligne référence)
 ```
 
@@ -441,6 +454,172 @@ documente la règle de décision ARIA role (bloquant vs parallèle) appliquée
 par cette primitive (wrapper Reka UI + role complementary). L-4 10.18
 post-review.
 
+### 3.6 `ui/Combobox` (Story 10.19)
+
+Wrapper Reka UI `ComboboxRoot` + `ComboboxAnchor` + `ComboboxInput` +
+`ComboboxTrigger` + `ComboboxPortal` + `ComboboxContent` + `ComboboxViewport`
++ `ComboboxEmpty` + `ComboboxGroup` + `ComboboxLabel` + `ComboboxItem` +
+`ComboboxItemIndicator` + `ComboboxSeparator` + `ComboboxCancel` (**14
+primitives**) avec **typage générique** `T extends string | number`, **search
+insensible casse + diacritiques** (Unicode NFD + `IME composition guard` —
+piège #38), `role="combobox"` + `aria-expanded` + `aria-activedescendant`
+fournis natifs, keyboard ArrowUp/Down/Home/End/Enter/Escape/Tab WAI-ARIA
+natifs. Mode `single` (default) vs `multiple` (badges × réutilisation
+`ui/Badge` 10.17). Empty state slot configurable + message i18n
+`'Aucun résultat'` default. `:ignore-filter="true"` passé au Root pour
+désactiver le filter interne Reka UI et contrôler exclusivement côté
+composant (AC3 + piège #38).
+
+```vue
+<!-- 1. Single-select avec search accent-insensible (pays UEMOA) -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import Combobox from '~/components/ui/Combobox.vue';
+const pays = ref<string | null>(null);
+const options = [
+  { value: 'sn', label: 'Sénégal' },
+  { value: 'ci', label: "Côte d'Ivoire" },
+  { value: 'bf', label: 'Burkina Faso' },
+  { value: 'eg', label: 'Égypte' },
+];
+</script>
+<template>
+  <Combobox v-model="pays" :options="options" label="Pays" />
+</template>
+```
+
+```vue
+<!-- 2. Multi-select Moussa Journey multi-pays (badges × touch 44 px) -->
+<script setup lang="ts">
+const selection = ref<string[]>([]);
+</script>
+<template>
+  <Combobox v-model="selection" :options="options" label="Pays d'opération" multiple />
+</template>
+```
+
+```vue
+<!-- 3. Options groupées (UEMOA / CEMAC / Autres) -->
+<Combobox
+  v-model="selection"
+  :options="[
+    { value: 'sn', label: 'Sénégal', group: 'UEMOA' },
+    { value: 'ci', label: 'Côte d\'Ivoire', group: 'UEMOA' },
+    { value: 'cm', label: 'Cameroun', group: 'CEMAC' },
+  ]"
+  label="Zone monétaire"
+/>
+```
+
+```vue
+<!-- 4. Empty state slot custom (catalogue fonds futur) -->
+<Combobox v-model="fund" :options="filteredFunds" label="Fonds vert">
+  <template #empty>
+    <div class="p-4 text-center">
+      <p class="text-sm text-surface-text/60 dark:text-surface-dark-text/60">
+        Aucun fonds trouvé.
+      </p>
+      <button type="button" @click="$emit('add-new')">+ Suggérer un fonds</button>
+    </div>
+  </template>
+</Combobox>
+```
+
+```ts
+// 5. TypeScript — multiple: 'yes' rejeté compile-time (Combobox.test-d.ts AC1).
+// @ts-expect-error multiple doit être boolean, pas string.
+const bad: ComboboxProps = { modelValue: null, options: [], label: 'X', multiple: 'yes' };
+```
+
+**Q1 Reka UI nu (pas shadcn-vue)** — wrapper `<ComboboxRoot>` direct (Reka UI
+2.9.6 cohérent UX Step 6 Q15). Shadcn-vue = abstraction superflue.
+
+**Q2 prop `multiple` unique (pas `<MultiCombobox>` séparé)** — cohérent
+`<select multiple>` natif. Typage `T | T[] | null` permissif Phase 0
+(`DEF-10.19-1` discriminated union Phase Growth si pattern récurrent).
+
+**Q5 searchable default `true`** — différenciateur vs `Select`. Désactiver
+search = utiliser `Select` 10.16 directement (UX équivalente).
+
+**Cross-ref Storybook** — [storybook.md UX Patterns Dropdown/Combobox](./storybook.md)
+documente règle de décision Combobox vs Select (statique N options)
+vs Popover (contenu libre).
+
+### 3.7 `ui/Tabs` (Story 10.19)
+
+Wrapper Reka UI `TabsRoot` + `TabsList` + `TabsTrigger` + `TabsContent` (**4
+primitives**) avec orientation `horizontal` (default) / `vertical`,
+activationMode `automatic` (default WAI-ARIA) / `manual` (a11y screen reader
+exploration sans charger contenu), forceMount lazy (default false — piège
+#37). ARIA `role="tablist"` + `role="tab"` + `role="tabpanel"` +
+`aria-orientation` + `aria-selected` fournis natifs. Keyboard
+ArrowLeft/Right (horizontal) OU ArrowUp/Down (vertical) + Home/End + cycle
+infini + skip disabled natifs. Underline indicator `brand-green` (border-b-2
+/ border-l-2) sans animation (AC7 `prefers-reduced-motion: reduce` — piège
+#39 RTL).
+
+```vue
+<!-- 1. Tabs horizontal ReferentialComparisonView (Epic 10) -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import Tabs from '~/components/ui/Tabs.vue';
+const active = ref('view');
+const tabs = [
+  { value: 'view', label: 'Vue comparative' },
+  { value: 'detail', label: 'Détail par règle' },
+  { value: 'history', label: 'Historique' },
+];
+</script>
+<template>
+  <Tabs v-model="active" :tabs="tabs" label="Référentiel">
+    <template #content-view><ComparisonTable /></template>
+    <template #content-detail><RuleDetail /></template>
+    <template #content-history><AuditTrail /></template>
+  </Tabs>
+</template>
+```
+
+```vue
+<!-- 2. Tabs vertical admin N1/N2/N3 (Epic 19 peer-review) -->
+<Tabs
+  v-model="active"
+  :tabs="[
+    { value: 'n1', label: 'N1 — Revue' },
+    { value: 'n2', label: 'N2 — Arbitrage' },
+    { value: 'n3', label: 'N3 — Validation' },
+  ]"
+  orientation="vertical"
+  label="Admin peer-review"
+/>
+```
+
+```vue
+<!-- 3. Tabs manual activation (a11y screen reader exploration) -->
+<Tabs v-model="active" :tabs="tabs" activation-mode="manual" label="Navigation contenu riche" />
+```
+
+```vue
+<!-- 4. Tabs forceMount (recherche Ctrl+F transversale — piège #40) -->
+<Tabs v-model="active" :tabs="tabs" :force-mount="true" label="Documentation longue" />
+```
+
+```ts
+// 5. TypeScript — orientation: 'invalid' rejeté compile-time (Tabs.test-d.ts AC7).
+// @ts-expect-error orientation hors union horizontal | vertical.
+const bad: TabsProps = { modelValue: 't1', tabs: [], orientation: 'invalid' };
+```
+
+**Q3 horizontal default** — 95 % cas UI SaaS + WAI-ARIA recommandation.
+Vertical = sidebar admin / labels longs (dyslexie a11y).
+
+**Q4 automatic default** — WAI-ARIA Authoring Practices standard. Manual
+réservé pour contenu coûteux à charger (graphs Chart.js multi-onglet Moussa
+dashboard Epic 11).
+
+**forceMount prop présence Reka UI (piège #37)** — ne PAS passer `false`,
+passer `undefined` ; `Tabs.vue` expose `forceMountProp = forceMount ? true : undefined`
+pour garantir le désactivation propre.
+
 ## 4. Ajouter une 8ᵉ primitive UI
 
 1. **Créer le squelette Vue** — `app/components/ui/NewPrimitive.vue` avec
@@ -766,6 +945,90 @@ post-review.
     (`closeOnEscape: false`, `closeOnOverlayClick: false`, `showCloseButton:
     false`) → utilisateur piégé. Runtime `console.warn` dev-only en
     défense en profondeur.
+
+35. **Registry ordres canoniques frozen — changer l'ordre = rupture API**
+    (Story 10.19) — Les 3 tuples 10.19 (`COMBOBOX_MODES` single-first /
+    `TABS_ORIENTATIONS` horizontal-first / `TABS_ACTIVATION_MODES`
+    automatic-first) suivent l'ordre canonique WAI-ARIA + usage majoritaire.
+    Index 0 = default inféré (pattern 10.18 `DRAWER_SIDES[0] === 'right'`).
+    Changer `COMBOBOX_MODES = ['multiple', 'single']` = rupture API tous
+    consommateurs (le default devient `'multiple'`). **Invariant** : les
+    tests `test_combobox_registry.test.ts` + `test_tabs_registry.test.ts`
+    assertent `COMBOBOX_MODES[0] === 'single'` + `TABS_ORIENTATIONS[0] ===
+    'horizontal'` + `TABS_ACTIVATION_MODES[0] === 'automatic'`.
+
+36. **Combobox `ignoreFilter` vs `filterFunction` Reka UI — signature piège**
+    (Story 10.19) — Reka UI 2.9.6 ComboboxRoot applique un filter interne
+    par défaut (case-sensitive, pas de NFD normalisation, pas d'IME guard)
+    qui se superpose à notre `filteredOptions` computed. Le premier réflexe
+    d'utiliser `filterFunction` échoue car la signature attendue (`(val,
+    term) => boolean`) est différente de celle qu'on imagine (`(items, term)
+    => items[]`). **Solution** : passer `:ignore-filter="true"` sur
+    `<ComboboxRoot>` pour désactiver complètement le filter interne et
+    contrôler le filtrage exclusivement côté composant. Vérifié via
+    `rootContext.ignoreFilter` dans `reka-ui/src/Combobox/ComboboxItem.vue`
+    (court-circuite l'`isRender` computed).
+
+37. **Combobox + Tabs `forceMount` piège Reka UI — prop présence pas boolean**
+    (Story 10.19) — Reka UI `forceMount` (disponible Combobox + Tabs) est
+    une **prop présence** : sa simple occurrence active le forceMount, `false`
+    peut être interprété comme « présent » selon le compilateur Vue. **Solution**
+    : exposer un `computed<true | undefined>` côté wrapper et passer
+    `:force-mount="forceMountProp"` (`true` ou `undefined`, jamais `false`).
+    `Tabs.vue` illustre le pattern :
+    ```ts
+    const forceMountProp = computed<true | undefined>(() =>
+      props.forceMount ? true : undefined
+    );
+    ```
+    Test vérifie `screen.queryByTestId('tab-content-t2')` null quand
+    `forceMount=false` + `modelValue !== 't2'`.
+
+38. **IME composition guard CJK + accents Mac FR (option-e / option-`)**
+    (Story 10.19) — Critique `ui/Combobox` searchable multi-langue. Sans
+    guard `isComposing`, l'utilisateur Mac tapant `é` via option-e
+    (composition 2 étapes : d'abord `e`, puis `é` finalisé) déclenche filter
+    sur `e` intermédiaire → l'option `Égypte` disparaît alors qu'elle
+    devrait rester filtrée présente. Même pattern : accents `à` (option-`),
+    `ù`, `ô` + CJK pinyin/romaji/hangul. **Solution** : `ref isComposing =
+    ref(false)` + handlers `@compositionstart` / `@compositionend` +
+    `filteredOptions` computed skippe le filter pendant `isComposing.value
+    === true` :
+    ```ts
+    const filteredOptions = computed(() => {
+      if (!props.searchable || isComposing.value || !searchTerm.value) {
+        return props.options;
+      }
+      // ...filtrage NFD normalisé
+    });
+    ```
+    **Note** : ce guard est cumulatif avec `:ignore-filter="true"` côté
+    ComboboxRoot (piège #36) — les deux sont nécessaires. Test via
+    `fireEvent.compositionStart(input)` + `fireEvent.update(input, 'e')` +
+    `expect(screen.queryByRole('option', {name:/burkina faso/i})).not.toBeNull()`
+    (burkina n'a ni `e` ni `é` → preuve observable que le filter est bien
+    désactivé pendant la composition).
+
+39. **Tabs vertical underline indicator cohérence RTL (Phase Growth)**
+    (Story 10.19) — Si futur support RTL (arabe Maghreb/Mauritanie),
+    `border-r` vertical devient `border-l` en RTL. Pattern Phase 0 : pas
+    de gestion RTL. **Piège signalé** pour éviter hardcode `border-r` sans
+    préfixe Tailwind 4 `ltr:border-r rtl:border-l rtl:border-r-0`. Deferred
+    `DEF-10.19-2 RTL support Tabs vertical Phase Growth` si 1 consommateur
+    Maghreb l'exige explicitement. Même logique pour `border-l-2 border-brand-green`
+    de l'indicateur actif → `ltr:border-l-2 rtl:border-r-2` en cible RTL.
+
+40. **Tabs lazy `forceMount` vs accessibility browser search (Ctrl+F)**
+    (Story 10.19) — `forceMount: false` (default) = tabpanel inactif non
+    monté DOM (Reka UI `Presence` + `rootContext.unmountOnHide`) → Ctrl+F
+    navigateur ne trouve pas le texte dans tabs inactifs. **Trade-off** :
+    (a) perf default (pas de render inactifs, utile pour graphs Chart.js
+    coûteux) vs (b) searchability `forceMount: true` (documentation longue
+    multi-onglets type `ReferentialComparisonView` Epic 10 avec 500+ règles
+    par onglet). **Recommandation consommateur** : mesurer le coût de render
+    (devtools timeline) puis décider. Formulaire multi-step complexe →
+    `forceMount: false` (économise re-render ++). Documentation longue →
+    `forceMount: true` (a11y Ctrl+F + SR scan transversal).
 
 ---
 

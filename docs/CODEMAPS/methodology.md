@@ -330,6 +330,98 @@ raffermi, soit converti en délégat.
 10.19 ou 10.20, créer `§4quinquies`. Les 6 patterns capitalisés (4 §4ter.bis
 + 2 §4quater) sont **stables et permanents**.
 
+### 4ter.ter Application proactive Story 10.19 (ui/Combobox + ui/Tabs) — 6 leçons cumulées
+
+Les 6 patterns méthodologiques (4 §4ter.bis capitalisés post-10.18 +
+2 §4quater post-review 10.18) sont appliqués **proactivement** dès la
+rédaction du code 10.19, sans attendre un code review pour les re-découvrir.
+Capitalisation byte-identique (pas d'adaptation 10.19, pattern stable) :
+
+#### Pattern A user-event strict (capitalisé §4ter.bis post-10.18)
+
+**Application** : `test_combobox_behavior.test.ts` + `test_tabs_behavior.test.ts`
+utilisent exclusivement `render(... from '@testing-library/vue')` + `screen.getByRole` +
+`userEvent.setup()` + `user.type/click/keyboard` — **aucun `wrapper.vm.*`**,
+**aucun `input.setValue(...)`**. Spécificité Combobox portalisé :
+`screen.*` scanne `document.body` nativement (portal-aware). Spécificité
+Tabs non-portalisé : `screen.*` indiffère vs `wrapper.find(...)`, préférence
+`screen.*` pour cohérence cross-primitive.
+
+**Cas Combobox spécifique : ouverture du dropdown** — Reka UI ne déclenche
+PAS l'ouverture sur `user.click(input)` (conformité WAI-ARIA). Pattern
+helper `openDropdown(user)` : `input.focus()` + `user.keyboard('{ArrowDown}')`
+(WAI-ARIA standard Combobox).
+
+#### Pattern B comptage runtime Storybook (capitalisé §4ter.bis post-10.18)
+
+**Application** : 4 chiffres `jq` consignés dans les Completion Notes
+**AVANT** tout claim de complétude :
+
+```bash
+jq '.entries | keys | length' storybook-static/index.json                   # total
+jq '[.entries|to_entries[]|select(.value.id|startswith("ui-combobox"))]|length' storybook-static/index.json  # combobox
+jq '[.entries|to_entries[]|select(.value.id|startswith("ui-tabs"))]|length' storybook-static/index.json  # tabs
+du -sh storybook-static                                                      # bundle
+```
+
+Story 10.19 consigne : 211 total / 10 combobox / 9 tabs / 8.1 MB bundle (cibles
+≥ 206 / ≥ 7 / ≥ 7 / ≤ 15 MB toutes respectées).
+
+#### Leçon 10.14 HIGH-2 (role override) — non applicable 10.19
+
+`role="combobox"` + `role="tablist"` / `role="tab"` / `role="tabpanel"` sont
+les rôles WAI-ARIA corrects natifs Reka UI. **Pas d'override** (vs Drawer
+10.18 `dialog → complementary`). Documenté §10 story file.
+
+#### Leçon 10.15 HIGH-2 (Storybook runtime pour portail)
+
+**Application** : `test_combobox_a11y.test.ts` délègue explicitement les
+audits contraste/focus portail-dépendants à Storybook runtime via
+commentaire inline `// DELEGATED TO Storybook ComboboxKeyboardNavigation`
++ `AXE_OPTIONS.rules['color-contrast'].enabled = false`. Tabs non-portalisé →
+pas de délégation (vitest-axe happy-dom suffit pour les règles non-contraste).
+
+#### Leçon 20 §4quater (Écarts vs spec Completion Notes obligatoires)
+
+**Application** : la section « Ajustements mineurs vs spec » des Completion
+Notes est renseignée **proactivement** lors de la rédaction, pas en
+réponse à un code review post-hoc. Story 10.19 liste les 3 écarts
+anticipés :
+
+1. **AC1 (`ComboboxItemIndicator`)** — typage `T | T[] | null` permissif
+   Phase 0 au lieu de discriminated union `{multiple:true, modelValue:T[]}`
+   (DEF-10.19-1 tracé pour Phase Growth si 1+ consommateur le demande).
+2. **AC2 Badge variant** — réutilisation `variant="lifecycle" state="draft"`
+   faute de variant `ghost` ajouté ; valide car AC2 prescrit « variant
+   `lifecycle` state `applicable` OU variant custom `ghost` si ajouté »
+   (clause conditionnelle satisfaite).
+3. **AC4 ARIA `aria-controls` sur tabs inactifs** — Reka UI ne les expose
+   pas (tabpanel inactif non monté → pas de target ID). Documenté §3.7.
+
+#### Leçon 21 §4quater (Tests observables ≠ smoke)
+
+**Application** : assertions strictes Task 5 sur :
+
+- **AC3 IME composition guard** : `expect(screen.queryByRole('option',
+  {name:/burkina faso/i})).not.toBeNull()` (observable fort : Burkina Faso
+  n'a ni `e` ni `é` dans son label → présence prouve qu'aucun filter n'a
+  été appliqué pendant la composition).
+- **AC5 keyboard Enter** : `expect(events).toBeDefined()` +
+  `expect(events.at(-1)).toEqual([...])` strict, pas `if (events) ...`
+  permissif.
+- **AC12 forceMount lazy** : `expect(screen.queryByTestId('tab-content-t2')).toBeNull()`
+  avant clic + `expect(screen.getByTestId('tab-content-t2')).toBeDefined()`
+  après clic (pas `.not.toBeNull()` sur wrapper Reka UI toujours monté).
+
+**Délégations explicites** : audit contraste portail Combobox documenté
+inline `// DELEGATED TO Storybook ComboboxKeyboardNavigation` (piège #38 +
+§4ter.bis Leçon 10.15 HIGH-2 capitalisée infra).
+
+**Mesure anti-récurrence** : si un 7ᵉ pattern émerge post-code-review
+10.19 ou 10.20, créer `§4quinquies`. Les 6 patterns sont désormais
+capitalisés ET appliqués proactivement sur chaque nouvelle primitive
+(byte-identique).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité
