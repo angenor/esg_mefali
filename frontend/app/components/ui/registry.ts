@@ -174,3 +174,27 @@ export const DRAWER_SIZES = Object.freeze(['sm', 'md', 'lg'] as const);
 
 export type DrawerSide = (typeof DRAWER_SIDES)[number];
 export type DrawerSize = (typeof DRAWER_SIZES)[number];
+
+/**
+ * Registre `ui/Combobox.vue` + `ui/Tabs.vue` (Story 10.19) — 2ᵉ + 3ᵉ wrappers
+ * Reka UI apres Drawer 10.18. Ordre canonique des tuples = default infere
+ * (index 0). Changer l'ordre = rupture API tous consommateurs (piege #35
+ * codemap `ui-primitives.md#§5`).
+ *
+ *  - `COMBOBOX_MODES`        : single (default) / multiple — cohérent Select 10.16.
+ *  - `TABS_ORIENTATIONS`     : horizontal (default 95% cas UI SaaS) / vertical.
+ *  - `TABS_ACTIVATION_MODES` : automatic (default WAI-ARIA) / manual (a11y
+ *                              screen reader exploration sans charger contenu).
+ *
+ * Invariants : length 2/2/2 · Object.isFrozen === true · dedoublonne ·
+ * types derivés `typeof TUPLE[number]`. Pattern CCC-9 byte-identique 10.15-10.18.
+ */
+export const COMBOBOX_MODES = Object.freeze(['single', 'multiple'] as const);
+
+export const TABS_ORIENTATIONS = Object.freeze(['horizontal', 'vertical'] as const);
+
+export const TABS_ACTIVATION_MODES = Object.freeze(['automatic', 'manual'] as const);
+
+export type ComboboxMode = (typeof COMBOBOX_MODES)[number];
+export type TabsOrientation = (typeof TABS_ORIENTATIONS)[number];
+export type TabsActivationMode = (typeof TABS_ACTIVATION_MODES)[number];
