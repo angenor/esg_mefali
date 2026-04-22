@@ -1,6 +1,6 @@
 # Story 10.18 : `ui/Drawer.vue` wrapper Reka UI Dialog (variant side)
 
-Status: review
+Status: done
 
 > **Contexte** : 20ᵉ story Phase 4 et **4ᵉ primitive `ui/`** après Button 10.15 + Input/Textarea/Select 10.16 + Badge 10.17. **1ʳᵉ primitive `ui/` avec wrapper Reka UI** (vs natifs `<button>`/`<input>`/`<span>` précédents). Sizing **M** (~1 h) selon sprint-plan v2.
 >
