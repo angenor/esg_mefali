@@ -1,6 +1,6 @@
 # Story 10.17 : `ui/Badge.vue` — tokens sémantiques (verdicts ESG + lifecycle FA + criticité admin)
 
-Status: review
+Status: done
 
 > **Contexte** : 19ᵉ story Phase 4 et **3ᵉ primitive `ui/`** après Button 10.15 + Input/Textarea/Select 10.16. Sizing **S** (~1 h) selon sprint-plan v2. Cette story livre la primitive unique `Badge.vue` qui unifie les indicateurs d'état visuels transversaux : (a) 4 verdicts ESG `PASS`/`FAIL`/`REPORTED`/`N/A` (Q21 UX Step 8), (b) 9 états lifecycle `FundApplication` (FR32), (c) 3 niveaux de criticité admin `N1`/`N2`/`N3` (arbitrage Q11 Mariam). La Règle 11 UX « Couleur jamais seule porteuse d'information » est enforcée par un **icône obligatoire + texte obligatoire + token couleur** (3 signaux redondants).
 >
@@ -712,7 +712,7 @@ $ grep -nE ": any\b|as unknown" frontend/app/components/ui/Badge.vue
 - **3 signaux redondants Règle 11 UX enforcés** : tokens `@theme` (couleur) + slot `#icon` obligatoire runtime (`console.error` si absent) + slot `#default` obligatoire (`console.warn` fast-path slot absent + slow-path inspection DOM post-`nextTick` label vide).
 - **Registry étendu CCC-9** : 4 nouveaux `Object.freeze([…] as const)` (VERDICT_STATES/LIFECYCLE_STATES/ADMIN_CRITICALITIES/BADGE_SIZES) + 4 types dérivés, byte-identique pattern 10.15 + 10.16.
 - **Comptage Storybook runtime (pattern B 10.16 M-3) OBLIGATOIRE exécuté AVANT ces Completion Notes** : `jq '.entries | keys | length' storybook-static/index.json` = **168 total** dont **36 `ui-badge--*`** (35 stories CSF export + 1 auto-docs). Plancher AC10 ≥ 30 satisfait avec marge.
-- **Tests runtime** : 476 → 555 passed (+79, cible AC9 ≥ 16 très dépassée, répartis 12 registry + 33 variants + 22 a11y + 2 no-hex + 10 docs). Pattern A proactif : **toutes** les assertions passent par DOM (`wrapper.find('span').classes()`, `attributes('aria-label')`, `[data-testid]` text) — aucune `wrapper.vm.*` ni mutation state interne.
+- **Tests runtime** : 476 → 555 passed (+79 v1, cible AC9 ≥ 16 très dépassée, répartis 12 registry + 33 variants + 22 a11y + 2 no-hex + 10 docs). Pattern A appliqué proactivement : 31/33 tests variant rendu utilisent assertion DOM observable (`wrapper.find('span').classes()`, `attributes('aria-label')`, `[data-testid]` text). Les 2 tests Règle 11 runtime utilisaient initialement console spy seul ; **patch code-review 10.17 CRITICAL-3** a ajouté assertions DOM primaires (`childElementCount === 0`, `labelWrapper.text() === ''`) en conservant le console spy comme défense en profondeur (AC3 fully enforced). Aucune `wrapper.vm.*` ni mutation state interne.
 - **Typecheck compile-time** : 27 → 40 passed (+13, cible AC9 ≥ 12 satisfait). 13 `@ts-expect-error` couvrant 9 combinaisons invalides cross-variant (`{ variant: 'verdict', state: 'draft' }` etc.) + `conditional` hors verdict + size hors BadgeSize + state manquant + variant hors union.
 - **Dark mode 33 dark: classes** (AC7 plancher ≥ 21 dépassé : 8 verdict + 18 lifecycle + 6 admin + 1 bonus) sans inflation artificielle — chaque classe rattachée à un axe visuel réel (fond `/20` + texte `-soft` par variante).
 - **WCAG 2.1 AA** : 22 audits `vitest-axe` (dont 2 en dark mode) = **0 violation**. Contraste tokens calculé manuellement §6 codemap (verdict-reported `#D97706` on white = 4,69:1 ✅ AA — choix amber-600 délibéré au lieu de `#F59E0B` amber-500 2,58:1 ❌).
@@ -746,4 +746,47 @@ $ grep -nE ": any\b|as unknown" frontend/app/components/ui/Badge.vue
 | Date | Commit | Description |
 |------|--------|-------------|
 | 2026-04-22 | `aa91d81` | feat(10.17): ui/Badge primitive + registry CCC-9 4 tuples (Badge.vue + registry + 5 tests) |
-| 2026-04-22 | *(pending)* | feat(10.17): Badge stories CSF3 + docs CODEMAPS §3.4 + count runtime vérifié |
+| 2026-04-22 | `74d2bc2` | feat(10.17): Badge stories CSF3 + docs CODEMAPS §3.4 + count runtime vérifié |
+
+### Review Findings
+
+**Code review adversariale 2026-04-22** — 3 layers (Blind Hunter + Edge Case Hunter + Acceptance Auditor), 36 findings bruts → 27 après dédup. Convergence 3/3 sur CRITICAL contraste + HIGH Pattern A gap.
+
+**Décisions requises (1)** :
+
+- [ ] [Review][Decision] Color collision admin.n1 (green #10B981) = fa.accepted (green même famille) — dashboard dense affiche les deux ensemble, mental model conflict. Option A : réassigner admin.n1 à une teinte distincte (bleu/cyan "informationnel"). Option B : accepter collision, texte disambigue. Option C : migrer admin.n1 vers fa-accepted-aligned à dessein (N1 = "tout va bien" = vert = accepted). [frontend/app/assets/css/main.css:55]
+
+**Patches (18)** :
+
+- [ ] [Review][Patch] CRITICAL — Contraste AA fail light mode verdict soft-bg : pass 3.32:1, fail 3.95:1, reported 2.86:1, na 4.39:1 (tous < 4.5:1 AA normal text). Darken text tokens 600→700/800 OU inverser pattern (dark text on soft bg → soft text on solid bg). [frontend/app/components/ui/Badge.vue:81-86 + main.css:34-41]
+- [ ] [Review][Patch] CRITICAL — Contraste AA fail light mode lifecycle/admin `/10` opacity : fa-in-review 1.80:1, fa-exported 1.99:1, admin-n2 1.99:1, fa-submitted ~2.21:1, fa-accepted 2.31:1, fa-draft 2.34:1. Augmenter opacity bg (/20) OU darken text tokens. [Badge.vue:88-104 + main.css:44-57]
+- [ ] [Review][Patch] CRITICAL — a11y tests désactivent `color-contrast` rule (happy-dom sans CSS pipeline) → escape hatch masquant les échecs AA ci-dessus. Ajouter test pur-JS qui lit les hex de main.css et calcule le ratio de luminance, assert ≥ 4.5:1 par variant-state-mode. [test_badge_a11y.test.ts:19-26]
+- [ ] [Review][Patch] HIGH — Contraste dark mode fail 5 states : snapshot_frozen 3.71:1, signed 3.34:1, rejected 3.84:1, withdrawn 2.97:1, admin-n3 3.84:1. Dark mode utilise même token text que bg tint (`text-fa-X` sur `bg-fa-X/20` → trop proches). Utiliser variante `*-soft` ou tint plus claire en dark. [Badge.vue:89-103]
+- [ ] [Review][Patch] HIGH — Pattern A violation partielle : 2 tests Règle 11 UX runtime enforcement asserte UNIQUEMENT `vi.spyOn(console, 'error'|'warn')` — pas de DOM assertion. Compléter : assert `wrapper.find('[data-testid="badge-icon-slot"]').element.childElementCount === 0` + text empty. [test_badge_variants.test.ts:193-217]
+- [ ] [Review][Patch] HIGH — Runtime enforcement Règle 11 fragile en production : `console.error`/`console.warn` supprimés si Vite `build.minify.drop: ['console']` activé + `onMounted` ne fire que client-side (SSR silent). Migrer check vers `setup()` avec guard `import.meta.dev`, ajouter fallback visual (icon placeholder) pour garantir invariant en prod. [Badge.vue:132-150]
+- [ ] [Review][Patch] HIGH — Storybook meta `methods: { iconFor, labelFor }` mixte avec `setup()` + casts `as VerdictState` silencent les erreurs TS → les 27 stories scalaires pourraient rendre icon/label vides en runtime. Migrer helpers dans `setup()` avec narrowing propre (`if (a.variant === 'verdict')`). [Badge.stories.ts:206-230]
+- [ ] [Review][Patch] HIGH — VNode stale reuse : `VERDICT_ICONS`/`LIFECYCLE_ICONS`/`ADMIN_ICONS` sont module-level `h(Icon)` instanciés 1× au module init. VNodes Vue sont single-use → showcase grids et exemples composés (VerdictShowcaseGrid, ComposedInTable, etc.) qui réutilisent la même ref peuvent rendre icons manquantes. Remplacer par component refs : `pass: IconCheckCircle` + `<component :is="VERDICT_ICONS[s]" />` instancie fresh VNode. [Badge.stories.ts:129-152]
+- [ ] [Review][Patch] HIGH — `[&_svg]:h-3.5 [&_svg]:w-3.5` sur le span racine est un descendant selector qui leak vers les SVGs dans le slot default (label). Scoper au wrapper icon uniquement : déplacer les classes svg-sizing sur le `<span data-testid="badge-icon-slot">`. [Badge.vue:111-120 + 165-167]
+- [ ] [Review][Patch] HIGH — Icon slot bypass : `!slots.icon` (truthiness de la fonction) reste truthy si consumer fait `<template #icon></template>` (slot fourni mais vide). L'invariant "icon visible" n'est pas enforcé. Ajouter slow-path DOM inspection comme pour le label : `await nextTick(); if (iconWrapperEl.childElementCount === 0) warn`. [Badge.vue:133-136]
+- [ ] [Review][Patch] HIGH — Semantic icon collision : `IconAlertTriangle` utilisé pour `verdict.reported` ET `admin.n2`. Règle 11 repose sur icône **distinctive**, pas couleur seule — collision d'icône casse le principe. Remplacer reported par `IconAlertCircle` ou `IconFileWarning`. Ajouter test set-size : `new Set([...VERDICT_ICONS, ...LIFECYCLE_ICONS, ...ADMIN_ICONS].size === 16`. [Badge.stories.ts:98-102 + 139-142]
+- [ ] [Review][Patch] MEDIUM — `role="status"` crée live-region polite : un dashboard rendant N badges déclenche N annonces vocales au chargement. Basculer sur `role="img"` par défaut (annonce 1× on focus/hover) ; ajouter prop optionnelle `live?: boolean` pour le cas toast-like dynamique. [Badge.vue:154-155]
+- [ ] [Review][Patch] MEDIUM — DRY violation : `VERDICT_LABELS_FR`/`LIFECYCLE_LABELS_FR`/`ADMIN_LABELS_FR` existent verbatim dans Badge.vue ET Badge.stories.ts (16 strings × 2 fichiers). Risque drift aria-label vs label visible. Exporter depuis `registry.ts` (ou co-located `badge-labels.ts`), importer dans les 2 consommateurs. [Badge.vue:36-58 + Badge.stories.ts:153-175]
+- [ ] [Review][Patch] MEDIUM — `Badge.test-d.ts` duplique localement `BadgeProps` (copie avec commentaire "DOIT suivre explicitement Badge.vue"). Risque drift silencieux. Exporter `BadgeProps` depuis Badge.vue via `<script setup lang="ts">` nommé ou co-located `Badge.types.ts`, importer dans test-d. [Badge.test-d.ts:16-22]
+- [ ] [Review][Patch] MEDIUM — Gap compile-time coverage Badge.test-d.ts : excess property `{ variant: 'verdict', state: 'pass', foo: 'bar' }` pas testé + `state: undefined` explicite pas testé + `@ts-expect-error` non-spécifique pourrait catcher une erreur non-voulue. Ajouter tests ciblés + préférer `expectTypeOf<X>().not.toMatchTypeOf<BadgeProps>()` pour assertions bornées. [Badge.test-d.ts]
+- [ ] [Review][Patch] MEDIUM — SSR hydration concern : Règle 11 runtime check vit dans `onMounted` (client-only) → SSR ne log rien, dev doit visiter la page. Combiné avec `drop_console` prod = enforcement dev-client uniquement. Couvert partiellement par patch #6 ci-dessus ; à regrouper dans une seule refonte du guard. [Badge.vue:132-150]
+- [ ] [Review][Patch] LOW — `size=lg` utilise `min-h-[32px]` sans `max-h` → peut stretcher dans flex `align-items: stretch`. Envisager `h-[20|24|32px]` fixe ou `inline-flex self-start`. [Badge.vue:113-119]
+- [ ] [Review][Patch] LOW — Le claim Completion Notes L715 « toutes les assertions passent par DOM » est factuellement faux (2/33 tests = console spies). Reformuler : « Pattern A respecté pour 31/33 tests de rendu ; 2 tests Règle 11 utilisent console spies pour enforcer un side-effect runtime `onMounted` ». [Story file L715]
+
+**Defer (3)** :
+
+- [x] [Review][Defer] `@ts-expect-error` non-spécifique (catch potentiel d'erreurs non-voulues) — amélioration méthodo `expectTypeOf().not.toMatchTypeOf()` tracée DEF-10.17-1. [Badge.test-d.ts]
+- [x] [Review][Defer] AC7 seuil admin `dark:` pile 6, marge 0 — fragile à factorisation future. Ajouter test statique comptage par famille DEF-10.17-2. [Badge.vue:100-104]
+- [x] [Review][Defer] Slow-path `onMounted` + `nextTick()` → warn label vide peut être non-déterministe pour tests consommateurs sans `flushPromises()`. Documenter piège #27 codemap DEF-10.17-3. [Badge.vue:144-150]
+
+**Dismissed (5, noise/cosmétique)** :
+
+1. AC9 baseline 460 vs 476 réel (wording pré-existant spec, pas bug)
+2. AC10 jq filter total vs ui-badge ambigu (wording spec)
+3. Completion Notes « 13 typecheck » vs 14 directives (wording)
+4. `text-fa-*` JIT generation (tokens vérifiés présents main.css:30-57)
+5. `it.each` count via grep (non-bug, artefact outil)

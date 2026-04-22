@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 10-17-ui-badge-tokens-semantiques (2026-04-22)
+
+- **DEF-10.17-1 — `@ts-expect-error` non-spécifique dans Badge.test-d.ts** — Les 14 directives `@ts-expect-error` peuvent silencieusement catcher une erreur TS non-voulue (mauvais champ, narrowing différent). Migration recommandée vers `expectTypeOf<Bad>().not.toMatchTypeOf<BadgeProps>()` ou pattern TS 5.6+ `// @ts-expect-error description-matcher`. Amélioration méthodo transposable à Button/Input/Textarea/Select.test-d.ts. Coût estimé : 45 min (5 fichiers × ~10 assertions).
+- **DEF-10.17-2 — AC7 seuil admin `dark:` pile 6 (marge 0)** — Badge.vue:100-104 contient exactement 6 `dark:` classes admin (3 states × 2 axes bg/text). Tout refactor factorisant `dark:bg-admin-*` et `dark:text-admin-*` dans un sélecteur arbitraire ferait chuter le count sous le plancher sans changer le rendu. Ajouter un test statique comptage `dark:` par famille dans `test_no_hex_hardcoded_badge.test.ts` (extension scope) ou fichier dédié. Coût estimé : 15 min.
+- **DEF-10.17-3 — Documentation piège #27 : tests consommateurs `onMounted` slow-path `nextTick`** — Badge.vue:144-150 émet `console.warn` après `nextTick()` si label vide. Les tests consommateurs mesurant ce warn doivent `await flushPromises()` post-mount sinon faux négatifs non-déterministes. Ajouter piège #27 `ui-primitives.md` §5 avec snippet correct. Coût estimé : 10 min.
+
 ## Deferred from: story 10.16 (2026-04-22)
 
 - **DEF-10.16-1 — Reka UI `SelectRoot` wrapper pour `ui/Select`** — L'Epic 10 AC5 prévoyait initialement un wrapper Reka UI `SelectRoot` stylé Tailwind pour `ui/Select.vue`. **Q3 Story 10.16 verrouillée** en faveur du `<select>` natif MVP car : (a) a11y système ChromeVox/VoiceOver battle-tested sans code custom, (b) 0 dépendance Reka UI ajoutée (Reka UI Combobox livré Story 10.19 pour le besoin typeahead/recherche qui justifie vraiment le portail), (c) touch target iOS picker wheel + Android bottom sheet natifs gratuits, (d) livraison M 1h30 préservée. **Cible reprise** : Phase Growth uniquement si besoin custom styling cross-browser uniforme (Firefox flèche native masquée ok mais pas de portail pour liste > viewport) OU feature avancée (grouping options avec `optgroup` stylé, virtualisation > 500 options). Coût estimé : 2-3 h.

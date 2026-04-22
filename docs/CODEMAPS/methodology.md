@@ -175,11 +175,31 @@ après code-review) :
 
 - Pattern A (DOM ≠ state interne) : `test_badge_variants.test.ts` assert
   `wrapper.find('span').classes()` + `attributes('aria-label')` +
-  `[data-testid="badge-label-slot"]` text — **jamais** `wrapper.vm.variant`.
+  `[data-testid="badge-label-slot"]` text pour **31/33 tests** rendu visuel.
 - Pattern B (comptage runtime obligatoire) : Task 8 exécute
   `jq '.entries | keys | length' frontend/storybook-static/index.json`
   **avant** Completion Notes et consigne le chiffre exact. Piège #26 du
   codemap `ui-primitives.md` capitalise la règle pour les stories suivantes.
+
+**Extension Pattern A post-code-review 10.17 (CRITICAL-3)** — les tests de
+**runtime enforcement** (`console.error`/`console.warn` émis par `onMounted`
+quand un slot manque) ont initialement asserté **uniquement** le console spy —
+ce qui est un side-effect observable mais **PAS** du DOM. Un reviewer a pointé
+que la vraie question utilisateur est « est-ce que l'icône/label apparaissent
+dans le DOM ? » — pas « est-ce qu'un log est émis ? ». **Règle durcie** : un
+test d'invariant UX doit asserter **le DOM observable en premier** (wrapper
+vide, childElementCount, textContent), et le console spy en **défense en
+profondeur** (pas en assertion primaire). Applicable aux futures primitives
+avec guards `onMounted` (piège méthodologique post-10.17).
+
+**Extension Pattern B post-code-review 10.17 (CRITICAL-1/2 soft-bg)** — le
+contraste AA documenté dans `§6 ui-primitives.md` était calculé « texte vs
+blanc » mais le render effectif était « texte sur `-soft` background ». La
+documentation induisait une fausse conformité. **Règle durcie** : tout ratio
+WCAG documenté doit préciser `text #X on bg #Y` avec les **deux** hex, jamais
+`X vs white` isolé. Ajout test pur JS `test_badge_contrast.test.ts` qui lit
+`main.css` et calcule le ratio sur les **vrais** combos émis par
+`variantClasses` — filet de sécurité indépendant de `jest-axe` happy-dom.
 
 La capitalisation en règle d'or permanente (pas seulement incident review)
 raccourcit la boucle : review Story 10.17 ne devrait plus remonter ni H-3

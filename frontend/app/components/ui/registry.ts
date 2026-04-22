@@ -105,3 +105,44 @@ export type VerdictState = (typeof VERDICT_STATES)[number];
 export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
 export type AdminCriticality = (typeof ADMIN_CRITICALITIES)[number];
 export type BadgeSize = (typeof BADGE_SIZES)[number];
+
+/**
+ * Labels FR single source of truth (10.17 code-review MEDIUM-2 DRY fix).
+ * Consommes par Badge.vue (composition aria-label) + Badge.stories.ts
+ * (slot default). Migration future useI18n() trivialisee a un seul fichier.
+ */
+export const VERDICT_LABELS_FR: Readonly<Record<VerdictState, string>> = Object.freeze({
+  pass: 'Validé',
+  fail: 'Non conforme',
+  reported: 'À documenter',
+  na: 'Non applicable',
+});
+
+export const LIFECYCLE_LABELS_FR: Readonly<Record<LifecycleState, string>> = Object.freeze({
+  draft: 'Brouillon',
+  snapshot_frozen: 'Figé',
+  signed: 'Signé',
+  exported: 'Exporté',
+  submitted: 'Soumis',
+  in_review: 'En revue',
+  accepted: 'Accepté',
+  rejected: 'Refusé',
+  withdrawn: 'Retiré',
+});
+
+export const ADMIN_LABELS_FR: Readonly<Record<AdminCriticality, string>> = Object.freeze({
+  n1: 'N1',
+  n2: 'N2',
+  n3: 'N3',
+});
+
+/**
+ * Signature Badge partagee (10.17 code-review MEDIUM-3 DRY fix) :
+ * import depuis Badge.vue (defineProps) + Badge.test-d.ts (compile-time).
+ * Source unique de verite pour la discrimination variant x state.
+ */
+export type BadgePropsBase = { size?: BadgeSize };
+export type BadgeProps =
+  | (BadgePropsBase & { variant: 'verdict'; state: VerdictState; conditional?: boolean })
+  | (BadgePropsBase & { variant: 'lifecycle'; state: LifecycleState })
+  | (BadgePropsBase & { variant: 'admin'; state: AdminCriticality });

@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { h } from 'vue';
+import { h, nextTick } from 'vue';
 import Badge from '../../../app/components/ui/Badge.vue';
 import {
   VERDICT_STATES,
@@ -32,6 +32,7 @@ function mountBadge(props: Record<string, unknown>, label = 'Statut') {
 }
 
 // Marqueurs classes attendus par variant x state (extrait Badge.vue — AC6).
+// Patch 10.17 CRITICAL-1/2 : texte = token `-strong` (800) en light mode pour AA.
 const VERDICT_BG: Record<(typeof VERDICT_STATES)[number], string> = {
   pass: 'bg-verdict-pass-soft',
   fail: 'bg-verdict-fail-soft',
@@ -39,26 +40,26 @@ const VERDICT_BG: Record<(typeof VERDICT_STATES)[number], string> = {
   na: 'bg-verdict-na-soft',
 };
 const VERDICT_TEXT: Record<(typeof VERDICT_STATES)[number], string> = {
-  pass: 'text-verdict-pass',
-  fail: 'text-verdict-fail',
-  reported: 'text-verdict-reported',
-  na: 'text-verdict-na',
+  pass: 'text-verdict-pass-strong',
+  fail: 'text-verdict-fail-strong',
+  reported: 'text-verdict-reported-strong',
+  na: 'text-verdict-na-strong',
 };
 const LIFECYCLE_TEXT_MAP: Record<(typeof LIFECYCLE_STATES)[number], string> = {
-  draft: 'text-fa-draft',
-  snapshot_frozen: 'text-fa-snapshot-frozen',
-  signed: 'text-fa-signed',
-  exported: 'text-fa-exported',
-  submitted: 'text-fa-submitted',
-  in_review: 'text-fa-in-review',
-  accepted: 'text-fa-accepted',
-  rejected: 'text-fa-rejected',
-  withdrawn: 'text-fa-withdrawn',
+  draft: 'text-fa-draft-strong',
+  snapshot_frozen: 'text-fa-snapshot-frozen-strong',
+  signed: 'text-fa-signed-strong',
+  exported: 'text-fa-exported-strong',
+  submitted: 'text-fa-submitted-strong',
+  in_review: 'text-fa-in-review-strong',
+  accepted: 'text-fa-accepted-strong',
+  rejected: 'text-fa-rejected-strong',
+  withdrawn: 'text-fa-withdrawn-strong',
 };
 const ADMIN_TEXT: Record<(typeof ADMIN_CRITICALITIES)[number], string> = {
-  n1: 'text-admin-n1',
-  n2: 'text-admin-n2',
-  n3: 'text-admin-n3',
+  n1: 'text-admin-n1-strong',
+  n2: 'text-admin-n2-strong',
+  n3: 'text-admin-n3-strong',
 };
 const SIZE_MIN_H: Record<(typeof BADGE_SIZES)[number], string> = {
   sm: 'min-h-[20px]',
@@ -108,7 +109,7 @@ describe('ui/Badge : rendu admin x md (AC6 — N1/N2/N3)', () => {
   }
 });
 
-describe('ui/Badge : aria-label FR compose (AC8)', () => {
+describe('ui/Badge : aria-label FR compose (AC8 + patch 10.17 role="img")', () => {
   it('verdict pass sans conditional → "Verdict Validé"', () => {
     const w = mountBadge({ variant: 'verdict', state: 'pass' });
     expect(w.find('span').attributes('aria-label')).toBe('Verdict Validé');
@@ -164,10 +165,12 @@ describe('ui/Badge : verdict conditional italique (AC4)', () => {
   });
 });
 
-describe('ui/Badge : role="status" + slots + a11y (AC3 + AC8)', () => {
-  it('role="status" present sur span racine (region live-polite implicite)', () => {
+describe('ui/Badge : role="img" + slots + a11y (AC3 + AC8 + patch 10.17 MEDIUM-1)', () => {
+  it('role="img" present sur span racine (statique — PAS live-region polite)', () => {
     const w = mountBadge({ variant: 'verdict', state: 'pass' });
-    expect(w.find('span').attributes('role')).toBe('status');
+    // Patch 10.17 MEDIUM-1 : `status` remplace par `img` (Badge statique, dashboard dense
+    // ne sature plus le screen reader avec N annonces polite au chargement).
+    expect(w.find('span').attributes('role')).toBe('img');
     w.unmount();
   });
 
@@ -190,28 +193,99 @@ describe('ui/Badge : role="status" + slots + a11y (AC3 + AC8)', () => {
   });
 });
 
-describe('ui/Badge : Regle 11 UX runtime enforcement (AC3)', () => {
-  it('slot #icon absent → console.error emis', () => {
+describe('ui/Badge : Regle 11 UX enforcement (AC3 + patch 10.17 CRITICAL-3 Pattern A DOM)', () => {
+  // Patch 10.17 CRITICAL-3 : Pattern A strict — les tests assertent l'effet
+  // observable DOM (icon wrapper vide, label wrapper sans textContent) EN PLUS du
+  // console spy (defense en profondeur).
+
+  it('slot #icon absent → DOM icon wrapper vide (0 child) + console.error emis', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const w = mount(Badge, {
       props: { variant: 'verdict', state: 'pass' },
       slots: { default: () => 'Validé' },
     });
+    await nextTick();
+
+    // Assertion DOM Pattern A primaire : l'icon wrapper est vide = user ne voit aucune icone.
+    const iconWrapper = w.find('[data-testid="badge-icon-slot"]');
+    expect(iconWrapper.exists()).toBe(true);
+    expect(iconWrapper.element.childElementCount).toBe(0);
+
+    // Assertion console (defense en profondeur, dev-only via import.meta.dev).
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('slot #icon is REQUIRED'),
     );
     w.unmount();
   });
 
-  it('slot default vide → console.warn emis', () => {
+  it('slot #icon empty fragment → DOM icon wrapper vide + console.error emis (HIGH-6 patch)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const w = mount(Badge, {
+      props: { variant: 'verdict', state: 'pass' },
+      slots: {
+        // Slot present mais ne rend aucun VNode element (bypass HIGH-6).
+        icon: () => [],
+        default: () => 'Validé',
+      },
+    });
+    await nextTick();
+
+    const iconWrapper = w.find('[data-testid="badge-icon-slot"]');
+    expect(iconWrapper.element.childElementCount).toBe(0);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('slot #icon is REQUIRED'),
+    );
+    w.unmount();
+  });
+
+  it('slot default absent → DOM label wrapper sans textContent + console.warn emis', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const w = mount(Badge, {
       props: { variant: 'verdict', state: 'pass' },
       slots: { icon: () => h(IconStub) },
     });
+    await nextTick();
+
+    // Assertion DOM Pattern A primaire : le label wrapper n'a aucun textContent.
+    const labelWrapper = w.find('[data-testid="badge-label-slot"]');
+    expect(labelWrapper.exists()).toBe(true);
+    expect(labelWrapper.text()).toBe('');
+
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('slot default (label FR) is REQUIRED'),
     );
+    w.unmount();
+  });
+
+  it('slot default avec espaces seulement → DOM text trimmed vide + console.warn emis', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const w = mount(Badge, {
+      props: { variant: 'verdict', state: 'pass' },
+      slots: {
+        icon: () => h(IconStub),
+        default: () => '   ',
+      },
+    });
+    await nextTick();
+
+    const labelWrapper = w.find('[data-testid="badge-label-slot"]');
+    expect(labelWrapper.text().trim()).toBe('');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('slot default (label FR) is REQUIRED'),
+    );
+    w.unmount();
+  });
+
+  it('slots valides → DOM icon + label pleins + AUCUN warn/error', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const w = mountBadge({ variant: 'verdict', state: 'pass' }, 'Validé');
+    await nextTick();
+
+    expect(w.find('[data-testid="badge-icon-slot"]').element.childElementCount).toBeGreaterThan(0);
+    expect(w.find('[data-testid="badge-label-slot"]').text()).toBe('Validé');
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
     w.unmount();
   });
 });

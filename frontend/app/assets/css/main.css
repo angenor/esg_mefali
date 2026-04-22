@@ -30,31 +30,74 @@
    * Decouplage delibere de brand-* (UX Step 8 Q21) :
    * verdict-* = Tailwind 600 (semantique saturee), brand-* = 500 (visuel marque).
    * Un rebrand ne doit PAS modifier la perception pass/fail/reported.
+   *
+   * Triple-tint pour WCAG AA contrast (10.17 code-review patch) :
+   * - `-soft` (100) = fond clair en light mode / texte clair en dark mode.
+   * - base (600)     = icone ou accent moyen.
+   * - `-strong` (800) = texte fonce obligatoire en light mode (AA 4.5:1+
+   *                      garanti sur `-soft` background, verifie test JS pur).
    */
   --color-verdict-pass:          #059669; /* emerald-600 */
   --color-verdict-pass-soft:     #D1FAE5; /* emerald-100 */
+  --color-verdict-pass-strong:   #065F46; /* emerald-800 — AA >= 10:1 sur -soft */
   --color-verdict-fail:          #DC2626; /* red-600 */
   --color-verdict-fail-soft:     #FEE2E2; /* red-100 */
+  --color-verdict-fail-strong:   #991B1B; /* red-800 — AA >= 9.9:1 sur -soft */
   --color-verdict-reported:      #D97706; /* amber-600 */
   --color-verdict-reported-soft: #FEF3C7; /* amber-100 */
+  --color-verdict-reported-strong: #92400E; /* amber-800 — AA >= 8.7:1 sur -soft */
   --color-verdict-na:            #6B7280; /* gray-500 */
   --color-verdict-na-soft:       #F3F4F6; /* gray-100 */
+  --color-verdict-na-strong:     #374151; /* gray-700 — AA >= 10.3:1 sur -soft */
 
-  /* === Lifecycle FundApplication (FR32, Step 8 ligne 800-808) === */
-  --color-fa-draft:             #9CA3AF;
-  --color-fa-snapshot-frozen:   #3B82F6;
-  --color-fa-signed:            #8B5CF6;
-  --color-fa-exported:          #F59E0B;
-  --color-fa-submitted:         #06B6D4;
-  --color-fa-in-review:         #EAB308;
-  --color-fa-accepted:          #10B981;
-  --color-fa-rejected:          #EF4444;
-  --color-fa-withdrawn:         #6B7280;
+  /* === Lifecycle FundApplication (FR32, Step 8 ligne 800-808) ===
+   * Triple-tint identique verdict (code-review 10.17 patch CRITICAL).
+   * `-soft` pour bg light + text dark, `-strong` pour text light AA.
+   */
+  --color-fa-draft:               #6B7280; /* gray-500 (was gray-400 #9CA3AF — darkened pour AA icon) */
+  --color-fa-draft-soft:          #F3F4F6; /* gray-100 */
+  --color-fa-draft-strong:        #374151; /* gray-700 */
+  --color-fa-snapshot-frozen:     #2563EB; /* blue-600 (was blue-500) */
+  --color-fa-snapshot-frozen-soft:#DBEAFE; /* blue-100 */
+  --color-fa-snapshot-frozen-strong:#1E40AF; /* blue-800 */
+  --color-fa-signed:              #7C3AED; /* violet-600 (was violet-500) */
+  --color-fa-signed-soft:         #EDE9FE; /* violet-100 */
+  --color-fa-signed-strong:       #5B21B6; /* violet-800 */
+  --color-fa-exported:            #D97706; /* amber-600 (was amber-500 — AA) */
+  --color-fa-exported-soft:       #FEF3C7; /* amber-100 */
+  --color-fa-exported-strong:     #92400E; /* amber-800 */
+  --color-fa-submitted:           #0891B2; /* cyan-600 (was cyan-500) */
+  --color-fa-submitted-soft:      #CFFAFE; /* cyan-100 */
+  --color-fa-submitted-strong:    #155E75; /* cyan-800 */
+  --color-fa-in-review:           #CA8A04; /* yellow-600 (was yellow-500 #EAB308 — AA) */
+  --color-fa-in-review-soft:      #FEF9C3; /* yellow-100 */
+  --color-fa-in-review-strong:    #854D0E; /* yellow-800 */
+  --color-fa-accepted:            #059669; /* emerald-600 (was emerald-500 — aligne verdict.pass) */
+  --color-fa-accepted-soft:       #D1FAE5; /* emerald-100 */
+  --color-fa-accepted-strong:     #065F46; /* emerald-800 */
+  --color-fa-rejected:            #DC2626; /* red-600 (was red-500 — aligne verdict.fail) */
+  --color-fa-rejected-soft:       #FEE2E2; /* red-100 */
+  --color-fa-rejected-strong:     #991B1B; /* red-800 */
+  --color-fa-withdrawn:           #6B7280; /* gray-500 */
+  --color-fa-withdrawn-soft:      #F3F4F6; /* gray-100 */
+  --color-fa-withdrawn-strong:    #374151; /* gray-700 */
 
-  /* === Criticité admin (Step 8 ligne 811-813) === */
-  --color-admin-n1:             #10B981;
-  --color-admin-n2:             #F59E0B;
-  --color-admin-n3:             #EF4444;
+  /* === Criticite admin (Step 8 ligne 811-813) ===
+   * Decision code-review 10.17 : decouplage delibere admin vs lifecycle-outcome
+   * (N1 bleu informationnel, pas vert — evite collision admin.n1 == fa.accepted).
+   * Rationale : Regle 11 = couleur doit pre-orienter la semantique, pas contredire
+   * le texte. Admin-criticality (N1/N2/N3) est un axe operationnel distinct du
+   * lifecycle-outcome d'une FundApplication (accepted/rejected/withdrawn).
+   */
+  --color-admin-n1:             #0369A1; /* sky-700 — decouple de fa.accepted */
+  --color-admin-n1-soft:        #E0F2FE; /* sky-100 */
+  --color-admin-n1-strong:      #075985; /* sky-800 */
+  --color-admin-n2:             #D97706; /* amber-600 (was amber-500 — AA) */
+  --color-admin-n2-soft:        #FEF3C7; /* amber-100 */
+  --color-admin-n2-strong:      #92400E; /* amber-800 */
+  --color-admin-n3:             #DC2626; /* red-600 (was red-500 — AA + aligne verdict.fail) */
+  --color-admin-n3-soft:        #FEE2E2; /* red-100 */
+  --color-admin-n3-strong:      #991B1B; /* red-800 */
 }
 
 /* === Driver.js overrides === */

@@ -1,8 +1,13 @@
 /**
  * Audits vitest/jest-axe Badge.vue (AC8 Story 10.17).
  * 20 configurations : 4 verdict × 2 sizes + 9 lifecycle + 3 admin + 2 dark mode.
- * La regle `color-contrast` est desactivee (happy-dom ne calcule pas le CSS compile) ;
- * le contraste AA est valide manuellement §6 codemap + Storybook runtime DEF-10.15-4.
+ *
+ * La regle `color-contrast` est desactivee (happy-dom ne calcule pas le CSS compile).
+ * Patch 10.17 code-review CRITICAL-3 : pour eviter l'escape hatch, le contraste AA
+ * est valide par un TEST JS PUR independant du DOM dans
+ * `frontend/tests/components/ui/test_badge_contrast.test.ts` (calcul WCAG luminance
+ * relative sur les hex extraits de main.css, couvre les 64 couples text/bg reels).
+ * Ces audits axe couvrent les autres regles a11y (role, aria-label, aria-hidden).
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';

@@ -29,12 +29,13 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
     expect(content).toContain('### 3.4 `ui/Badge`');
   });
 
-  it('AC11 Story 10.17 : §5 Pièges documentés contient >= 26 entrees numerotees', () => {
+  it('AC11 Story 10.17 + patch code-review : §5 Pièges documentés contient >= 28 entrees numerotees', () => {
     const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
     // Delimite avant la section suivante (§6 A11y).
     const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
     const matches = body.match(/^\d+\.\s/gm) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(26);
+    // Patch 10.17 code-review : #27 (soft-bg vs white) + #28 (nextTick flushPromises).
+    expect(matches.length).toBeGreaterThanOrEqual(28);
   });
 
   it('AC10 Story 10.15 : §3.0 (ui/Button) contient >= 4 exemples Vue numerotes', () => {
@@ -66,6 +67,20 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
   it('AC11 Story 10.17 : §6 A11y mentionne verdict-reported D97706 4,69:1 (cleanup L-4 10.16)', () => {
     expect(content).toMatch(/text-verdict-reported|verdict-reported/i);
     expect(content).toContain('4,69:1');
+  });
+
+  it('Patch code-review 10.17 : §6bis documente le soft-bg pattern AA compliance', () => {
+    expect(content).toMatch(/6bis\.\s+Soft-background/i);
+    expect(content).toContain('Decoupling admin');
+    // La table §6bis cite au moins 3 ratios calcules text-strong sur bg-soft.
+    expect(content).toMatch(/10,08:1|10\.08:1/); // verdict-pass strong on soft
+    expect(content).toMatch(/9,93:1|9\.93:1/); // verdict-fail / admin-n3
+  });
+
+  it('Patch code-review 10.17 : §3.4 Badge documente decouplage admin sky vs fa.accepted', () => {
+    const section34 = content.split('### 3.4')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section34).toMatch(/sky-700|sky/i);
+    expect(section34).toMatch(/d[eé]coupl(age|e)/i);
   });
 
   it('docs/CODEMAPS/index.md reference ui-primitives.md', () => {

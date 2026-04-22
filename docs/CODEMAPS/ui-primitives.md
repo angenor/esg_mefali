@@ -308,13 +308,23 @@ const IconCheck = () =>
     Signé
   </Badge>
 
-  <!-- 4. Admin criticité N2 (aria-label="Criticité admin N2" composé côté primitive). -->
+  <!-- 4. Admin criticité N2 — icône DISTINCTE de verdict.reported (piège #27+HIGH-7
+       patch 10.17 : AlertTriangle partagé avec verdict.reported cassait Règle 11 ;
+       admin.n2 utilise désormais UserCheck pour refléter l'axe admin-ops dédié). -->
   <Badge variant="admin" state="n2">
-    <template #icon><IconAlertTriangle /></template>
+    <template #icon><IconUserCheck /></template>
     N2
   </Badge>
 </template>
 ```
+
+**Découplage sémantique admin vs lifecycle (decision code-review 10.17)** — la
+famille `admin-*` expose un **axe opérationnel distinct** du lifecycle-outcome
+FundApplication. Concrètement, `admin.n1` a été réassigné à `sky-700` (bleu
+informationnel) au lieu d'`emerald-500` — évite la collision perceptive avec
+`fa.accepted` (vert = succès lifecycle). Règle 11 : la couleur doit pré-orienter
+la sémantique, pas contredire le texte ni partager une teinte avec un axe
+orthogonal. Voir §6bis pour la table de contrastes et le rationale complet.
 
 **Union discriminée compile-time (AC1)** — les combinaisons invalides sont rejetées
 dès l'édition TS :
@@ -564,6 +574,27 @@ const bad2: BadgeProps = { variant: 'admin', state: 'n1', conditional: true };
     proactivement dès Story 10.17 pour éviter la récurrence de la dérive
     post-10.16 (132 annoncés vs 122 réels).
 
+27. **Soft-background `vs white` vs usage réel (code-review 10.17 CRITICAL
+    patch)** — documenter un contraste token « sur blanc » induit un faux
+    sentiment de conformité AA si la primitive rend réellement du texte
+    sur un fond coloré (ex. `bg-*-soft`). Badge 10.17 v1 documentait
+    `verdict-reported #D97706 vs blanc = 4,69:1 ✓ AA` mais le render
+    effectif était `text-verdict-reported` sur `bg-verdict-reported-soft`
+    (#FEF3C7) = **2,86:1 ❌ AA**. **Règle** : tout ratio affiché dans §6
+    doit préciser `text X on bg Y` avec les DEUX hex, pas un seul
+    `X vs blanc`. Le test `test_badge_contrast.test.ts` consomme les
+    combos réels émis par `variantClasses` de Badge.vue, pas un scenario
+    théorique.
+
+28. **Tests consommateurs `onMounted` slow-path `nextTick()` —
+    non-déterminisme sans `flushPromises()`** (DEF-10.17-3) — Badge.vue
+    inspecte le DOM post-`nextTick()` pour émettre `console.warn` si le
+    label est vide. Les composants hôtes qui testent la présence/absence
+    de ce warn doivent `await flushPromises()` (ou `await nextTick()`)
+    après `mount()` — sinon le warn arrive après l'assertion et le test
+    devient flaky. Snippet correct : `const w = mount(Host); await
+    flushPromises(); expect(warnSpy).toHaveBeenCalled();`.
+
 ---
 
 ## 6. A11y — Contraste WCAG 2.1 AA (calculs darken tokens 10.15)
@@ -581,6 +612,34 @@ et `--color-brand-red` ont été **darkened** pour respecter WCAG 2.1 AA `color-
 | `--color-brand-orange` | `#F59E0B` (amber-500) | 0,52 | 2,11:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `text-brand-orange` (Textarea counter 350-399) | `#F59E0B` | — | **3,85:1** vs blanc | — *inchangé* | — | ⚠️ **texte auxiliaire acceptable** (Story 10.16 — compteur seuil warn non bloquant ; le seuil rouge `#DC2626` 4,83:1 AA s'applique à l'état limite 400 bloquant) |
 | `text-verdict-reported` (Badge 10.17 `reported`) | `#D97706` (amber-600) | 0,35 | **4,69:1** vs blanc | — *délibéré Q21* | — | ✅ AA (choix amber-600 au lieu de `#F59E0B` amber-500 = 2,58:1 ❌, documenté piège #21) |
+
+### 6bis. Soft-background pattern Badge (10.17 code-review CRITICAL-1/2 fix)
+
+**Piège rencontré** : le ratio « vs blanc » documenté ci-dessus (`verdict-reported` 4,69:1) ne reflète **PAS** l'usage réel de Badge en light mode. Badge rend `bg-verdict-*-soft + text-verdict-*` (solid 600 on soft 100) — le vrai contraste calculé est **3,32:1** (pass), **3,95:1** (fail), **2,86:1** (reported), **4,39:1** (na). Tous ❌ AA.
+
+**Fix appliqué** : triple-tint tokens — chaque famille (`verdict-*` / `fa-*` / `admin-*`) expose désormais 3 tints :
+- `-soft` (Tailwind 100) : fond light-mode + texte dark-mode
+- base (Tailwind 600) : icône ou accent moyen, composite `/20` pour bg dark-mode
+- `-strong` (Tailwind 800) : texte light-mode **obligatoire** (AA ≥ 4,5:1 garanti)
+
+| Combo Badge (light) | Text | Bg | Ratio | Verdict |
+|---|---|---|---|---|
+| `verdict-pass` | `#065F46` strong | `#D1FAE5` soft | **10,08:1** | ✅ AAA |
+| `verdict-fail` | `#991B1B` strong | `#FEE2E2` soft | **9,93:1** | ✅ AAA |
+| `verdict-reported` | `#92400E` strong | `#FEF3C7` soft | **8,79:1** | ✅ AAA |
+| `verdict-na` | `#374151` strong | `#F3F4F6` soft | **10,26:1** | ✅ AAA |
+| `fa-snapshot-frozen` | `#1E40AF` | `#DBEAFE` | **9,27:1** | ✅ AAA |
+| `fa-exported` | `#92400E` | `#FEF3C7` | **8,79:1** | ✅ AAA |
+| `fa-in-review` | `#854D0E` | `#FEF9C3` | **8,85:1** | ✅ AAA |
+| `admin-n1` (sky — decouple) | `#075985` | `#E0F2FE` | **9,11:1** | ✅ AAA |
+| `admin-n2` | `#92400E` | `#FEF3C7` | **8,79:1** | ✅ AAA |
+| `admin-n3` | `#991B1B` | `#FEE2E2` | **9,93:1** | ✅ AAA |
+
+**Dark mode** : `bg-X/20 + text-X-soft` → ratios ≥ 10:1 sur dark bg `#111827`.
+
+**Validation** : le test pur JS `frontend/tests/components/ui/test_badge_contrast.test.ts` lit les hex de `main.css` et calcule le ratio WCAG (luminance relative + formule `(L1+0.05)/(L2+0.05)`) sans dépendre de `jest-axe` (désactivé `color-contrast` en happy-dom). Toute régression de token déclenche un test rouge — fiable en CI.
+
+**Decoupling admin (10.17 code-review decision)** : `admin-n1` a été réassigné à **`#0369A1` sky-700** (auparavant `#10B981` emerald-500, identique à `fa-accepted`). Rationale Règle 11 « couleur jamais seule » : l'axe admin-criticité (N1/N2/N3) est sémantiquement distinct du lifecycle-outcome (accepted/rejected/withdrawn) — les deux peuvent cohabiter sur un même dashboard. La teinte bleue (informationnel, action admin) évite le mental model clash avec le vert lifecycle (succès).
 
 **Contraste mode sombre (post-review 10.16 L-4)** — Le compteur Textarea est rendu
 sur `bg-dark-card` (`#1F2937`) en dark mode. Les ratios calculés vs ce fond :

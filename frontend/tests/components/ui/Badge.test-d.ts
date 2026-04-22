@@ -1,9 +1,12 @@
 /**
- * Compile-time type tests pour ui/Badge (AC1 + AC4 Story 10.17).
+ * Compile-time type tests pour ui/Badge (AC1 + AC4 Story 10.17 + patch code-review).
  * Executes via `vitest --typecheck` (vitest.config.ts typecheck enabled).
- * Les directives // @ts-expect-error DOIVENT trouver une erreur TS ; sinon
- * vitest typecheck echoue et detecte toute regression silencieuse de la
- * discrimination union variant x state (verdict / lifecycle / admin).
+ *
+ * Patches code-review 10.17 :
+ * - MEDIUM-3 : `BadgeProps` importe depuis registry.ts (single source of truth,
+ *   plus de copie locale drift-prone).
+ * - MEDIUM-4 : ajout tests excess property + `state: undefined` + exhaustiveness
+ *   check `never` pour couvrir les gaps.
  */
 import { describe, it, expectTypeOf, assertType } from 'vitest';
 import type {
@@ -11,15 +14,8 @@ import type {
   LifecycleState,
   AdminCriticality,
   BadgeSize,
+  BadgeProps,
 } from '../../../app/components/ui/registry';
-
-// Reproduction locale du type discrimine (source : Badge.vue, single source of truth).
-// Si Badge.vue change, cette copie DOIT suivre explicitement (pattern 10.15 / 10.16).
-type BadgePropsBase = { size?: BadgeSize };
-type BadgeProps =
-  | (BadgePropsBase & { variant: 'verdict'; state: VerdictState; conditional?: boolean })
-  | (BadgePropsBase & { variant: 'lifecycle'; state: LifecycleState })
-  | (BadgePropsBase & { variant: 'admin'; state: AdminCriticality });
 
 describe('ui/Badge : AC1 + AC4 type safety (compile-time)', () => {
   it('VerdictState inclut exactement pass|fail|reported|na', () => {
@@ -138,8 +134,47 @@ describe('ui/Badge : AC1 + AC4 type safety (compile-time)', () => {
     void bad2;
   });
 
+  // MEDIUM-4 patch 10.17 : gap coverage.
+  it('MEDIUM-4 : excess property est rejete (object literal strict)', () => {
+    // @ts-expect-error propriete `foo` inconnue — excess property checking Vue 3 strict.
+    const bad: BadgeProps = { variant: 'verdict', state: 'pass', foo: 'bar' };
+    void bad;
+  });
+
+  it('MEDIUM-4 : state: undefined explicite est rejete', () => {
+    // @ts-expect-error state: undefined ne satisfait pas VerdictState/LifecycleState/AdminCriticality.
+    const bad: BadgeProps = { variant: 'verdict', state: undefined };
+    void bad;
+  });
+
+  it('MEDIUM-4 : variant: undefined explicite est rejete', () => {
+    // @ts-expect-error variant: undefined casse la discrimination.
+    const bad: BadgeProps = { variant: undefined, state: 'pass' };
+    void bad;
+  });
+
+  it('MEDIUM-4 : exhaustiveness check via never narrowing', () => {
+    // Simulation d'un switch exhaustif sur variant.
+    function exhaustiveSwitch(p: BadgeProps): string {
+      switch (p.variant) {
+        case 'verdict':
+          return p.state;
+        case 'lifecycle':
+          return p.state;
+        case 'admin':
+          return p.state;
+        default: {
+          // Si une 4eme variante est ajoutee sans mettre a jour le switch,
+          // `p` ne sera plus `never` ici et TypeScript echouera.
+          const _exhaustive: never = p;
+          return _exhaustive;
+        }
+      }
+    }
+    expectTypeOf(exhaustiveSwitch).toBeFunction();
+  });
+
   it('AC1 : invariants Object.freeze + typeof[number] stables', () => {
-    // Sanity : les types derives sont des literals unions, pas des string generiques.
     const variantOnly: VerdictState = 'pass';
     const lifecycleOnly: LifecycleState = 'signed';
     const adminOnly: AdminCriticality = 'n2';
