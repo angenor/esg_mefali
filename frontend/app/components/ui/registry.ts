@@ -58,3 +58,50 @@ export type FormSize = (typeof FORM_SIZES)[number];
  * (copilot justification, triple defense browser + JS + backend).
  */
 export const TEXTAREA_DEFAULT_MAX_LENGTH = 400;
+
+/**
+ * Registre `ui/Badge.vue` (Story 10.17) — 3 familles semantiques unifiees
+ * par une union discriminee `variant x state` (AC1) :
+ *
+ *  - `VERDICT_STATES`   : 4 etats ESG (pass / fail / reported / na)
+ *                         consommes par ComplianceBadge + ScoreGauge (FR40 / Q21 UX Step 8).
+ *  - `LIFECYCLE_STATES` : 9 etats FundApplication (FR32)
+ *                         consommes par FundApplicationLifecycleBadge + sidebar.
+ *  - `ADMIN_CRITICALITIES` : 3 niveaux criticite admin (arbitrage Q11 Mariam).
+ *  - `BADGE_SIZES`      : 3 tailles non-interactives adaptees affichage inline
+ *                         (Q4 verrouillee — PAS touch target 44 px, Badge = affichage pur).
+ *
+ * Invariants : length 4 / 9 / 3 / 3 · Object.isFrozen === true · dedoublonne.
+ * Pattern CCC-9 frozen tuple byte-identique a Story 10.15 + 10.16.
+ */
+export const VERDICT_STATES = Object.freeze([
+  'pass',
+  'fail',
+  'reported',
+  'na',
+] as const);
+
+export const LIFECYCLE_STATES = Object.freeze([
+  'draft',
+  'snapshot_frozen',
+  'signed',
+  'exported',
+  'submitted',
+  'in_review',
+  'accepted',
+  'rejected',
+  'withdrawn',
+] as const);
+
+export const ADMIN_CRITICALITIES = Object.freeze([
+  'n1',
+  'n2',
+  'n3',
+] as const);
+
+export const BADGE_SIZES = Object.freeze(['sm', 'md', 'lg'] as const);
+
+export type VerdictState = (typeof VERDICT_STATES)[number];
+export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
+export type AdminCriticality = (typeof ADMIN_CRITICALITIES)[number];
+export type BadgeSize = (typeof BADGE_SIZES)[number];
