@@ -168,6 +168,12 @@ npm run storybook:test    # tests addon-a11y + play functions (Chromium requis)
 
 **Règle de décision** : un composant est-il **bloquant pour l'utilisateur** (doit terminer l'action avant de revenir au contenu principal) ? Oui → Dialog modal. Non → Drawer/Popover. Cette discipline évite les verrouillages de focus intempestifs dénoncés par les utilisateurs de lecteurs d'écran (cf. review 10.14 HIGH-2).
 
+**Cross-ref primitive `ui/Drawer` (Story 10.18)** — l'implémentation de référence
+de ce pattern est documentée dans [ui-primitives.md §3.5](./ui-primitives.md#35-uidrawer-story-1018)
+(wrapper Reka UI DialogRoot + override ARIA `role="complementary"` +
+`aria-modal="false"` en architecture par défaut, 4 sides × 3 sizes desktop,
+bottom-sheet bascule mobile, focus trap opt-in). L-4 10.18 post-review.
+
 ### Upgrade strategy — primitives Reka UI
 
 Primitives utilisées dans les 6 squelettes (pin `^2.9.x`) :

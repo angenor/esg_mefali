@@ -422,9 +422,24 @@ Epic 19 avec textarea threaded), passer `:trap-focus="true"` explicitement.
 `inset-0 w-full h-full md:inset-auto md:right-0 md:w-[480px] md:h-full`.
 Pas de `useMediaQuery` JS (hydration mismatch SSR Nuxt, piège #29).
 
+**Mobile bottom-sheet / top-sheet bascule (AC6 — H-1 10.18 post-review)** —
+`side="bottom"` et `side="top"` basculent automatiquement en pattern natif
+`UISheetPresentationController` (iOS) / `BottomSheetDialog` (Android) sur
+mobile `<md` : `rounded-t-xl` (ou `rounded-b-xl` pour top), `max-h-[85vh]`,
+ancrage bord bas/haut. Desktop `≥md` conserve le placement standard via
+classes `md:*`. Affordance « glisser pour fermer » implicite côté UX.
+
 **Consommateur futur `SourceCitationDrawer` (Epic 13 FR71)** — migration
 mécanique byte-identique du squelette 10.14 `<aside role="complementary">...</aside>`
-vers `<Drawer v-model:open="isOpen" title="Source · {{ type }}">...</Drawer>`.
+vers `<Drawer v-model:open="isOpen" title="Source · {{ type }}" close-label="Fermer le panneau des sources">...</Drawer>`.
+La prop `closeLabel` (default `"Fermer le panneau"`, M-1 10.18 post-review)
+permet la contextualisation screen reader sans refactor.
+
+**Cross-ref Storybook** — la section [storybook.md §UX Patterns — Dialog vs
+Drawer vs Popover](./storybook.md#ux-patterns--dialog-vs-drawer-vs-popover)
+documente la règle de décision ARIA role (bloquant vs parallèle) appliquée
+par cette primitive (wrapper Reka UI + role complementary). L-4 10.18
+post-review.
 
 ## 4. Ajouter une 8ᵉ primitive UI
 

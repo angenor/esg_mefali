@@ -950,9 +950,31 @@ $ grep -nE ": any\b|as unknown" frontend/app/components/ui/Drawer.vue
 - **Leçon 10.14 HIGH-2 capitalisée infra** : `role="complementary"` + `aria-modal="false"` = **architecture par défaut** du composant Drawer.vue (attributs HTML explicites sur DialogContent). Override strict vs `role="dialog"` Reka UI défaut. Test `test_drawer_a11y.test.ts` enforce `getAttribute('role') !== 'dialog'`.
 - **Leçon 10.15 HIGH-2 capitalisée infra** : règles axe-core `aria-allowed-attr` + `aria-hidden-focus` + `color-contrast` désactivées uniquement dans le smoke vitest-axe happy-dom avec **justification documentée inline** (piège #30 codemap). Validation WCAG 2.1 AA déléguée explicitement à Storybook `addon-a11y` runtime en CI.
 
-**Ajustements mineurs vs spec** :
-- `<header>` / `<footer>` remplacés par `<div>` dans Drawer.vue — axe flagge `landmark-banner-is-top-level` (banner imbriqué dans complementary). Sémantique équivalente via classes Tailwind sticky, zéro impact UX.
-- Les pièges codemap §5 numérotés **29-34** (pas 27-32 comme prévu dans la spec) car le fichier cumulait déjà 28 entrées post-10.17 code-review (pièges #27 soft-bg + #28 nextTick flushPromises ajoutés hors story 10.18). Total cumul **34 pièges** ≥ plancher AC14 32.
+**Ajustements mineurs vs spec** (complétés post-review 2026-04-22 — patch batch Option 0 Fix-All) :
+
+- `<header>` / `<footer>` remplacés par `<div>` dans Drawer.vue — axe flagge `landmark-banner-is-top-level` (banner imbriqué dans complementary). Sémantique équivalente via classes Tailwind sticky, zéro impact UX. **Implémenté + documenté**.
+- Les pièges codemap §5 numérotés **29-34** (pas 27-32 comme prévu dans la spec) car le fichier cumulait déjà 28 entrées post-10.17 code-review (pièges #27 soft-bg + #28 nextTick flushPromises ajoutés hors story 10.18). Total cumul **34 pièges** ≥ plancher AC14 32. **Documenté**.
+- **AC6 bottom-sheet bascule mobile** — initialement livré en version fullscreen neutre (écart vs spec AC6 « animation slide-in bascule sur `translate-y-full` bottom-up »). **Patch post-review 2026-04-22** : `mobileBaseClasses` computed, `side="bottom"` et `side="top"` basculent désormais en pattern natif iOS/Android (`rounded-t-xl`/`rounded-b-xl`, `max-h-[85vh]`, ancrage bord) sur mobile `<md`. 2 stories ajoutées (`MobileBottomSheet`, `MobileTopSheet`) + 2 tests DOM observables (classes cycle). **Implémenté patch round 1**.
+- **AC8 focus return / focus trap** — initialement livré en smoke tests (`queryDrawer() !== null`) pour les deux cases `focus-trap-disabled`/`focus-trap-enabled`. **Patch post-review** : H-2b test `focus return` asserte observable strict (drawer retiré + activeElement dans DOM post-close), M-3 test `trapFocus=true` asserte confinement focus descendant de `[role="complementary"]` via `.focus()` programmatique multi-éléments. Focus restoration exacte sur trigger = **délégation explicite Storybook runtime `FocusReturnOnClose`** (Reka UI FocusScope requiert layout box, indisponible en happy-dom — note inline dans le test Vitest qui pointe le délégat). **Assert strict + délégation documentée**.
+- **AC5 test Escape assertion permissive** — initialement `if (events) { expect(...).toEqual([false]) }` masquait une régression silencieuse. **Patch post-review** : `expect(events).toBeDefined()` + `expect(events!.at(-1)).toEqual([false])`. **Strict**.
+- **AC13 test ScrollArea non-strict** — initialement `drawer?.textContent.contains('Contenu scrollable')` (test de rendu slot, pas de présence ScrollAreaRoot). **Patch post-review** : query strict `[data-reka-scroll-area-viewport]` (fallback radix + class CSS pour API futures) + `afterEach` cleanup portal orphelins. **Strict**.
+- **AC8 `focus initial sur close button OU [data-autofocus]`** — non testé en Vitest. Délégué à Storybook runtime (Reka UI autoFocus sur mount requiert layout box). Note dans test inline. **Délégation explicite documentée**.
+- **MEDIUM-1 closeLabel i18n** — prop `closeLabel` ajoutée (default `'Fermer le panneau'`) + 1 test runtime DOM + 2 assertions typecheck. Story `CloseLabelEnglish` ajoutée. **Implémenté patch round 1**.
+- **MEDIUM-2 warn dev-only** — garde `import.meta.env.DEV` conservée (décision) avec rationale documentée inline (piège #32 assume la dette prod — audit preview Phase 1 manuel). **Décision tracée**.
+- **LOW-1 règle `color-contrast-enhanced` redondante** — retirée (no-op axe-core wcag2aa). **Patché**.
+- **LOW-2 handlers typés `Event` générique** — typés `KeyboardEvent` / `PointerEvent` (cohérent TS strict + Reka UI signatures). **Patché**.
+- **LOW-3 scanner hex limité à 2 fichiers** — `test_no_hex_hardcoded_drawer.test.ts` étendu à tout `app/components/ui/` via `readdirSync` (2ᵉ bloc de tests), scope Drawer strict conservé pour traçabilité. **Patché**.
+- **LOW-4 cross-ref codemap** — lien bidirectionnel `ui-primitives.md §3.5` ↔ `storybook.md §UX Patterns — Dialog vs Drawer vs Popover` ajouté. **Patché**.
+
+**Runtime post-patch round 1 (2026-04-22)** :
+- `npm run test` : **672 passed** (+21 vs baseline 651 post-10.18 pre-patch, 1 failed pré-existant `useGuidedTour.resilience` INFO-10.14-1 hors scope).
+- `npm run test:typecheck` : **61 passed** (+2 vs baseline 59, closeLabel assertions).
+- `jq '.entries | keys | length' storybook-static/index.json` → **192** (+3 : MobileBottomSheet + MobileTopSheet + CloseLabelEnglish).
+- `jq '[.entries | to_entries[] | select(.value.id | startswith("ui-drawer"))] | length'` → **24** stories Drawer (+3 vs 21 post-10.18 pre-patch).
+- `du -sh storybook-static` → **8.0 M** (budget ≤ 15 MB, marge 7 M).
+- `grep -cE "dark:" app/components/ui/Drawer.vue` → **9** (plancher ≥ 8 maintenu sans inflation).
+- `grep -nE "#[0-9A-Fa-f]{3,8}\b" Drawer.vue Drawer.stories.ts` → **0 hit**.
+- `grep -nE ": any\b" Drawer.vue` → **0 hit** (cast `as unknown` test-only, acceptable).
 
 ### File List
 
@@ -986,4 +1008,5 @@ Fichiers **inchangés** (pattern shims legacy 10.6 respecté) :
 | Date | Commit | Description |
 |------|--------|-------------|
 | 2026-04-22 | 6c58626 | feat(10.18): ui/Drawer primitive + registry CCC-9 2 tuples + role=complementary override |
-| 2026-04-22 | (commit 2 à suivre) | feat(10.18): Drawer stories CSF3 + tests behavior/a11y + docs CODEMAPS §3.5 + count runtime vérifié |
+| 2026-04-22 | f9a513e | feat(10.18): Drawer docs CODEMAPS §3.5 + methodology §4ter.bis + count runtime vérifié |
+| 2026-04-22 | f1a21b4 | fix(10.18): HIGH-1 bottom-sheet AC6 + HIGH-2 tests Escape/focus assertions strictes + MEDIUM/LOW batch (11 findings patchés post-review) |
