@@ -63,3 +63,7 @@ frontend/tests/e2e-live/screenshots/*
 bench-results*.json
 bench-report-*.json
 /tmp/bench-*.json
+
+# Storybook build artefact (Story 10.15+) — généré par `npm run storybook:build`
+# et uploadé en CI (workflow 10.14), jamais commité.
+frontend/storybook-static/

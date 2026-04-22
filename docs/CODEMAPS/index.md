@@ -16,3 +16,4 @@ backend réutilisable (abstraction, gate, migration, extension schéma) avec
 - [source-tracking.md](./source-tracking.md) — NFR-SOURCE-TRACKING + CI nightly FR63 (Story 10.11).
 - [storage.md](./storage.md) — Abstraction `StorageProvider` local + S3 EU-West-3 (Story 10.6).
 - [storybook.md](./storybook.md) — Storybook partiel + 6 composants à gravité (Story 10.14).
+- [ui-primitives.md](./ui-primitives.md) — Primitives UI Phase 0 Button/Input/Badge/Drawer/Combobox/DatePicker/Icon (Stories 10.15-10.21).
