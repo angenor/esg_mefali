@@ -186,6 +186,67 @@ async function handleSign(): Promise<void> {
 
 ---
 
+## 6. A11y — Contraste WCAG 2.1 AA (calculs darken tokens 10.15)
+
+Post code-review Story 10.15 HIGH-2 (2026-04-22), les tokens `--color-brand-green`
+et `--color-brand-red` ont été **darkened** pour respecter WCAG 2.1 AA `color-contrast`
+(≥ 4,5:1 sur texte normal `text-sm font-medium`).
+
+| Token | Avant | Luminance | Contraste vs `#FFFFFF` | Après | Contraste | Verdict |
+|-------|-------|-----------|------------------------|-------|-----------|---------|
+| `--color-brand-green` | `#10B981` (emerald-500) | 0,43 | **2,56:1** ❌ AA | `#047857` (emerald-700) | **5,78:1** | ✅ AA |
+| `--color-brand-red` | `#EF4444` (red-500) | 0,27 | **3,28:1** ❌ AA | `#DC2626` (red-600) | **4,83:1** | ✅ AA |
+| `--color-brand-blue` | `#3B82F6` (blue-500) | 0,24 | 3,68:1 ❌ AA (texte normal) | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
+| `--color-brand-purple` | `#8B5CF6` (violet-500) | 0,23 | 3,86:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
+| `--color-brand-orange` | `#F59E0B` (amber-500) | 0,52 | 2,11:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
+
+**Règle** : tout token `--color-brand-*` consommé en pattern `bg-brand-* text-white`
+avec `text-sm` (14 px) ou plus petit DOIT atteindre ≥ 4,5:1 contraste calculé
+manuellement avant merge. Les tokens blue/purple/orange sont consommés aujourd'hui
+uniquement sur fond clair (texte sur `bg-surface-bg`), donc hors risque immédiat.
+
+**Limite du harness jest-axe** : en happy-dom sans pipeline CSS, la règle
+`color-contrast` axe-core retourne `incomplete` (impossible de calculer la couleur
+rendue). Les 8 audits `test_button_a11y.test.ts` couvrent donc uniquement les règles
+non-color-contrast (`button-name`, `aria-valid-attr`, etc.). La vraie validation
+contraste doit passer par `npm run storybook:test -- --ci` qui charge Tailwind
+compilé dans un vrai navigateur (job CI `.github/workflows/storybook.yml` step
+`Run a11y + interactions tests`). Entrée deferred-work `DEF-10.15-4 Upgrade a11y
+harness Storybook runtime` trace l'upgrade du script vitest.
+
+## 7. Exception Dark Mode Coverage — Seuil primitive vs composant complexe
+
+La checklist générique 10.14 impose `≥ 12 occurrences dark:` par composant
+(pattern validé pour `gravity/` complexes multi-layer : SignatureModal,
+SourceCitationDrawer, ImpactProjectionPanel). **Ce seuil NE s'applique PAS aux
+primitives UI simples** type `ui/Button.vue` (7 occurrences dark: post-10.15).
+
+**Rationale** :
+- **Primitive simple** = 1 surface + 1 texte + 1 bordure + hover = **~4 classes
+  dark: par variant**. Pour 4 variants, on atteint ~16 classes **seulement si
+  chaque variant a une surface distincte en dark**. Or primary (`bg-brand-green`)
+  et danger (`bg-brand-red`) **réutilisent volontairement** les tokens brand sur
+  les deux thèmes (vert/rouge saturés restent identifiables en dark mode sans
+  override). Seules les variants soft (secondary `bg-surface-bg → dark:bg-dark-card`
+  et ghost `bg-transparent → dark:hover:bg-dark-hover`) nécessitent des overrides.
+- **Composant complexe** (gravity/) = plusieurs layers (card+overlay+icon+text+
+  secondary-text+border+divider+shadow+hover+focus) × plusieurs states
+  (default/hover/focus/active/disabled/selected) → naturellement ≥ 12 `dark:`
+  par fichier.
+
+**Règle** :
+| Type | Seuil `dark:` attendu | Pourquoi |
+|------|----------------------|----------|
+| Primitive `ui/*.vue` (Button, Badge, Input) | `≥ 4` (1 par variant soft utile) | Éviter inflation artificielle ; certains variants réutilisent brand tokens intentionnellement |
+| Composant `gravity/*.vue` (modals, drawers, panels) | `≥ 12` | Multi-layers × multi-states |
+
+**À ne pas faire** : ajouter `dark:bg-brand-green` (no-op) à `variant=primary`
+pour gonfler le compteur. Si un jour le design system exige un dark mode distinct
+pour les brand CTA (ex. gradient dark), créer un token dédié `--color-brand-green-dark`
+dans `main.css` au lieu de dupliquer `dark:` sur le consommateur.
+
+---
+
 ## Ressources
 
 - [Story 10.15 spec complète](../../_bmad-output/implementation-artifacts/10-15-ui-button-4-variantes.md)

@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "vitest",
+    "test:typecheck": "vitest --typecheck.only --run",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",

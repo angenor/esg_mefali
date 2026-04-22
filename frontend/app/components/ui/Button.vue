@@ -124,8 +124,9 @@ function handleClick(event: MouseEvent): void {
       <slot name="iconLeft" />
     </span>
 
-    <!-- Slot default : texte principal, invisible (pas collapse) en loading. -->
-    <span :class="{ invisible: loading }">
+    <!-- Slot default : texte principal, invisible (pas collapse) en loading.
+         Guard v-if pour eviter un span vide en mode icon-only (LOW-1 10.15 review). -->
+    <span v-if="$slots.default" :class="{ invisible: loading }">
       <slot />
     </span>
 

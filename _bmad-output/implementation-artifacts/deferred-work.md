@@ -853,3 +853,15 @@ Findings **non bloquants** tracés lors du patch round 1. HIGH + 5 MEDIUM déjà
 - **MEDIUM-10.8-2 N/A** — Bypass `system.py` resolu par HIGH-10.8-1, pas de dette a tracer.
 - **LOW-10.8-2 RESOLU** — Story file corrige `build_esg_scoring_prompt` → `build_esg_prompt`.
 
+
+## Deferred from: code review of story-10.15 (2026-04-22)
+
+Items tracés post code-review Story 10.15 `ui/Button.vue`. Pour contexte complet, voir `_bmad-output/implementation-artifacts/10-15-code-review-2026-04-22.md`.
+
+- **DEF-10.15-1 — Lucide Loader2 migration (spinner)** — le spinner SVG inline dans `Button.vue:145-160` est un stub commenté `<!-- STUB: remplace par <Loader2 /> Lucide Story 10.21 -->`. **Cible** : Story 10.21 (pile `lucide-vue-next` + `EsgIcon.vue`). **Path** : remplacer le bloc SVG par `<Loader2 class="h-4 w-4 animate-spin" />` + supprimer `<style scoped>` pour utiliser l'override Lucide natif. Trivial 10 lignes. Impact 0 (mêmes styles animation-duration).
+
+- **DEF-10.15-2 — Tokens `--color-brand-green-hover` / `-red-hover` dédiés** — Q5 Story 10.15 tranchée « pas de tokens hover dédiés MVP, `hover:opacity-90` suffit ». **Trigger Phase Growth** : pattern réutilisé > 2 fois hors `opacity-90` (par exemple si brand-blue/purple gagnent des hover différents, ou si design system évolue vers Material Ripple). **Path** : `main.css` ajouter `--color-brand-*-hover: <hex plus sombre>` pour chaque brand-*, puis remplacer `hover:opacity-90` par `hover:bg-brand-*-hover` dans `Button.vue` variant switches. [frontend/app/assets/css/main.css + frontend/app/components/ui/Button.vue:37,43]
+
+- **DEF-10.15-3 — Loading button focusable AAA** — actuellement `Button.vue:100` bind `:disabled="isInactive"` où `isInactive = disabled || loading`. En HTML natif, `<button disabled>` n'est pas focusable au clavier, ce qui empêche l'utilisateur d'explorer l'état loading. Les ARIA Authoring Practices 1.2 recommandent `aria-busy="true"` + bouton **focusable** + intercepter le click via event handler (pattern déjà en place dans `handleClick`). **Impact MVP** : acceptable (WCAG AA non violé), mais best practice. **Trigger** : Story 10.21 refactor spinner Lucide + revue a11y approfondie. **Path** : changer bind à `:disabled="disabled && !loading"` + `:aria-disabled="isInactive ? 'true' : undefined"` + `:aria-busy="loading ? 'true' : undefined"`. [frontend/app/components/ui/Button.vue:100-103]
+
+- **DEF-10.15-4 — Upgrade a11y harness vers Storybook runtime** — code review HIGH-2 a identifié que jest-axe en happy-dom ne résout pas `color-contrast` (retourne `incomplete`). Les 8 audits actuels sur 4 variants × 2 states ne couvrent donc pas AC7 contraste AA. **Trigger** : Story 10.16+ ou job CI dédié. **Path** : activer `npm run storybook:test -- --ci` en CI qui lance un navigateur réel avec Tailwind compilé + axe-core complet. Alternative : script Node dédié qui calcule WCAG contrast ratio sur tous les tokens `@theme` brand-*/verdict-* + fail si < 4,5:1 en normal text. [frontend/tests/components/ui/test_button_a11y.test.ts]

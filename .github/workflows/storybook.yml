@@ -38,6 +38,9 @@ jobs:
       - name: Type-check Storybook stories (TS strict AC2)
         run: npx tsc -p .storybook/tsconfig.json --noEmit
 
+      - name: Compile-time type tests (AC5 Story 10.15 - @ts-expect-error enforcement)
+        run: npm run test:typecheck
+
       - name: Install Playwright Chromium (test-storybook requirement)
         run: npx playwright install --with-deps chromium
 

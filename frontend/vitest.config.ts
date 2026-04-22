@@ -26,6 +26,17 @@ export default defineConfig({
     // Exclure les specs Playwright (extension .spec.ts sous tests/e2e/) —
     // Vitest et Playwright cohabitent dans le meme dossier tests/ (story 8.1).
     exclude: ['node_modules/**', 'dist/**', '.nuxt/**', 'tests/e2e/**'],
+    // Compile-time type tests (AC5 Story 10.15) : `npm run test:typecheck`
+    // execute uniquement les fichiers *.test-d.ts pour valider les directives
+    // // @ts-expect-error (discrimination unions, invariants API).
+    // ignoreSourceErrors : les erreurs TS pre-existantes dans app/composables/*
+    // (dette technique hors scope 10.15) sont traitees comme warnings. Les vraies
+    // erreurs sur les fichiers *.test-d.ts elles-memes restent bloquantes.
+    typecheck: {
+      include: ['tests/**/*.test-d.ts'],
+      tsconfig: './tsconfig.json',
+      ignoreSourceErrors: true,
+    },
   },
   resolve: {
     alias: {

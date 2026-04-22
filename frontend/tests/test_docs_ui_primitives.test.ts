@@ -28,11 +28,10 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10)', () => {
     expect(matches.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('§3 contient ≥ 4 exemples de code Vue (blocs ```vue)', () => {
-    // Compte les blocs ```vue (ouvrants) dans le fichier.
-    const vueBlocks = content.match(/^```vue\s*$/gm) ?? [];
-    expect(vueBlocks.length).toBeGreaterThanOrEqual(1); // au moins 1 bloc
-    // Le bloc principal §3 contient plusieurs exemples (commentaires numerotes).
+  it('§3 contient ≥ 4 exemples de code Vue numerotes', () => {
+    // §3 concentre les exemples Vue dans un seul bloc ```vue, avec commentaires
+    // numerotes (1. ... 2. ...) pour separer les cas d usage. On compte ces
+    // commentaires numerotes (AC10 : ≥ 4 exemples).
     const section3 = content.split('## 3.')[1]?.split('## 4.')[0] ?? '';
     const numberedExamples = section3.match(/<!--\s*\d+\./g) ?? [];
     expect(numberedExamples.length).toBeGreaterThanOrEqual(4);

@@ -1,6 +1,6 @@
 # Story 10.15 : `ui/Button.vue` — 4 variantes primary/secondary/ghost/danger
 
-Status: review
+Status: done
 
 > **Contexte** : 17ᵉ story Phase 4 et **première primitive `ui/` Phase 0** après setup Storybook 10.14. Sizing **S** (~1 h) selon sprint-plan v2. Cette story livre la primitive `Button.vue` unique qui remplacera progressivement les boutons ad hoc des 60 composants brownfield et des 6 squelettes `gravity/` (Stories 10.14 → Epic 11-15). La règle CLAUDE.md « discipline > 2 fois » est enforcée dès maintenant, et le `<button class="rounded bg-brand-purple …">` inline de `SignatureModal.vue` devient la cible de migration référence pour la Phase 1.
 >
@@ -699,3 +699,20 @@ Claude Opus 4.7 (1M context) — dev-story 2026-04-21, 17ᵉ story Phase 4.
 ### Change Log
 
 - 2026-04-22 : Implémentation complète Story 10.15 (dev-story). Primitive `ui/Button.vue` 4 variants × 3 sizes livrée avec 22 stories Storybook co-localisées, 39 tests Vitest dont 8 audits jest-axe (0 violation WCAG AA), coverage 95.74 %. Documentation `docs/CODEMAPS/ui-primitives.md` créée (5 sections + 10 pièges). 2 commits atomiques. Statut : ready-for-dev → in-progress → review.
+- 2026-04-22 : Code review 3-layers livrée → `_bmad-output/implementation-artifacts/10-15-code-review-2026-04-22.md`. Décision : **APPROVE-WITH-CHANGES**. Distribution : 0 CRITICAL · 2 HIGH · 4 MEDIUM · 5 LOW · 5 INFO.
+- 2026-04-22 : **Patch round 1 appliqué → Story done**. 2 HIGH + 2 MEDIUM + 4 LOW résolus mécaniquement ; 2 MEDIUM/LOW deferred vers DEF-10.15-1/2/3/4 dans deferred-work.md ; 5 INFO dismiss. Changements clés : **HIGH-1** `Button.test-d.ts` (6 tests `@ts-expect-error` + vitest typecheck enabled + CI step) ; **HIGH-2** darken tokens `main.css` (`#10B981 → #047857` emerald-700 5,78:1 AA ; `#EF4444 → #DC2626` red-600 4,83:1 AA) ; **MEDIUM-1** eslint-disable orphelin supprimé ; **MEDIUM-3** helper `asStorybookComponent<T>()` factorisé `app/types/storybook.ts` ; **LOW-1** `v-if="$slots.default"` sur wrapper ; **LOW-2** test doc assertion redondante supprimée ; **LOW-4/5** section deferred-work.md créée (DEF-10.15-1/2/3/4). **MEDIUM-2** Option C exception documentée `ui-primitives.md §7`. Baseline 422 passed + 6 tests typecheck = 428 total. Aucun régression. Story status : review → done.
+
+### Review Findings
+
+- [x] [Review][Decision→Resolved] HIGH-2 WCAG 2.1 AA color-contrast — **Option B appliquée** : hotfix `main.css` (brand-green `#10B981 → #047857` emerald-700 contraste 5,78:1 ✅ AA ; brand-red `#EF4444 → #DC2626` red-600 contraste 4,83:1 ✅ AA). Documenté `docs/CODEMAPS/ui-primitives.md §6 A11y contraste`. brand-blue/purple/orange préservés (non utilisés comme `bg + text-white`).
+- [x] [Review][Decision→Resolved] MEDIUM-2 Checklist `≥ 12 dark:` non atteinte — **Option C appliquée** : exception documentée dans `docs/CODEMAPS/ui-primitives.md §7` (seuil `≥ 4` pour primitives simples vs `≥ 12` pour composants gravity/ complexes ; interdiction inflation artificielle).
+- [x] [Review][Patch] HIGH-1 AC5 compile-time enforcement testé — fichier renommé `test_button_types.ts → Button.test-d.ts` avec 6 tests vitest incluant 5 `@ts-expect-error` effectifs ; `vitest.config.ts typecheck.include: ['tests/**/*.test-d.ts']` ; script `npm run test:typecheck` ajouté ; step CI `storybook.yml` ajouté. [frontend/tests/components/ui/Button.test-d.ts]
+- [x] [Review][Patch] MEDIUM-1 `eslint-disable no-explicit-any` orphelin supprimé. [frontend/app/components/ui/Button.stories.ts:21]
+- [x] [Review][Patch] MEDIUM-3 Helper `asStorybookComponent<T>()` factorisé dans `frontend/app/types/storybook.ts` + appliqué dans `Button.stories.ts`. [frontend/app/types/storybook.ts + frontend/app/components/ui/Button.stories.ts:26]
+- [x] [Review][Patch] LOW-1 Wrapper `<span v-if="$slots.default">` ajouté. [frontend/app/components/ui/Button.vue:128-130]
+- [x] [Review][Patch] LOW-2 Assertion redondante `vueBlocks >= 1` supprimée + commentaire rationale. [frontend/tests/test_docs_ui_primitives.test.ts:31-37]
+- [x] [Review][Patch] LOW-4 Section `## Deferred from: code review of story-10.15 (2026-04-22)` ajoutée à `deferred-work.md` avec `DEF-10.15-1 Lucide Loader2 migration`. [_bmad-output/implementation-artifacts/deferred-work.md]
+- [x] [Review][Patch] LOW-5 `DEF-10.15-2 Tokens brand hover dédiés (Phase Growth)` tracé dans `deferred-work.md`. [_bmad-output/implementation-artifacts/deferred-work.md]
+- [x] [Review][Defer] MEDIUM-4 `disabled` HTML bind coupe focusabilité loading — `DEF-10.15-3 Loading button focusable AAA` tracé deferred-work.md, révision Story 10.21 Lucide. [frontend/app/components/ui/Button.vue:100]
+- [x] [Review][Defer] LOW-3 Pas de smoke test auto-import Nuxt `<Button>` — scope Story 10.16 Input/Textarea/Select. [N/A]
+- [x] [Review][Defer] Upgrade a11y harness Storybook runtime — `DEF-10.15-4` tracé deferred-work.md (limite jest-axe en happy-dom sur `color-contrast`).

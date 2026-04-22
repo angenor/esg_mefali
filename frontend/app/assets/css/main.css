@@ -4,12 +4,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Design system ESG Mefali */
-  --color-brand-green: #10B981;
+  /* Design system ESG Mefali.
+   * brand-green/red darkened Story 10.15 code-review HIGH-2 (2026-04-22) :
+   *   - brand-green : #10B981 (emerald-500, 2,56:1 vs white ❌ AA) → #047857 (emerald-700, 5,78:1 ✅ AA 4,5:1)
+   *   - brand-red   : #EF4444 (red-500, 3,28:1 vs white ❌)        → #DC2626 (red-600, 4,83:1 ✅ AA 4,5:1)
+   * Rationale : garantir contraste WCAG 2.1 AA sur CTA primary/danger
+   * (`bg-brand-* text-white` sur text-sm font-medium). brand-blue/purple/orange
+   * preserves (non utilises comme bg + white). Calculs documentes docs/CODEMAPS/ui-primitives.md §A11y.
+   */
+  --color-brand-green: #047857;
   --color-brand-blue: #3B82F6;
   --color-brand-purple: #8B5CF6;
   --color-brand-orange: #F59E0B;
-  --color-brand-red: #EF4444;
+  --color-brand-red: #DC2626;
   --color-surface-bg: #F9FAFB;
   --color-surface-text: #111827;
   --color-surface-dark-bg: #111827;

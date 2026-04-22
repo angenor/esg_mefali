@@ -4,6 +4,7 @@ import { h } from 'vue';
 import Button from './Button.vue';
 import { BUTTON_VARIANTS, BUTTON_SIZES } from './registry';
 import type { ButtonVariant, ButtonSize } from './registry';
+import { asStorybookComponent } from '../../types/storybook';
 
 // Type explicite des args : le type discrimine iconOnly rend le Meta<typeof Button>
 // mal compatible avec Storybook v8 + slots. On declare un type aplati equivalent.
@@ -18,12 +19,11 @@ type ButtonStoryArgs = {
   onClick?: (event: MouseEvent) => void;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const meta: Meta<ButtonStoryArgs> = {
   title: 'UI/Button',
-  // Cast : Storybook v8 Meta<Args> attend ConcreteComponent<any> ; Vue SFC typed
-  // est une DefineSetupFnComponent. Le cast est inerte au runtime.
-  component: Button as unknown as Meta<ButtonStoryArgs>['component'],
+  // Helper mutualise (frontend/app/types/storybook.ts) : cast Storybook v8 +
+  // Vue SFC typed. A retirer quand Storybook 9 harmonise le typage.
+  component: asStorybookComponent<ButtonStoryArgs>(Button),
   tags: ['autodocs'],
   parameters: { a11y: { disable: false } },
   argTypes: {
