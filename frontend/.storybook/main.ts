@@ -3,7 +3,10 @@ import vue from '@vitejs/plugin-vue';
 import { mergeConfig } from 'vite';
 
 const config: StorybookConfig = {
-  stories: ['../app/components/gravity/**/*.stories.@(ts|mdx)'],
+  stories: [
+    '../app/components/gravity/**/*.stories.@(ts|mdx)',
+    '../app/components/ui/**/*.stories.@(ts|mdx)',
+  ],
   addons: [
     '@storybook/addon-essentials',
     '@storybook/addon-a11y',
