@@ -19,7 +19,8 @@ const AXE_OPTIONS = {
   rules: {
     // happy-dom n'evalue pas le layout CSS — delegue Storybook runtime (piege #28)
     'color-contrast': { enabled: false },
-    'color-contrast-enhanced': { enabled: false },
+    // L-1 10.18 post-review : `color-contrast-enhanced` (AAA) retiree,
+    // axe-core ne l'active pas par defaut avec le tag wcag2aa (no-op).
     region: { enabled: false },
     // aria-modal n'est pas valide strict selon ARIA 1.2 sur role="complementary"
     // (ARIA le reserve a role="dialog"). Override delibere Q2+Q3 verrouillees

@@ -25,6 +25,7 @@ interface DrawerProps {
   closeOnEscape?: boolean;
   closeOnOverlayClick?: boolean;
   showCloseButton?: boolean;
+  closeLabel?: string;
 }
 
 describe('ui/Drawer : AC1 type safety (compile-time)', () => {
@@ -109,6 +110,18 @@ describe('ui/Drawer : AC1 type safety (compile-time)', () => {
     expectTypeOf(good).toMatchTypeOf<DrawerProps>();
   });
 
+  it('closeLabel number est rejete (string requis — M-1 10.18 post-review)', () => {
+    // @ts-expect-error string requis
+    const bad: DrawerProps = { open: true, title: 'T', closeLabel: 123 };
+    void bad;
+  });
+
+  it('closeLabel null est rejete (string strict, pas null)', () => {
+    // @ts-expect-error string strict, null non-autorise
+    const bad: DrawerProps = { open: true, title: 'T', closeLabel: null };
+    void bad;
+  });
+
   it('DrawerProps complet avec toutes les props compile', () => {
     const good: DrawerProps = {
       open: true,
@@ -120,6 +133,7 @@ describe('ui/Drawer : AC1 type safety (compile-time)', () => {
       closeOnEscape: true,
       closeOnOverlayClick: true,
       showCloseButton: true,
+      closeLabel: 'Fermer le panneau des sources',
     };
     expectTypeOf(good).toMatchTypeOf<DrawerProps>();
   });

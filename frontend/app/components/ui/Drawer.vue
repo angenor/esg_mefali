@@ -35,6 +35,7 @@ interface DrawerProps {
   closeOnEscape?: boolean;
   closeOnOverlayClick?: boolean;
   showCloseButton?: boolean;
+  closeLabel?: string;
 }
 
 const props = withDefaults(defineProps<DrawerProps>(), {
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<DrawerProps>(), {
   closeOnEscape: true,
   closeOnOverlayClick: true,
   showCloseButton: true,
+  closeLabel: 'Fermer le panneau',
 });
 
 const emit = defineEmits<{
@@ -98,10 +100,29 @@ const sizeClasses = computed<string>(() => {
   return '';
 });
 
-// Mobile fullscreen CSS-only (piege #29) — override au-dela de md.
-const mobileBaseClasses = 'inset-0 w-full h-full md:inset-auto';
+// Mobile base CSS-only (piege #29) — override au-dela de md.
+// HIGH-1 10.18 post-review : side="bottom" et side="top" basculent en
+// pattern bottom-sheet / top-sheet natif (iOS UISheetPresentationController,
+// Android BottomSheetDialog) au lieu de fullscreen neutre. Border-radius
+// top-arrondi sur bottom, bottom-arrondi sur top, max-h 85vh, laisse
+// affordance « glisser pour fermer » implicite. side=right|left restent
+// fullscreen mobile (viewport deja plein sans distinction visuelle utile).
+const mobileBaseClasses = computed<string>(() => {
+  if (props.side === 'bottom') {
+    return 'bottom-0 left-0 right-0 top-auto w-full h-auto max-h-[85vh] rounded-t-xl md:rounded-none md:inset-auto md:max-h-none';
+  }
+  if (props.side === 'top') {
+    return 'top-0 left-0 right-0 bottom-auto w-full h-auto max-h-[85vh] rounded-b-xl md:rounded-none md:inset-auto md:max-h-none';
+  }
+  return 'inset-0 w-full h-full md:inset-auto';
+});
 
-// Runtime defense dev-only (piege #32) : 3 paths disabled = utilisateur piege.
+// Runtime defense en profondeur (piege #32) : 3 paths disabled = utilisateur piege.
+// Decision M-2 10.18 post-review : guarde `import.meta.env.DEV` CONSERVE.
+// Rationale : en CI le test unit `test_drawer_behavior.test.ts` catche deja
+// le scenario (Vitest tourne en mode DEV). En preview/prod le warn n'apporte
+// pas de filet utile (consommateur averti ne lit pas la console). Le piege
+// #32 codemap assume cette dette et reserve un audit preview manuel Phase 1.
 if (import.meta.env.DEV) {
   if (
     !props.closeOnEscape &&
@@ -120,13 +141,15 @@ function handleOpenChange(value: boolean): void {
   emit('update:open', value);
 }
 
-function handleEscapeKeyDown(e: Event): void {
+// L-2 10.18 post-review : handlers typeds strictement (KeyboardEvent /
+// PointerEvent) au lieu de Event generique. Meilleure DX + coherent Reka UI.
+function handleEscapeKeyDown(e: KeyboardEvent): void {
   if (!props.closeOnEscape) {
     e.preventDefault();
   }
 }
 
-function handlePointerDownOutside(e: Event): void {
+function handlePointerDownOutside(e: PointerEvent): void {
   if (!props.closeOnOverlayClick) {
     e.preventDefault();
   }
@@ -193,7 +216,7 @@ function handlePointerDownOutside(e: Event): void {
             </div>
             <DialogClose
               v-if="showCloseButton"
-              aria-label="Fermer le panneau"
+              :aria-label="closeLabel"
               class="ml-2 rounded p-1 text-surface-text dark:text-surface-dark-text hover:bg-gray-100 dark:hover:bg-dark-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             >
               <svg

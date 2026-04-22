@@ -255,6 +255,62 @@ export const MobileFullscreen: Story = {
   },
 };
 
+// H-1 10.18 post-review : bascule bottom-sheet / top-sheet mobile native
+// (pattern iOS UISheetPresentationController / Android BottomSheetDialog).
+export const MobileBottomSheet: Story = {
+  args: {
+    title: 'Mobile bottom-sheet (side=bottom, rounded-t-xl, max-h 85vh)',
+    side: 'bottom',
+    size: 'md',
+    description: 'Pattern natif iOS/Android — affordance « glisser pour fermer ».',
+  },
+  parameters: {
+    viewport: { defaultViewport: 'iphone6' },
+    docs: {
+      description: {
+        story:
+          'AC6 bottom-sheet bascule mobile. Sur viewport <md, side=bottom passe en pattern natif (bordure supérieure arrondie, max-height 85vh). Desktop (≥md) conserve le placement right/left classique via classes `md:*`.',
+      },
+    },
+  },
+};
+
+export const MobileTopSheet: Story = {
+  args: {
+    title: 'Mobile top-sheet (side=top, rounded-b-xl, max-h 85vh)',
+    side: 'top',
+    size: 'md',
+    description: 'Symétrie H-1 : top descend du haut (notifications, alertes).',
+  },
+  parameters: {
+    viewport: { defaultViewport: 'iphone6' },
+    docs: {
+      description: {
+        story:
+          'AC6 top-sheet bascule mobile — cas d\'usage complémentaire au bottom-sheet (bannières système, alertes contextuelles).',
+      },
+    },
+  },
+};
+
+// M-1 10.18 post-review : variante closeLabel i18n EN (story documentée
+// pour préparation migration Growth Phase).
+export const CloseLabelEnglish: Story = {
+  args: {
+    title: 'Close label i18n (EN)',
+    closeLabel: 'Close panel',
+    description: 'Demonstrates closeLabel prop for i18n-ready consumers.',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'M-1 capitalisation : prop closeLabel string par défaut « Fermer le panneau » (FR) — override possible pour i18n ou contextualisation (ex. « Fermer le panneau des sources »).',
+      },
+    },
+  },
+};
+
 /* ===========================================================================
  * 7. Long scroll content (ScrollArea Reka UI AC13).
  * =========================================================================*/
