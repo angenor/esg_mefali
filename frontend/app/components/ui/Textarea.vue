@@ -14,7 +14,7 @@
   Validation externe prop `error` (Q4 verrouillee).
 -->
 <script setup lang="ts">
-import { computed, useId } from 'vue';
+import { computed, ref, useId } from 'vue';
 import type { FormSize } from './registry';
 import { TEXTAREA_DEFAULT_MAX_LENGTH } from './registry';
 
@@ -53,11 +53,13 @@ const errorId = computed<string>(() => `${inputId.value}-error`);
 const hintId = computed<string>(() => `${inputId.value}-hint`);
 const counterId = computed<string>(() => `${inputId.value}-counter`);
 
+// H-1 : aria-describedby combine hint + error si les 2 presents (pas override).
 const describedBy = computed<string | undefined>(() => {
-  const ids: string[] = [];
-  if (props.hint) ids.push(hintId.value);
-  if (props.error) ids.push(errorId.value);
-  if (props.showCounter) ids.push(counterId.value);
+  const ids = [
+    props.hint ? hintId.value : null,
+    props.error ? errorId.value : null,
+    props.showCounter ? counterId.value : null,
+  ].filter((id): id is string => id !== null);
   return ids.length ? ids.join(' ') : undefined;
 });
 
@@ -91,17 +93,53 @@ const isAtLimit = computed<boolean>(() => currentLength.value >= props.maxlength
 const counterClasses = computed<string>(() => {
   const len = currentLength.value;
   if (len >= props.maxlength) return 'text-brand-red font-medium';
-  if (len >= props.maxlength - ORANGE_THRESHOLD_OFFSET) return 'text-brand-orange';
+  // L-6 : guard — si maxlength < offset, le seuil orange est desactive
+  // (sinon len >= negatif = toujours vrai, compteur en permanence orange).
+  if (
+    props.maxlength >= ORANGE_THRESHOLD_OFFSET &&
+    len >= props.maxlength - ORANGE_THRESHOLD_OFFSET
+  ) {
+    return 'text-brand-orange';
+  }
   return 'text-gray-500 dark:text-gray-400';
 });
 
+// H-2 : flag IME composition (CJK + dead-keys FR accents é è ê à ç ù).
+// Pendant compositionstart → compositionend, ne PAS muter target.value
+// (casse la composition ; le glyphe partiel est tronque prematurement).
+const isComposing = ref<boolean>(false);
+
+function onCompositionStart(): void {
+  isComposing.value = true;
+}
+
+function onCompositionEnd(event: CompositionEvent): void {
+  isComposing.value = false;
+  // Re-applique la troncature post-composition (le glyphe final est committed).
+  handleInput(event);
+}
+
 function handleInput(event: Event): void {
   const target = event.target as HTMLTextAreaElement;
+
+  // H-2 : emit sans troncature pendant composition IME.
+  if (isComposing.value) {
+    emit('update:modelValue', target.value);
+    return;
+  }
+
   // Defense en profondeur JS : tronque a maxlength meme si paste ou programmatique bypass.
   const truncated = target.value.slice(0, props.maxlength);
   if (truncated !== target.value) {
-    // Re-sync DOM pour eviter desynchronisation v-model / DOM (piege #16 codemap).
+    // M-2 : preserver selectionRange user (pas de jump caret a la fin).
+    const { selectionStart, selectionEnd } = target;
     target.value = truncated;
+    if (selectionStart !== null && selectionEnd !== null) {
+      target.setSelectionRange(
+        Math.min(selectionStart, truncated.length),
+        Math.min(selectionEnd, truncated.length),
+      );
+    }
   }
   emit('update:modelValue', truncated);
 }
@@ -135,7 +173,8 @@ function handleInput(event: Event): void {
         'text-surface-text dark:text-surface-dark-text',
         'placeholder:text-gray-400 dark:placeholder:text-gray-500',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-        'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-dark-card',
+        // M-5 : offset distinct du bg dark-input (#1F2937) en dark.
+        'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-neutral-900',
         'disabled:bg-gray-50 dark:disabled:bg-dark-card',
         'disabled:text-gray-500 dark:disabled:text-gray-600',
         'disabled:cursor-not-allowed',
@@ -146,47 +185,56 @@ function handleInput(event: Event): void {
         stateClasses,
       ]"
       @input="handleInput"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEnd"
     />
 
     <div class="flex justify-between items-start gap-2">
-      <p
-        v-if="error"
-        :id="errorId"
-        role="alert"
-        class="flex items-center gap-1 text-xs text-brand-red"
-      >
-        <!-- STUB AlertCircle Lucide 10.21. -->
-        <svg
-          class="h-3.5 w-3.5 flex-shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+      <!-- H-1 : hint + error rendus simultanement si les 2 presents (stack vertical). -->
+      <div class="flex flex-col gap-0.5 flex-1">
+        <p
+          v-if="error"
+          :id="errorId"
+          role="alert"
+          class="flex items-center gap-1 text-xs text-brand-red"
         >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <span>{{ error }}</span>
-      </p>
-      <p
-        v-else-if="hint"
-        :id="hintId"
-        class="text-xs text-gray-500 dark:text-gray-400"
-      >
-        {{ hint }}
-      </p>
-      <span v-else aria-hidden="true"></span>
+          <!-- STUB AlertCircle Lucide 10.21. -->
+          <svg
+            class="h-3.5 w-3.5 flex-shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>{{ error }}</span>
+        </p>
+        <!-- H-1 : hint rendu meme quand error present (v-if sans !error). -->
+        <p
+          v-if="hint"
+          :id="hintId"
+          class="text-xs text-gray-500 dark:text-gray-400"
+        >
+          {{ hint }}
+        </p>
+      </div>
 
+      <!-- M-1 : role=status + aria-live=polite STATIQUES (region existe avant
+           mutation, sinon NVDA/JAWS ratent la 1ere annonce). aria-atomic pour
+           annoncer la valeur complete "400/400" plutot que chaque frappe. -->
       <p
         v-if="showCounter"
         :id="counterId"
         :class="['text-xs tabular-nums flex-shrink-0', counterClasses]"
-        :role="isAtLimit ? 'status' : undefined"
-        :aria-live="isAtLimit ? 'polite' : undefined"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
       >
         {{ currentLength }}/{{ maxlength }}
       </p>

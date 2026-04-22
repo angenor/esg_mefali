@@ -51,7 +51,8 @@ const props = withDefaults(defineProps<InputProps>(), {
   readonly: false,
 });
 
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
+// H-4 : emit discrimine selon type=number (Number) vs autres (string).
+const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>();
 
 // Auto-ID pour label association si prop id non fournie (AC5).
 const autoId = useId();
@@ -59,11 +60,13 @@ const inputId = computed<string>(() => props.id ?? `ui-input-${autoId}`);
 const errorId = computed<string>(() => `${inputId.value}-error`);
 const hintId = computed<string>(() => `${inputId.value}-hint`);
 
-// aria-describedby combine hint + error si les 2 presents (AC5).
+// H-1 : aria-describedby combine hint + error si les 2 presents (AC5 post-review).
+// Les 2 paragraphes sont rendus simultanement (v-if hint tout le temps, error en plus).
 const describedBy = computed<string | undefined>(() => {
-  const ids: string[] = [];
-  if (props.hint) ids.push(hintId.value);
-  if (props.error) ids.push(errorId.value);
+  const ids = [
+    props.hint ? hintId.value : null,
+    props.error ? errorId.value : null,
+  ].filter((id): id is string => id !== null);
   return ids.length ? ids.join(' ') : undefined;
 });
 
@@ -104,11 +107,39 @@ const resolvedInputmode = computed<InputMode | undefined>(() => {
   }
 });
 
+// M-4 : defense en profondeur maxlength (parite avec Textarea triple defense).
+// Exclut type=number : valeur DOM type=number n'est pas une chaine humaine a trunquer.
 function handleInput(event: Event): void {
   const target = event.target as HTMLInputElement;
-  // Laisse string (cohesion v-model standard, piege #11 codemap §5) —
-  // consommateur coerce explicitement via v-model.number si besoin.
-  emit('update:modelValue', target.value);
+
+  // H-4 : coercion Number si type=number (contrat modelValue number respecte).
+  if (props.type === 'number') {
+    const raw = target.value;
+    if (raw === '') {
+      emit('update:modelValue', '');
+      return;
+    }
+    const num = Number(raw);
+    emit('update:modelValue', Number.isNaN(num) ? '' : num);
+    return;
+  }
+
+  // M-4 : troncature JS defense en profondeur si maxlength defini (types text).
+  const max = props.maxlength;
+  let value = target.value;
+  if (typeof max === 'number' && value.length > max) {
+    value = value.slice(0, max);
+    // Re-sync DOM (pattern Textarea H-2).
+    const { selectionStart, selectionEnd } = target;
+    target.value = value;
+    if (selectionStart !== null && selectionEnd !== null) {
+      target.setSelectionRange(
+        Math.min(selectionStart, value.length),
+        Math.min(selectionEnd, value.length),
+      );
+    }
+  }
+  emit('update:modelValue', value);
 }
 </script>
 
@@ -154,7 +185,8 @@ function handleInput(event: Event): void {
           'text-surface-text dark:text-surface-dark-text',
           'placeholder:text-gray-400 dark:placeholder:text-gray-500',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-          'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-dark-card',
+          // M-5 : offset distinct du bg input en dark (neutral-900 != dark-input #1F2937).
+          'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-neutral-900',
           'disabled:bg-gray-50 dark:disabled:bg-dark-card',
           'disabled:text-gray-500 dark:disabled:text-gray-600',
           'disabled:cursor-not-allowed',
@@ -177,8 +209,9 @@ function handleInput(event: Event): void {
       </span>
     </div>
 
+    <!-- H-1 : hint rendu meme quand error present (aria-describedby combine les 2). -->
     <p
-      v-if="hint && !error"
+      v-if="hint"
       :id="hintId"
       class="text-xs text-gray-500 dark:text-gray-400"
     >

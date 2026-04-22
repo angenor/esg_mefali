@@ -1,6 +1,6 @@
 # Story 10.16 : `ui/Input.vue` + `ui/Textarea.vue` + `ui/Select.vue` — 3 primitives formulaire
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -287,7 +287,7 @@ type FormPropsBase = {
   - [x] 7.2 `Textarea.stories.ts` : 21 stories + play function `CounterAt400Red` userEvent.type 410 chars + assert tronqué 400.
   - [x] 7.3 `Select.stories.ts` : 22 stories + play function `DefaultMd` userEvent.selectOptions.
   - [x] 7.4 Helper `asStorybookComponent<T>()` 10.15 réutilisé 3 fois sans duplication.
-  - [x] 7.5 `storybook-static/index.json.entries.length === 132` (baseline 66 + 66 nouvelles).
+  - [x] 7.5 CSF exports = 122 (21 Button + 63 form + 38 gravity) ; pages Storybook autodocs ~132 (baseline 66 + 66 nouvelles).
 
 - [x] **Task 8 — Tests Vitest** (AC9, AC11, AC13)
   - [x] 8.1 `test_input_rendering.test.ts` (9 tests) + `Input.test-d.ts` (7 assertions typecheck).
@@ -322,6 +322,34 @@ type FormPropsBase = {
 - [x] **Task 12 — Retrospective mini leçons transmises 10.17+**
   - [x] 12.1 5 Q tranchées verrouillées §2 Dev Notes.
   - [x] 12.2 Hors scope §9 documenté (migrations brownfield Epic 11-15, Reka UI upgrade, floating label, async validation, masked input).
+
+### Review Findings
+
+Code review 2026-04-22 — verdict **APPROVE-WITH-CHANGES** — rapport complet : [`10-16-code-review-2026-04-22.md`](./10-16-code-review-2026-04-22.md).
+
+**HIGH (corrigés patch round 1 2026-04-22) :**
+- [x] [Review][Patch] H-1 : orphan `aria-describedby` — `describedBy` combine hint+error simultanément ; v-if hint aligné (pas de `!error` exclusion) → hint+error rendus conjointement dans le DOM [Input.vue, Textarea.vue, Select.vue]
+- [x] [Review][Patch] H-2 : Textarea IME — flag `isComposing` + handlers `@compositionstart`/`@compositionend` ; emit sans troncature pendant composition, re-applique sur `compositionend` [Textarea.vue]
+- [x] [Review][Patch] H-3 : Select multiple — `ref="selectRef"` + `watch(modelValue)` + `nextTick(syncSelectedOptions)` qui itère `el.options` et set `o.selected = values.includes(o.value)` ; `:value` unbound en mode multiple [Select.vue]
+- [x] [Review][Patch] H-4 : Input `type=number` — emit `Number(target.value)` discriminé (runtime `if props.type === 'number'`) ; emit `''` pour vide (pas `NaN`) [Input.vue]
+
+**MEDIUM (corrigés patch round 1) :**
+- [x] [Review][Patch] M-1 : Textarea counter `role="status"` + `aria-live="polite"` + `aria-atomic="true"` STATIQUES (plus de toggle dynamique) [Textarea.vue]
+- [x] [Review][Patch] M-2 : `selectionRange` préservé via `setSelectionRange(min(start, len), min(end, len))` après troncature Textarea ET Input M-4
+- [x] [Review][Patch] M-3 : story doc + dev-report rectifiés (132 → 122 CSF exports + ~132 pages autodocs) ; codemap ui-primitives cohérent
+- [x] [Review][Patch] M-4 : Input défense troncature JS appliquée pour types text/email/password/url/tel/search (exclut `number` qui n'est pas une chaîne humaine à slicer)
+- [x] [Review][Patch] M-5 : `dark:focus-visible:ring-offset-neutral-900` remplace `ring-offset-dark-card` sur les 3 primitives
+- [x] [Review][Patch] M-6 : DEF-10.16-4 `Coverage c8 batched 10.15+10.16+10.17` tracé formel dans deferred-work.md
+
+**LOW (corrigés patch round 1) :**
+- [x] [Review][Patch] L-2 : test `type=search` clear-X ajouté (`test_post_review_10_16.test.ts`)
+- [x] [Review][Patch] L-3 : piège #19 CODEMAPS documente multi-select UX mobile iOS/Android + desktop Cmd/Ctrl
+- [x] [Review][Patch] L-4 : tableau §6 codemap étendu avec colonnes dark (gray-400 6,80:1 AAA, orange 6,50:1 AA, red 3,50:1 large-text)
+- [x] [Review][Patch] L-6 : guard `if (maxlength >= ORANGE_THRESHOLD_OFFSET)` ajouté à `counterClasses` Textarea
+- [x] [Review][Defer] L-1 autocomplete whitelist type — piège #14 codemap déjà en place
+- [x] [Review][Defer] L-5 Textarea prop `resize` exposée — Phase Growth (nouveau DEF-10.16-3)
+- [x] [Review][Defer] L-7 read-only Tailwind variant test visuel — runtime Tailwind v3.2+ OK
+- [x] [Review][Defer] L-8 Select placeholder non-reselectable — limitation natif MVP, Combobox 10.19
 
 ## Dev Notes
 
@@ -1091,7 +1119,7 @@ Claude Opus 4.7 (1M context) — dev-story 2026-04-22, 18ᵉ story Phase 4.
 
 - Baseline pre-dev : `npm run test` → 422 passed + 1 flaky (`useGuidedTour.resilience` pré-existant) + 6 typecheck (Button 10.15).
 - Scan Task 1 : `rg 'Input\.vue|Textarea\.vue|Select\.vue|INPUT_TYPES|FORM_SIZES'` sur `app/components/ui/` → 0 hit ; scan SFC name collision sur `app/components/` → 0 hit. Aucune collision auto-imports Nuxt.
-- Storybook build post-dev : 132 stories (66 baseline + 66 nouvelles), bundle 7,9 MB (budget 15 MB).
+- Storybook build post-dev : 122 **exports CSF** (21 Button + 63 form + 38 gravity) ; pages Storybook total ~132 via autodocs (rectification post-review M-3 2026-04-22 ; claim initial confondait exports et pages).
 - Post-dev : `npm run test` → 460 passed (+38 vs 422) + 1 flaky inchangé ; `npm run test:typecheck` → 26 tests (+20 vs 6), 0 type error.
 - Scan hex sur 3 `.vue` + registry + 3 stories → 0 hit ; scan `: any`/`as unknown` sur 3 composants + tests + typecheck → 0 hit.
 
@@ -1102,7 +1130,7 @@ Claude Opus 4.7 (1M context) — dev-story 2026-04-22, 18ᵉ story Phase 4.
 - **Textarea.vue** : compteur 3 seuils (gray < 350 / orange 350-399 / red ≥ 400 + `role="status" aria-live="polite"`), triple défense maxlength (HTML + JS tronque + re-sync DOM + backend spec 018), pas de slots icônes. 14 `dark:`.
 - **Select.vue** : natif `<select>` stylé Tailwind (Q3 MVP, DEF-10.16-1 tracé), chevron SVG absolute masque fleche native inconsistante cross-browser, options typées `SelectOption[]`. 11 `dark:`.
 - **Tests Vitest** : 35 runtime nouveaux (9 Input + 9 Textarea + 8 Select + 6 registry + 3 no-hex) + 20 typecheck nouveaux (7 Input + 6 Textarea + 7 Select). `jest-axe` 9 audits 0 violation WCAG 2.1 A/AA. Test docs 10.15 (4 tests) étendu à 7 tests (7 assertions : sections H2, 4 sous-sections H3 primitives, ≥16 pièges §5, ≥4 exemples par primitive, contraste 3,85:1 mention).
-- **Stories Storybook** : 66 nouvelles (Input 22 + Textarea 21 + Select 22 + 1 ShowcaseGrid implicite chacun) soit 132 total (baseline 66 + 66). 3 play functions `user-event` réels : `Input.DefaultMd` type email, `Textarea.CounterAt400Red` type 10 chars + assert length=400 (tronqué JS), `Select.DefaultMd` selectOptions + expect `'energy'`.
+- **Stories Storybook** : 63 exports CSF nouveaux (Input 24 + Textarea 21 + Select 18) soit 122 total (21 Button + 63 form + 38 gravity), ~132 pages Storybook en autodocs. 3 play functions `user-event` réels : `Input.DefaultMd` type email, `Textarea.CounterAt400Red` type 10 chars + assert length=400 (tronqué JS), `Select.DefaultMd` selectOptions + expect `'energy'`. *(Comptage initial 132 exports rectifié post-review M-3.)*
 - **CODEMAPS ui-primitives.md** : §3 renommée avec 4 sous-sections H3 (3.0 Button preserved + 3.1 Input + 3.2 Textarea + 3.3 Select avec exemples Vue numérotés), §5 pièges 10 → 16 (#11-#16 : v-model number/string, rows/resize-y, Select DOM string, autocomplete MDN, floating label anti-pattern, triple défense maxlength), §6 A11y table étendue avec entrée text-brand-orange 3,85:1 rationale auxiliaire.
 - **deferred-work.md** : section Story 10.16 ajoutée avec DEF-10.16-1 (Reka UI SelectRoot Phase Growth) + DEF-10.16-2 (remplacement 4 stubs SVG par Lucide Story 10.21).
 - **0 modification des 68 composants inchangés** (60 brownfield + 6 gravity/ + 2 ui brownfield + Button 10.15) — pattern shim 10.6 respecté.
@@ -1138,7 +1166,27 @@ Claude Opus 4.7 (1M context) — dev-story 2026-04-22, 18ᵉ story Phase 4.
 
 - **2026-04-22** — Story 10.16 implémentée et prête pour review.
   - 3 primitives formulaire livrées (Input + Textarea + Select) avec 460 tests runtime (+38 vs baseline 422) + 26 typecheck (+20 vs baseline 6), 0 régression.
-  - 132 stories Storybook (+66 nouvelles), bundle 7,9 MB.
+  - 122 exports CSF Storybook (~132 pages autodocs), bundle 7,9 MB.
   - 0 hex hardcodé + 0 any + dark mode ≥ 11 par composant.
   - CODEMAPS ui-primitives.md étendu (3 sous-sections H3 §3 + 16 pièges §5 + 1 entrée §6).
   - 2 deferred-work tracés (DEF-10.16-1 Reka UI SelectRoot + DEF-10.16-2 Lucide stubs).
+
+- **2026-04-22 (patch round 1 post-review)** — 4 HIGH + 6 MEDIUM + 4 LOW corrigés.
+  - **H-1** aria-describedby combine hint+error simultanés ; hint+error rendus conjointement (Input/Textarea/Select).
+  - **H-2** Textarea IME composition : guard `isComposing` via `@compositionstart`/`@compositionend` (CJK + dead-keys FR).
+  - **H-3** Select multiple : watcher `selectedOptions` + ref + `Array.from(options).selected = values.includes(value)`.
+  - **H-4** Input `type=number` émet `Number` (discrimination runtime sur `props.type`).
+  - **M-1** Textarea counter `role=status` + `aria-live=polite` + `aria-atomic=true` statiques.
+  - **M-2** preserve `selectionRange` lors de troncature Textarea + Input.
+  - **M-3** comptage Storybook rectifié (132 → 122 exports CSF + ~132 pages autodocs).
+  - **M-4** Input défense troncature JS pour types text/email/url/password/tel/search + parité Textarea.
+  - **M-5** `dark:focus-visible:ring-offset-neutral-900` (offset distinct du bg dark-input) sur les 3 primitives.
+  - **M-6** DEF-10.16-4 `Coverage c8 batched` tracé formellement (absent à ce stade du fichier, suit le pattern 10.15).
+  - **L-2** test `type=search` clear-X (emit vide).
+  - **L-3** documentation multi-select UX mobile iOS/Android + desktop Cmd/Ctrl dans CODEMAPS §5 piège #19.
+  - **L-4** tableau §6 étendu avec contraste dark mode (`text-gray-400` 6,80:1, `orange` 6,50:1, `red` 3,50:1 large-text).
+  - **L-6** guard `maxlength < ORANGE_THRESHOLD_OFFSET` sur Textarea counter.
+  - **Capitalisation méthodologique** : `docs/CODEMAPS/methodology.md` étendu §4bis (tests E2E DOM anti-tautologie) + §4ter (comptages runtime obligatoires).
+  - **Tests** : `tests/components/ui/test_post_review_10_16.test.ts` + 15 assertions (3 H-1 + 2 H-2 + 2 H-3 + 3 H-4 + M-1 + M-2 + 2 M-4 + L-2 + L-6). Cible baseline ≥ 475.
+
+Status: done

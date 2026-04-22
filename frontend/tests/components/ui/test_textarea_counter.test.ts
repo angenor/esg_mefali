@@ -49,18 +49,20 @@ describe('ui/Textarea : compteur 3 seuils + triple defense (AC4)', () => {
     w.unmount();
   });
 
-  it('AC4 : compteur >= 350 && < 400 -> text-brand-orange (seuil warn)', () => {
+  it('AC4 : compteur >= 350 && < 400 -> text-brand-orange (seuil warn, role=status static M-1)', () => {
     const w = mount(Textarea, {
       props: { modelValue: 'a'.repeat(360), label: 'X' },
     });
     const counter = w.findAll('p').find((p) => p.text().includes('360/400'));
     expect(counter).toBeDefined();
     expect(counter?.classes()).toContain('text-brand-orange');
-    expect(counter?.attributes('role')).toBeUndefined();
+    // M-1 post-review : role=status + aria-live=polite STATIQUES (region existe
+    // avant mutation, sinon NVDA/JAWS ratent la 1ere annonce).
+    expect(counter?.attributes('role')).toBe('status');
     w.unmount();
   });
 
-  it('AC4 : compteur >= 400 -> text-brand-red + role=status aria-live=polite', () => {
+  it('AC4 : compteur >= 400 -> text-brand-red + role=status aria-live=polite + aria-atomic', () => {
     const w = mount(Textarea, {
       props: { modelValue: 'a'.repeat(400), label: 'X' },
     });
@@ -70,6 +72,7 @@ describe('ui/Textarea : compteur 3 seuils + triple defense (AC4)', () => {
     expect(counter?.classes()).toContain('font-medium');
     expect(counter?.attributes('role')).toBe('status');
     expect(counter?.attributes('aria-live')).toBe('polite');
+    expect(counter?.attributes('aria-atomic')).toBe('true');
     w.unmount();
   });
 

@@ -11,7 +11,7 @@
   Dark mode >= 6 dark: (AC7). Tokens @theme exclusifs (AC8).
 -->
 <script setup lang="ts">
-import { computed, useId } from 'vue';
+import { computed, nextTick, ref, useId, watch } from 'vue';
 import type { FormSize } from './registry';
 
 export type SelectOption = {
@@ -49,12 +49,39 @@ const inputId = computed<string>(() => props.id ?? `ui-select-${autoId}`);
 const errorId = computed<string>(() => `${inputId.value}-error`);
 const hintId = computed<string>(() => `${inputId.value}-hint`);
 
+// H-1 : aria-describedby combine hint + error si les 2 presents (pas override).
 const describedBy = computed<string | undefined>(() => {
-  const ids: string[] = [];
-  if (props.hint) ids.push(hintId.value);
-  if (props.error) ids.push(errorId.value);
+  const ids = [
+    props.hint ? hintId.value : null,
+    props.error ? errorId.value : null,
+  ].filter((id): id is string => id !== null);
   return ids.length ? ids.join(' ') : undefined;
 });
+
+// H-3 : native <select multiple> ne matche pas une valeur tableau passee via :value.
+// On synchronise programmatiquement selectedOptions depuis modelValue.
+const selectRef = ref<HTMLSelectElement | null>(null);
+
+function syncSelectedOptions(): void {
+  const el = selectRef.value;
+  if (!el) return;
+  if (props.multiple && Array.isArray(props.modelValue)) {
+    const values = props.modelValue;
+    Array.from(el.options).forEach((o) => {
+      o.selected = values.includes(o.value);
+    });
+  }
+  // Single-select : :value="modelValue" binding natif suffit.
+}
+
+watch(
+  () => [props.modelValue, props.options, props.multiple] as const,
+  () => {
+    // nextTick pour laisser Vue rendre les <option> avant de lire .options.
+    nextTick(syncSelectedOptions);
+  },
+  { immediate: true, deep: true },
+);
 
 const sizeClasses = computed<string>(() => {
   switch (props.size) {
@@ -97,9 +124,11 @@ function handleChange(event: Event): void {
     </label>
 
     <div class="relative">
+      <!-- H-3 : bind :value uniquement en single-select ; multi-select synchronise via watch/ref. -->
       <select
         :id="inputId"
-        :value="modelValue"
+        ref="selectRef"
+        :value="multiple ? undefined : modelValue"
         :multiple="multiple"
         :required="required"
         :disabled="disabled"
@@ -111,7 +140,8 @@ function handleChange(event: Event): void {
           'block w-full rounded border bg-white dark:bg-dark-input',
           'text-surface-text dark:text-surface-dark-text',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-          'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-dark-card',
+          // M-5 : offset distinct du bg dark-input en dark.
+          'focus-visible:ring-offset-surface-bg dark:focus-visible:ring-offset-neutral-900',
           'disabled:bg-gray-50 dark:disabled:bg-dark-card',
           'disabled:text-gray-500 dark:disabled:text-gray-600',
           'disabled:cursor-not-allowed',
@@ -156,8 +186,9 @@ function handleChange(event: Event): void {
       </span>
     </div>
 
+    <!-- H-1 : hint rendu meme quand error present. -->
     <p
-      v-if="hint && !error"
+      v-if="hint"
       :id="hintId"
       class="text-xs text-gray-500 dark:text-gray-400"
     >

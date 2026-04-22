@@ -92,6 +92,83 @@ des scores biaisés silencieusement (le recall est plafonné artificiellement
 **Implémentation référence** : `backend/tests/test_core/test_embeddings_quality.py::test_corpus_structure_is_valid`
 (Story 10.13 post-review CRITICAL-1 2026-04-21).
 
+## 4bis. Règle d'or tests E2E DOM (pas state interne) — anti-tautologie
+
+**Pattern** : un test qui **mute l'état interne** d'un composant (élément DOM,
+`wrapper.vm`, `setData`) puis vérifie cet état ne teste rien — il lit ce qu'il
+a écrit. C'est une tautologie qui **masque les bugs de binding**.
+
+**Exemple Story 10.16 (H-3, 2026-04-22)** — Select multi-select :
+
+```ts
+// ❌ ANTI-PATTERN : mutation imperative puis assert sur emit dérivé
+Array.from(el.options).forEach((o) => {
+  o.selected = o.value === '8' || o.value === '13';
+});
+await sel.trigger('change');
+expect(emitted?.[0]?.[0]).toEqual(['8', '13']);
+```
+
+Ce test passait. Mais le composant **ne synchronisait jamais** `modelValue: ['8','13']`
+passé en prop vers `selectedOptions` DOM (`:value="modelValue"` ignore les tableaux
+sur `<select multiple>` natif). Le bug est resté invisible jusqu'à la review.
+
+**Règle** :
+
+- Tests **prop → DOM** (binding parent→enfant) : passer via `mount({ props })` ou
+  `setProps()`, puis lire depuis le **DOM rendu** (`selectedOptions`, `.value`,
+  `attributes()`, `classes()`, `getByRole`). Jamais depuis `wrapper.vm.xxx`.
+- Tests **emit enfant→parent** : déclencher un événement utilisateur réaliste
+  (`trigger('input')`, `userEvent.type()`), jamais mutation directe de
+  `element.value` suivie d'un assert sur `emitted` de la même valeur.
+- Exception : tests de side-effects (stores, observers) peuvent mock la dépendance,
+  mais l'assertion finale reste **observable depuis l'extérieur** (DOM ou emit).
+
+**Check pré-merge** :
+- [ ] Aucun test : `Array.from(el.options).forEach(o => o.selected = ...)` + assert
+      sur `emitted` identique.
+- [ ] Aucun `wrapper.setData({...})` + assert sur état interne.
+- [ ] Chaque prop testée passe par `mount()` ou `setProps()`.
+
+## 4ter. Comptages runtime OBLIGATOIRES avant Completion Notes
+
+**Pattern** : les métriques du dev-report (`+38 tests`, `132 stories`,
+`14/14/11 dark:`) sont **non-vérifiées** si elles ne proviennent pas d'une
+commande reproductible exécutée **au moment du commit final**.
+
+**Exemple Story 10.16 (M-3, 2026-04-22)** : dev-report annonçait `132 stories
+(66 + 66 nouvelles)`. Review reality : 21 Button + 63 form + 38 gravity = **122
+exports CSF**. La dérive (+10) venait de (a) confusion exports CSF vs pages
+autodocs, (b) copie du pattern 10.15 sans re-exécution.
+
+**Règle** : avant de rédiger Completion Notes, exécuter et coller la sortie
+**brute** :
+
+```bash
+# Tests runtime
+npm run test -- --run 2>&1 | tail -5
+# Typecheck
+npm run test:typecheck 2>&1 | tail -3
+# Stories CSF (comptage exports)
+grep -rE "^export const [A-Z]\w+: Story" frontend/app/components/ | wc -l
+# Dark mode occurrences par composant modifie
+for f in frontend/app/components/ui/*.vue; do
+  echo "$f: $(grep -c 'dark:' "$f") dark:"
+done
+# Baseline/commits
+git log --oneline <baseline>..HEAD
+```
+
+**Check pré-merge** :
+- [ ] Chaque métrique du dev-report a une commande bash associée.
+- [ ] Sortie brute collée dans le story file (pas l'interprétation).
+- [ ] Reviewer re-exécute ≥ 3 commandes et confronte aux claims.
+- [ ] Si un chiffre diverge > 5 %, rectifier **avant** merge (pas de
+      "on corrigera plus tard").
+
+**Exception légitime** : coverage c8 peut être batched post-merge (pattern
+10.15), mais doit être tracé dans `deferred-work.md` (ex: `DEF-10.16-4`).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité

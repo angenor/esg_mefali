@@ -98,4 +98,10 @@ describe('ui/Input : AC1 + AC3 type safety (compile-time)', () => {
     const bad: InputProps = { modelValue: true, label: 'X' };
     void bad;
   });
+
+  // H-4 post-review : verrouille l'emit discrimine string | number.
+  it('H-4 : type=number accepte modelValue number (cote parent)', () => {
+    const valid: InputProps = { modelValue: 42, label: 'Montant', type: 'number' };
+    assertType<InputProps>(valid);
+  });
 });

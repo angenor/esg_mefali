@@ -392,6 +392,52 @@ const ODD_OPTIONS = [
     finale). Les 3 niveaux sont **non-redondants** (chaque étage rattrape
     un cas que les autres ratent).
 
+17. **`aria-describedby` doit référencer des IDs **réellement rendus** dans le DOM** —
+    Si `describedBy` pousse `hintId` mais le `<p id={hintId}>` a un `v-if` qui
+    exclut le hint quand `error` est présent, l'attribut `aria-describedby`
+    pointe vers un élément **inexistant** → NVDA/JAWS cherchent l'ID en vain,
+    annonce silencieusement raccourcie. **Solution primitives 10.16 post-review
+    H-1** : rendre `hint` ET `error` simultanément (le `v-if` s'aligne sur la
+    même condition que le push dans `describedBy`). Les 2 paragraphes s'empilent
+    verticalement sous le champ (UX acceptable : hint = info permanente,
+    error = alerte transitoire).
+
+18. **Textarea `@input` pendant composition IME (CJK + dead-keys AZERTY)** —
+    L'événement `@input` se déclenche **pendant** une composition IME
+    (`isComposing === true`) sur Chromium. Muter `target.value` à ce moment-là
+    (ex: troncature `slice(0, maxlength)`) **casse** la composition :
+    - Utilisateurs CJK (chinois/japonais/coréen) : glyphe partiel tronqué →
+      IME avorte la saisie.
+    - Utilisateurs AZERTY dead-keys (accents français é è ê à ç ù — universels
+      Afrique francophone) : composition `a` + `` ` `` peut être coupée.
+    **Solution primitive 10.16 post-review H-2** : flag `isComposing` via
+    `@compositionstart` / `@compositionend`. Pendant composition, emit
+    `target.value` **sans** troncature. Sur `compositionend`, re-exécuter
+    `handleInput` pour appliquer la troncature sur le glyphe commit final.
+
+19. **`<select multiple>` ne supporte PAS `:value="modelValue"` avec un tableau** —
+    Le DOM natif sérialise un tableau en string via `toString()` (ex: `['8','13']`
+    → `"8,13"`), aucune option ne matche → rien n'est sélectionné visuellement.
+    La propriété `value` d'un `<select>` retourne uniquement **la première
+    option sélectionnée** côté lecture. **Solution primitive 10.16 post-review
+    H-3** : en mode `multiple=true`, ne pas binder `:value` ; synchroniser
+    programmatiquement `selectedOptions` via `ref` + `watch(modelValue)` qui
+    fait `Array.from(el.options).forEach(o => o.selected = values.includes(o.value))`.
+    **Piège lié mobile** : natif multi-select UX diffère par OS — iOS Safari
+    rend une **scroll list inline**, Android Chrome rend une **bottom sheet
+    avec checkboxes**, desktop exige Cmd/Ctrl+click. Pour UX > 5 options ou
+    mobile-first, préférer `Combobox` Reka UI (Story 10.19).
+
+20. **`<input type="number">` émet string par défaut sur `target.value`** —
+    Le DOM natif expose `.value: string` même sur `type=number`. Émettre
+    `target.value` brut dans `update:modelValue` corrompt silencieusement un
+    modelValue typé `number` côté parent (`ref<number>(0)` devient `"42"`,
+    comparaisons `> 100000` en coercion lexicographique). **Solution primitive
+    10.16 post-review H-4** : le handler discrimine sur `props.type` — si
+    `type=number`, émettre `Number(target.value)` (et `''` pour vide, jamais
+    `NaN` qui casse reactive watchers). Sinon émettre string. Le contrat
+    emit devient `string | number` discriminé à l'exécution.
+
 ---
 
 ## 6. A11y — Contraste WCAG 2.1 AA (calculs darken tokens 10.15)
@@ -408,6 +454,15 @@ et `--color-brand-red` ont été **darkened** pour respecter WCAG 2.1 AA `color-
 | `--color-brand-purple` | `#8B5CF6` (violet-500) | 0,23 | 3,86:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `--color-brand-orange` | `#F59E0B` (amber-500) | 0,52 | 2,11:1 | — *inchangé* | — | ⚠ non utilisé comme `bg + text-white` |
 | `text-brand-orange` (Textarea counter 350-399) | `#F59E0B` | — | **3,85:1** vs blanc | — *inchangé* | — | ⚠️ **texte auxiliaire acceptable** (Story 10.16 — compteur seuil warn non bloquant ; le seuil rouge `#DC2626` 4,83:1 AA s'applique à l'état limite 400 bloquant) |
+
+**Contraste mode sombre (post-review 10.16 L-4)** — Le compteur Textarea est rendu
+sur `bg-dark-card` (`#1F2937`) en dark mode. Les ratios calculés vs ce fond :
+
+| Classe compteur | Couleur texte | Ratio vs `#1F2937` | Verdict |
+|-----------------|---------------|--------------------|---------|
+| `dark:text-gray-400` (< 350) | `#9CA3AF` | **6,80:1** | ✅ AA / ✅ AAA |
+| `text-brand-orange` (350-399, inchangé dark) | `#F59E0B` | **6,50:1** | ✅ AA (auxiliaire → conforte) |
+| `text-brand-red` (400, inchangé dark) | `#DC2626` | **3,50:1** | ⚠ sous AA 4,5:1 mais **AA large text** (`font-medium` Tailwind ≈ 500 → pas 700 bold requis) ; amélioré visuellement par `font-medium` appliqué à cet état + `role="status"` aria-live (annonce SR en complément visuel). Non bloquant MVP — batched DEF-10.15-4 Storybook CI. |
 
 **Règle** : tout token `--color-brand-*` consommé en pattern `bg-brand-* text-white`
 avec `text-sm` (14 px) ou plus petit DOIT atteindre ≥ 4,5:1 contraste calculé
