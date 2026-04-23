@@ -22,8 +22,17 @@
  * Fallback warn dev-only (AC5) : si `name` absent de ICON_MAP, console.warn
  * en DEV (`import.meta.env.DEV`) + rendu placeholder cercle barre. Vite DCE
  * strippe le warn en prod (0 bloat). Pas de throw pour UX PME africaines.
+ *
+ * Post-review §4octies :
+ *  - Lecon 34 — warn dev-only encapsule dans `watchEffect` (reactivite props
+ *    dynamique, pas snapshot statique setup). Source H-1 10.21 review.
+ *  - Lecon 35 — `inheritAttrs: false` + v-bind ariaAttrs explicite pour bloquer
+ *    la duplication ARIA sur wrappers semantiques. Source M-3 10.21 review.
+ *  - M-2 10.21 review — prop `size` pixel forwardee UNIQUEMENT aux icones
+ *    Lucide (prop native) ; classes Tailwind `h-N w-N` appliquees aux SVG
+ *    custom (DOM conforme : pas d'attribut HTML `size` non-standard sur <svg>).
  */
-import { computed, h, type Component } from 'vue';
+import { computed, h, type Component, useAttrs, watchEffect } from 'vue';
 import {
   AlertCircle,
   AlertTriangle,
@@ -58,7 +67,36 @@ import EsgAuditSocial from '~/assets/icons/esg/audit-social.svg?component';
 import EsgMobileMoney from '~/assets/icons/esg/mobile-money.svg?component';
 import EsgTaxonomieUemoa from '~/assets/icons/esg/taxonomie-uemoa.svg?component';
 import EsgSgesBetaSeal from '~/assets/icons/esg/sges-beta-seal.svg?component';
-import type { EsgIconName, IconSize, IconVariant } from './registry';
+import EsgFullscreenClose from '~/assets/icons/esg/fullscreen-close.svg?component';
+import { ESG_ICON_NAMES, type EsgIconName, type IconSize, type IconVariant } from './registry';
+
+// AC5 — Placeholder cercle barre rendu quand `name` inconnu du registre.
+// Rendu immediat via `h()` sans fichier tiers (pas besoin de SVG import).
+const PlaceholderIcon: Component = {
+  name: 'EsgIconPlaceholder',
+  render() {
+    return h(
+      'svg',
+      {
+        xmlns: 'http://www.w3.org/2000/svg',
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': 2,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+      },
+      [
+        h('circle', { cx: 12, cy: 12, r: 10 }),
+        h('line', { x1: 4.93, y1: 4.93, x2: 19.07, y2: 19.07 }),
+      ],
+    );
+  },
+};
+
+// Lecon 35 §4octies : wrapper ARIA doit bloquer inheritAttrs pour empecher
+// la duplication silencieuse d'attrs ARIA entre la racine et la primitive.
+defineOptions({ inheritAttrs: false });
 
 interface EsgIconProps {
   name: EsgIconName;
@@ -67,6 +105,7 @@ interface EsgIconProps {
   decorative?: boolean;
   strokeWidth?: number;
   class?: string;
+  ariaLabel?: string;
 }
 
 const props = withDefaults(defineProps<EsgIconProps>(), {
@@ -75,6 +114,7 @@ const props = withDefaults(defineProps<EsgIconProps>(), {
   decorative: false,
   strokeWidth: 2,
   class: '',
+  ariaLabel: undefined,
 });
 
 // Piege #47 : named imports exclusifs, jamais `import * as Lucide`.
@@ -111,7 +151,19 @@ const ICON_MAP: Record<EsgIconName, Component> = {
   'esg-mobile-money': EsgMobileMoney,
   'esg-taxonomie-uemoa': EsgTaxonomieUemoa,
   'esg-sges-beta-seal': EsgSgesBetaSeal,
+  'esg-fullscreen-close': EsgFullscreenClose,
 };
+
+// M-2 10.21 review : Set des icones SVG custom (vite-svg-loader ?component).
+// Sert a conditionner le forward de la prop `size` pixel : Lucide consomme
+// `size` nativement (rend width/height attrs), les SVG custom le recevraient
+// comme attribut HTML brut non-standard sur <svg> (DOM non-conforme).
+// Derivation stricte depuis le registry ESG_ICON_NAMES pour eviter la
+// divergence silencieuse lors d'ajouts futurs (contrat : tout nom prefix
+// `esg-*` ET tout nom non-Lucide passe par la branche classes CSS).
+const CUSTOM_ICON_NAMES: ReadonlySet<EsgIconName> = new Set(
+  ESG_ICON_NAMES.filter((n): n is EsgIconName => n.startsWith('esg-')),
+);
 
 // AC4 sizing : mapping pixels forward vers Lucide `size` prop native.
 // Coherent Tailwind h-3/h-4/h-5/h-6/h-8 consommable en parallele via `class`.
@@ -121,6 +173,16 @@ const SIZE_MAP: Record<IconSize, number> = {
   md: 20,
   lg: 24,
   xl: 32,
+};
+
+// Classes Tailwind equivalentes pour les SVG custom (M-2 10.21 review).
+// Correspondance 1:1 SIZE_MAP -> classes Tailwind : 12/16/20/24/32 px.
+const SIZE_CLASSES: Record<IconSize, string> = {
+  xs: 'h-3 w-3',
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-6 w-6',
+  xl: 'h-8 w-8',
 };
 
 // AC6 variants : tokens `@theme` uniquement (pas de hex inline).
@@ -134,66 +196,85 @@ const VARIANT_MAP: Record<IconVariant, string> = {
   muted: 'text-surface-text/60 dark:text-surface-dark-text/60',
 };
 
-// AC5 — Placeholder cercle barre rendu quand `name` inconnu du registre.
-// Rendu immediat via `h()` sans fichier tiers (pas besoin de SVG import).
-const PlaceholderIcon: Component = {
-  name: 'EsgIconPlaceholder',
-  render() {
-    return h(
-      'svg',
-      {
-        xmlns: 'http://www.w3.org/2000/svg',
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': 2,
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-      },
-      [
-        h('circle', { cx: 12, cy: 12, r: 10 }),
-        h('line', { x1: 4.93, y1: 4.93, x2: 19.07, y2: 19.07 }),
-      ],
+// Lecon 34 §4octies (H-1 10.21 review) : warn dev-only doit vivre dans un
+// effet reactif. Evaluation au top-level setup = snapshot statique qui rate
+// toute mutation ulterieure de `props.name` (v-for dynamique, registry switch
+// runtime). `watchEffect` reexecute le predicat a chaque changement reactif
+// observable de ses dependances.
+//
+// Vite DCE strippe le `if (import.meta.env.DEV)` en prod (0 bloat).
+watchEffect(() => {
+  if (import.meta.env.DEV && !(props.name in ICON_MAP)) {
+    console.warn(
+      `[EsgIcon] Unknown icon name: "${props.name}". Falling back to placeholder.`,
     );
-  },
-};
+  }
+});
 
-// Lecon 25 generalisee : warn dev-only loud + placeholder rendu runtime.
-// Vite DCE strippe le if en prod (0 bloat).
-if (import.meta.env.DEV && !(props.name in ICON_MAP)) {
-
-  console.warn(
-    `[EsgIcon] Unknown icon name: "${props.name}". Falling back to placeholder.`,
-  );
-}
+const isCustomIcon = computed<boolean>(() => CUSTOM_ICON_NAMES.has(props.name));
 
 const resolvedComponent = computed<Component>(
   () => ICON_MAP[props.name] ?? PlaceholderIcon,
 );
-const pixelSize = computed<number>(() => SIZE_MAP[props.size]);
-const variantClass = computed<string>(() => VARIANT_MAP[props.variant]);
-const finalClass = computed<string>(() =>
-  [variantClass.value, props.class].filter(Boolean).join(' '),
-);
+
+// L-1 10.21 review : fallback explicite pour IconSize (defense en profondeur
+// runtime cast cote consommateurs non-TS-strict). `md` = default semantique.
+const pixelSize = computed<number>(() => SIZE_MAP[props.size] ?? SIZE_MAP.md);
+const sizeClass = computed<string>(() => SIZE_CLASSES[props.size] ?? SIZE_CLASSES.md);
+const variantClass = computed<string>(() => VARIANT_MAP[props.variant] ?? VARIANT_MAP.default);
+
+// M-2 : classes Tailwind sizing appliquees uniquement aux SVG custom (Lucide
+// utilise sa prop native). finalClass preserve ordre variant → size → class
+// consommateur pour permettre un override par le consommateur (class merge).
+const finalClass = computed<string>(() => {
+  const parts: string[] = [variantClass.value];
+  if (isCustomIcon.value) {
+    parts.push(sizeClass.value);
+  }
+  if (props.class) {
+    parts.push(props.class);
+  }
+  return parts.filter(Boolean).join(' ');
+});
 
 // L24 §4quinquies : ARIA attribute-strict valeurs litterales stringifiees.
 // `aria-hidden` doit rester string `'true'`, pas boolean `true` (L24 piege
 // capitalise 10.19). Mode decoratif vs semantique mutuellement exclusifs.
+// L-5 10.21 review : `ariaLabel` prop optionnelle permet un libelle humain
+// (ex. "fermer") au lieu du nom machine kebab-case (NVDA FR vocalise
+// "esg-biodiversite" lettre-a-lettre). Fallback = nom registry.
 const ariaAttrs = computed<
   { 'aria-hidden': 'true' } | { role: 'img'; 'aria-label': string }
 >(() =>
   props.decorative
     ? { 'aria-hidden': 'true' as const }
-    : { role: 'img' as const, 'aria-label': props.name },
+    : { role: 'img' as const, 'aria-label': props.ariaLabel ?? props.name },
 );
+
+// Lecon 35 §4octies : inheritAttrs desactive -> on forwarde explicitement les
+// $attrs non-ARIA (ex. @click, data-*, title) mais PAS les attrs ARIA
+// consommateur qui entreraient en conflit avec ariaAttrs (ex. aria-hidden +
+// aria-label coexistants = violation ARIA). Les attrs ARIA consommateur sont
+// silencieusement ignores : le wrapper controle sa propre semantique via les
+// props typees `decorative` / `ariaLabel`.
+const rawAttrs = useAttrs();
+const forwardedAttrs = computed<Record<string, unknown>>(() => {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(rawAttrs)) {
+    if (key === 'role' || key.startsWith('aria-')) continue;
+    if (key === 'class' || key === 'style') continue;
+    out[key] = rawAttrs[key];
+  }
+  return out;
+});
 </script>
 
 <template>
   <component
     :is="resolvedComponent"
-    v-bind="ariaAttrs"
+    v-bind="{ ...forwardedAttrs, ...ariaAttrs }"
     :class="finalClass"
-    :size="pixelSize"
+    :size="isCustomIcon ? undefined : pixelSize"
     :stroke-width="strokeWidth"
   />
 </template>

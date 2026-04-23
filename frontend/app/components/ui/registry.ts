@@ -292,6 +292,10 @@ export const ESG_ICON_NAMES = Object.freeze([
   'esg-mobile-money',
   'esg-taxonomie-uemoa',
   'esg-sges-beta-seal',
+  // 7e SVG custom 10.21 post-review (M-1) : fullscreen-close viewBox 20x20 fill
+  // pour preserver byte-identique l'ancien SVG inline de FullscreenModal.vue
+  // (Heroicons v1 style `fill="currentColor"`, pas Lucide `stroke`).
+  'esg-fullscreen-close',
 ] as const);
 
 export type IconSize = (typeof ICON_SIZES)[number];

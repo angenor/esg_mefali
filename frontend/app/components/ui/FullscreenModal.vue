@@ -51,7 +51,7 @@ onUnmounted(() => {
             class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
             @click="emit('close')"
           >
-            <EsgIcon name="x" class="w-5 h-5" decorative />
+            <EsgIcon name="esg-fullscreen-close" size="md" decorative />
           </button>
 
           <slot />
