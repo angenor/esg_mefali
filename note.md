@@ -5,8 +5,6 @@ test cette feature avec `agent-browser --headed`
 Email: `amadou@ecosolaire.sn`
 Mot de passe: `TestPass123!`
 
-
-
 Champ	Valeur
 URL	http://localhost:3000
 Email	mamadou.kone@ecoplast-ci.com

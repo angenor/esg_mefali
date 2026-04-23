@@ -14,7 +14,6 @@ Plateforme conversationnelle IA qui democratise l'acces a la finance durable pou
 
 ### Backend (FastAPI)
 - **Framework** : FastAPI (Python)
-- **LLM** : Claude API (Anthropic) via OpenRouter
 - **BDD** : PostgreSQL + pgvector (embeddings)
 - **Stockage** : Local (MinIO/S3 plus tard)
 - **Queue** : Synchrone (Redis + Celery plus tard)

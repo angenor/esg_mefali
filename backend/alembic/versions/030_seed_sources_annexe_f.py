@@ -61,7 +61,7 @@ def upgrade() -> None:
                     "INSERT INTO sources "
                     "(id, url, source_type, last_verified_at, "
                     "http_status_last_check, created_at) "
-                    "VALUES (gen_random_uuid(), :url, :source_type, "
+                    "VALUES (gen_random_uuid(), :url, CAST(:source_type AS source_type_enum), "
                     ":verified, NULL, :created) "
                     "ON CONFLICT (url) DO NOTHING"
                 ).bindparams(
