@@ -127,7 +127,7 @@ def build_carbon_prompt(
     # Import lazy (CCC-9) : evite tout risque d'import circulaire.
     from app.prompts.guided_tour import build_adaptive_frequency_hint
     from app.prompts.registry import build_prompt
-    from app.prompts.system import build_page_context_instruction
+    from app.prompts.system import LANGUAGE_INSTRUCTION, build_page_context_instruction
 
     base = CARBON_PROMPT.format(
         company_context=company_context,
@@ -144,4 +144,4 @@ def build_carbon_prompt(
     if page_context:
         prompt += "\n\n" + page_context
 
-    return prompt
+    return LANGUAGE_INSTRUCTION + "\n\n" + prompt

@@ -91,7 +91,7 @@ def build_esg_prompt(
     # au registre de consommer des constantes definies ailleurs.
     from app.prompts.guided_tour import build_adaptive_frequency_hint
     from app.prompts.registry import build_prompt
-    from app.prompts.system import build_page_context_instruction
+    from app.prompts.system import LANGUAGE_INSTRUCTION, build_page_context_instruction
 
     base = ESG_SCORING_PROMPT.format(
         company_context=company_context,
@@ -108,4 +108,4 @@ def build_esg_prompt(
     if page_context:
         prompt += "\n\n" + page_context
 
-    return prompt
+    return LANGUAGE_INSTRUCTION + "\n\n" + prompt

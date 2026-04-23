@@ -104,7 +104,7 @@ def build_application_prompt(
     # Import lazy (CCC-9) : evite tout risque d'import circulaire.
     # Module 'application' exclut guided_tour (parite historique).
     from app.prompts.registry import build_prompt
-    from app.prompts.system import build_page_context_instruction
+    from app.prompts.system import LANGUAGE_INSTRUCTION, build_page_context_instruction
 
     base = APPLICATION_PROMPT.format(
         company_context=company_context,
@@ -116,4 +116,4 @@ def build_application_prompt(
     if page_context:
         prompt += "\n\n" + page_context
 
-    return prompt
+    return LANGUAGE_INSTRUCTION + "\n\n" + prompt
