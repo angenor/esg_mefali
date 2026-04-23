@@ -914,6 +914,79 @@ Button.vue conserve 1 SVG inline `<svg class="animate-spin h-4 w-4">...<circle o
 
 **Clôture Epic 10 Phase 0 Fondations — 23/23 stories done — 30 leçons cumulées §4ter.bis→§4septies — transition Epic 11 Phase 1 MVP Cluster A PME 11.1-11.8 déclenchée. Recommandation : exécuter `bmad-retrospective` skill pour Epic 10 formel.**
 
+---
+
+### Addendum post code-review 2026-04-23 — Option 0 Fix-All appliquée
+
+**Review source** : `_bmad-output/implementation-artifacts/10-21-code-review-2026-04-23.md`
+**Décision** : APPROVE-WITH-CHANGES (0 CRITICAL / 1 HIGH / 6 MEDIUM / 7 LOW / 5 INFO).
+
+**Clarification baseline canonique (M-4 résolu, Leçon 33 §4octies)** :
+le commit `d5f08e3` annonce dans son body `"tests 832 → 873"` — chiffre issu
+d'un run Vitest parallèle antérieur pollué. **Les chiffres canoniques
+authoritatifs Pattern B sont strictement `821 → 869 (+48)`** tels que
+consignés au Debug Log et confirmés par le run final du commit
+`88db4ca` (Story review). Note capitalisée Leçon 33 §4octies : baseline
+canonique unique commit ↔ Debug Log ↔ Completion Notes.
+
+**19 findings traités** :
+
+- **H-1 warn dev-only réactif** : `EsgIcon.vue:163` encapsulé dans
+  `watchEffect` — réactivité props.name mutation-time observable. Test
+  nouveau `warn re-déclenche à la mutation runtime` (Pattern A observable
+  via `setProps` + `nextTick`).
+- **M-1 FullscreenModal byte-identique** : SVG custom 7ᵉ
+  `esg-fullscreen-close.svg` créé viewBox 20×20 fill=currentColor (style
+  Heroicons v1 préservé). Migration `<EsgIcon name="esg-fullscreen-close"
+  size="md" decorative />` — byte-identique strict (claim shim 10.6 tenu
+  sur 16/16 migrations au lieu de 15/16).
+- **M-2 size prop → class (SVG custom DOM conforme)** : Set
+  `CUSTOM_ICON_NAMES` dérivé de `ESG_ICON_NAMES.filter(n =>
+  n.startsWith('esg-'))`. `:size` forwardé uniquement aux icônes Lucide
+  (prop native). SVG custom reçoivent classes Tailwind `h-N w-N` via
+  `SIZE_CLASSES`. DOM non-standard `size="20"` sur `<svg>` supprimé.
+- **M-3 inheritAttrs: false + filtrage ARIA** :
+  `defineOptions({ inheritAttrs: false })` + `useAttrs()` + filtrage
+  computed ARIA-only (role, aria-*, class, style). Wrapper contrôle sa
+  sémantique ARIA, consommateur forwarde listeners + data-* uniquement.
+  Leçon 35 §4octies capitalisée.
+- **M-4 baseline canonique** : addendum clarification (cette section).
+- **M-5 DEF-10.15-1 closure propre** : DEF-10.21-1 successeur créé dans
+  `deferred-work.md` avec investigation (a/b/c options Epic 11+) +
+  rationale Loader2 ne reproduit pas effet pulse opacity-25/75 composé.
+  Leçon 32 §4octies capitalisée.
+- **M-6 smoke test check discriminant** : `test_esgicon_behavior.test.ts`
+  AC5 `name="check"` migré de `expect(wrapper.html()).not.toBe('')` →
+  `expect(paths[0].attributes('d')).toBe('M20 6 9 17l-5-5')` (Lucide Check
+  path strict).
+- **L-1 SIZE_MAP fallback** : `SIZE_MAP[props.size] ?? SIZE_MAP.md` défense
+  en profondeur runtime. Test nouveau cast `'xxl' as unknown` → 20 px.
+- **L-5 ariaLabel prop humaine** : `ariaLabel?: string` optionnelle (libellé
+  humain « fermer ») fallback nom machine kebab-case. Test nouveau L-5.
+- **L-2, L-3, L-4, L-6, L-7 et 5 INFO** : acknowledged, tracés
+  `deferred-work.md` DEF-10.21-2 (CI gate tree-shaking) + DEF-10.21-3
+  (coverage thresholds enforced). Pas de patch code immédiat (effort Epic 11+).
+
+**Nouveaux compteurs post-patches Option 0 Fix-All** :
+- Tests Vitest : 869 → **879 passed** (+10 ≥ +6 target ; 1 fail
+  pré-existant `useGuidedTour.resilience` non lié ; 1 skipped ; 15 todo ;
+  total 896 collectés).
+- SVG inline UI : 17 → **1** inchangé (Button spinner seul résiduel, DEF-10.21-1).
+- SVG custom ESG : 6 → **7** (ajout `fullscreen-close.svg` shim byte-identique).
+- Pièges codemap inchangés : 48 (pas de nouveau piège introduit par patches).
+- Leçons methodology : 30 → **35** (+§4octies L31-L35 review-driven patterns).
+- Coverage c8 EsgIcon.vue : 100 % / 100 % / 100 % / 100 % maintenu.
+- Dark mode variants : ≥ 8 `dark:` maintenu dans EsgIcon.vue.
+- 0 hex, 0 `: any`, 0 `import * as lucide` : maintenus.
+
+**Commits post-review** :
+4. `fix(10.21)` HIGH-1 warn dev-only réactif watchEffect + MEDIUM batch
+   (FullscreenModal byte-identique + size prop→class + inheritAttrs:false
+   + smoke test strict + ariaLabel prop + fallback SIZE_MAP).
+5. `docs(10.21)` DEF-10.21-1/-2/-3 successeurs `deferred-work.md` +
+   Completion Notes baseline canonique + methodology §4octies leçons 31-35.
+6. `chore(10.21)` sprint-status.yaml 10-21 done + epic-10 done (clôture Phase 0).
+
 ### File List
 
 **Nouveaux (NEW)** :
@@ -925,6 +998,7 @@ Button.vue conserve 1 SVG inline `<svg class="animate-spin h-4 w-4">...<circle o
 - `frontend/app/assets/icons/esg/mobile-money.svg`
 - `frontend/app/assets/icons/esg/taxonomie-uemoa.svg`
 - `frontend/app/assets/icons/esg/sges-beta-seal.svg`
+- `frontend/app/assets/icons/esg/fullscreen-close.svg` (POST-REVIEW M-1 — viewBox 20×20 fill byte-identique shim Heroicons v1 FullscreenModal close)
 - `frontend/tests/components/ui/EsgIcon.test-d.ts`
 - `frontend/tests/components/ui/test_esgicon_registry.test.ts`
 - `frontend/tests/components/ui/test_esgicon_behavior.test.ts`
@@ -957,3 +1031,5 @@ Button.vue conserve 1 SVG inline `<svg class="animate-spin h-4 w-4">...<circle o
 | 2026-04-23 | feat | Story 10.21 livrée — install lucide-vue-next + ui/EsgIcon dispatcher registry + 6 SVG custom ESG + 16 SVG inline migrés byte-identique |
 | 2026-04-23 | docs | CODEMAPS §3.9 EsgIcon + pièges #46-#48 + methodology §4septies Epic 10 Phase 0 closure + L28-L30 |
 | 2026-04-23 | chore | Epic 10 Phase 0 Fondations closed — 23/23 stories done, 30 leçons cumulées, transition Epic 11 MVP Cluster A déclenchée |
+| 2026-04-23 | fix | Option 0 Fix-All post-review 10.21 — 19 findings traités (1 HIGH + 6 MEDIUM + 7 LOW + 5 INFO ack) ; 869 → 879 tests (+10) ; 6→7 SVG custom (fullscreen-close byte-identique) ; watchEffect H-1 ; inheritAttrs false M-3 ; size prop→class M-2 |
+| 2026-04-23 | docs | DEF-10.21-1/-2/-3 successeurs deferred-work + methodology §4octies leçons 31-35 (CI gate tree-shaking + DEF traçabilité + baseline canonique + warn réactif + inheritAttrs wrappers ARIA) |

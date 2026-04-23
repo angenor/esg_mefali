@@ -893,6 +893,238 @@ MVP (Cluster A PME 11.1-11.8), créer `§4octies` (pas `§4septies.extension`).
 **Retrospective formelle recommandée** : `bmad-retrospective` skill pour
 Epic 10, synthèse 23 stories + vélocité + forces/écueils/stretch goals.
 
+## 4octies. Post-review Story 10.21 — leçons 31-35 (review-driven patterns)
+
+Cette section cumule les **5 leçons émergées de la code-review 10.21**
+(3 hunters parallèles Sonnet 4.6, 22ᵉ review Phase 4, 19 findings — décision
+APPROVE-WITH-CHANGES avec 1 HIGH + 6 MEDIUM + 7 LOW + 5 INFO). Elles
+**complètent** §4septies (L28-L30 livraison-driven) par des patterns
+**review-driven** capturant les angles morts détectés après livraison.
+
+**Distribution cumulée §4ter.bis → §4octies** :
+- §4ter.bis (10.17, 10.18, 10.19, 10.20) : Pattern A DOM-only + Pattern B count runtime = **19 leçons (L1-L19)**
+- §4quater (10.18) : Écarts vs spec + assertions strictes = **2 leçons (L20-L21)**
+- §4quinquies (10.19) : displayValue + lifecycle + ARIA attribute-strict = **3 leçons (L22-L24)**
+- §4sexies (10.20) : Wrapper no-double-prop + délégation per-path + ordonnancement pièges = **3 leçons (L25-L27)**
+- §4septies (10.21 livraison) : Tree-shaking + dispatcher registry + migration shim scale-up = **3 leçons (L28-L30)**
+- §4octies (10.21 post-review, **CETTE SECTION**) : CI gate + DEF traçabilité + baseline canonique + warn réactif + inheritAttrs = **5 leçons (L31-L35)**
+
+**Total : 35 leçons cumulables Epic 11+**.
+
+### Leçon 31 — CI gate tree-shaking automatique (catalogue lib)
+
+**Pattern** : la leçon 28 (named imports Lucide obligatoires) est documentée
+mais **l'enforcement reste manuel** (test `rg "import \* as.*lucide" → 0 hit`
+exécuté localement). Dès qu'une story Epic 11+ importe une nouvelle primitive
+Lucide ou une autre bibliothèque à catalogue massif (`lodash`, `date-fns`,
+`heroicons`, `react-icons`), un import `import * as Lib` ou `import Lib from`
+ré-intègre tout le catalogue — **régression silencieuse** invisible sans mesure
+bundle delta explicite.
+
+**Solution** : step CI dédié dans `.github/workflows/ci.yml` combinant :
+1. `rg "import \* as.*(lucide|lodash|date-fns|heroicons|react-icons)" frontend/app --count` → fail si > 0.
+2. Mesure bundle delta `du -sb storybook-static/assets/*.js` avec seuil
+   **50 KB hard fail** sur la PR (comparable avec base branch).
+
+**Source** : Story 10.21 review Point 1 (bundle delta Lucide mesuré 3.3 KB
+gzip isolé — mesure narrative non-reproductible en CI). Généralisable à
+toute bibliothèque à catalogue > 100 KB global (chart libs, i18n locales,
+emoji sets, polyfills).
+
+**Application anti-récurrence** : bloque les imports permissifs dès le
+premier commit Epic 11+ intégrant une nouvelle dépendance catalogue.
+Tracé DEF-10.21-2.
+
+### Leçon 32 — Traçabilité DEF cross-story (closure obligatoire)
+
+**Pattern** : un item `DEF-X.Y-N` qui pointe vers une story future (ex.
+`DEF-10.15-1 → cible Story 10.21`) doit produire à la résolution
+**exactement trois options**, jamais de quatrième :
+
+1. **Résolu effectivement** → marquer DEF fermé avec référence commit
+   explicite dans `deferred-work.md` (section `## Resolved in Story X.Y
+   (date)`) + preuve technique (tests ajoutés, diff, measurements).
+2. **Re-déféré formellement** → créer `DEF-X.Z-N` successeur dans la
+   section `## Deferred from: code review of story-X.Z`, avec rationale
+   code-snippet démontrant pourquoi la résolution a été reportée et
+   options techniques Epic futur.
+3. **Retiré obsolète** → marquer fermé avec commentaire « obsolète car
+   [raison] — pas de successeur requis » (ex. feature pivotée, stack
+   changée).
+
+**Interdit** : fermeture orpheline silencieuse (suppression de l'item
+sans successeur ni mention). Empêche la **piste d'audit** d'être
+reconstructible côté retrospective Epic.
+
+**Source** : Story 10.21 M-5 — DEF-10.15-1 (Button spinner migration Lucide)
+re-justifié implicitement dans la Completion Notes sans créer DEF-10.21-N
+successeur. Correction post-review : DEF-10.21-1 créé avec 3 options
+techniques Epic 11+ détaillées + investigation narrative pourquoi Loader2
++ `animate-spin` ne reproduit pas l'effet pulse opacity-25/75 composé.
+
+**Application anti-récurrence** : avant de clore une story qui avait un
+DEF pointant vers elle, exécuter `grep "DEF.*cible.*10\.${CURRENT}" deferred-work.md`
+et forcer l'une des 3 options ci-dessus. Pre-commit hook possible.
+
+### Leçon 33 — Baseline canonique unique commit ↔ Debug Log ↔ Completion Notes
+
+**Pattern** : les **métriques Pattern B numériques** (`baseline → livré`
+pour tests, typecheck, Storybook entries) doivent être **byte-identiques**
+entre le message de commit (`git log`), le Debug Log de la story, et les
+Completion Notes. Toute divergence — même sous le seuil 5 % Pattern B —
+**casse la piste d'audit** et empoisonne les retrospectives (impossible
+de reconstruire la vélocité réelle).
+
+**Exemple de dette** : commit 10.21 `d5f08e3` annonce `"tests 832 → 873"`
+alors que le Debug Log + Completion Notes + spec convergent sur
+`"821 → 869"`. Divergence de 11 tests (≈ 1,3 %) due à un run Vitest
+parallèle antérieur (suite différente, environnement pollué) consigné
+par erreur dans le commit message.
+
+**Solution** : pre-commit hook `grep -E "tests?\s[0-9]+\s*→\s*[0-9]+"
+COMMIT_EDITMSG` comparé avec `rg "Baseline.*tests.*→" $STORY_FILE`. Si
+divergence détectée, fail avec message « baselines divergent commit↔story ».
+
+**Alternative défensive** : avant de rédiger les Completion Notes,
+exécuter `git show HEAD:$STORY_FILE | grep "baseline"` et valider que
+les valeurs du commit final matchent exactement. Capitaliser dans
+`checklist-dev-complete.md`.
+
+**Source** : Story 10.21 M-4. Correction : note clarifiante ajoutée aux
+Completion Notes (« Commit d5f08e3 indique 832→873 ; chiffres canoniques
+821→869 run final »), pas de `git rebase` (commit historique signé).
+
+**Application anti-récurrence** : généralisable à toutes les métriques
+chiffrées Pattern B (typecheck, Storybook jq, bundle MB, coverage %).
+
+### Leçon 34 — Warn dev-only doit être réactif (watchEffect, pas top-level setup)
+
+**Pattern** : tout `console.warn` conditionné à `import.meta.env.DEV` qui
+dépend d'une **prop dynamique** doit vivre dans `watchEffect(() => ...)`
+ou dans un `computed` consommé par le render. **Jamais au top-level
+`<script setup>`** (exécution unique au mount, snapshot statique).
+
+**Anti-pattern** :
+```ts
+// <script setup>
+if (import.meta.env.DEV && !(props.name in REGISTRY)) {
+  console.warn(`[Wrapper] Unknown: ${props.name}`);  // ← RATÉ si props.name mute après mount
+}
+```
+
+**Correct** :
+```ts
+// <script setup>
+watchEffect(() => {
+  if (import.meta.env.DEV && !(props.name in REGISTRY)) {
+    console.warn(`[Wrapper] Unknown: ${props.name}`);
+  }
+});
+```
+
+**Rationale** : un consommateur utilisant `v-for="n in dynamicNames" :name="n"`
+ou un registre switché runtime (feature flags, A/B tests, plugins dynamiques)
+**mute `props.name` après mount**. Sans wrapper `watchEffect`, le warn ne
+re-déclenche jamais → placeholder s'affiche silencieusement, le dev croit
+son composant correct, bug invisible en dev comme en prod.
+
+**Piège dev-tooling** : un test `warnSpy` qui monte le composant **une
+seule fois** avec un nom invalide passe trivialement sans couvrir le cas
+mutation. Ajouter un test observable mutation-time :
+```ts
+await wrapper.setProps({ name: 'mutated-to-invalid' });
+await nextTick();
+expect(warnSpy).toHaveBeenCalledTimes(1);
+```
+
+**Source** : Story 10.21 H-1 (convergence Blind Hunter HIGH + Edge Case
+Hunter MEDIUM). Fix : `EsgIcon.vue:163` encapsulé dans `watchEffect` +
+test `warn re-déclenche à la mutation runtime`.
+
+**Application anti-récurrence** : généralisable à tout fallback warning
+conditionnel (registry lookups, schema mismatches, mode flags, feature
+flags, plugin resolution, mode A11y degraded). Check rapide grep
+`rg "if.*import\.meta\.env\.DEV" frontend/app/components/ --no-filename -A 3`
+→ chaque hit hors `watchEffect`/`computed`/`onMounted` = candidat suspect.
+
+### Leçon 35 — `inheritAttrs: false` obligatoire pour wrappers ARIA
+
+**Pattern** : tout composant Vue qui **définit ses propres attrs ARIA**
+(role, aria-label, aria-hidden, aria-describedby…) via `v-bind="ariaAttrs"`
+sur la primitive cible **DOIT** déclarer `defineOptions({ inheritAttrs: false })`
+**et** exposer un `v-bind` explicite sur cette primitive. Sans cela, les
+attrs ARIA passés par le consommateur **tombent sur la racine** (fallthrough)
+et coexistent avec les attrs ARIA du wrapper → **violation ARIA silencieuse**
+(ex. `aria-hidden="true" aria-label="fermer"` interdit par spec).
+
+**Anti-pattern** :
+```vue
+<!-- Wrapper.vue (pas de defineOptions) -->
+<template>
+  <component :is="primitive" v-bind="ariaAttrs" />
+</template>
+```
+Consommateur : `<Wrapper decorative aria-label="fermer" />` →
+DOM : `<svg aria-hidden="true" aria-label="fermer">` (conflit silencieux,
+axe-core pa11y signale mais tests happy-dom laissent passer).
+
+**Correct** :
+```ts
+// <script setup>
+defineOptions({ inheritAttrs: false });
+const rawAttrs = useAttrs();
+const forwardedAttrs = computed(() => {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(rawAttrs)) {
+    if (key === 'role' || key.startsWith('aria-')) continue;  // ← filtre ARIA
+    out[key] = rawAttrs[key];
+  }
+  return out;
+});
+```
+```vue
+<template>
+  <component :is="primitive" v-bind="{ ...forwardedAttrs, ...ariaAttrs }" />
+</template>
+```
+
+**Rationale** : le wrapper **contrôle sa propre sémantique ARIA** via ses
+props typées (`decorative`, `ariaLabel`). Laisser le consommateur forwarder
+des attrs ARIA contradictoires est un trou de sécurité a11y. Les attrs
+non-ARIA (listeners, data-*, title) restent forwarded pour l'ergonomie.
+
+**Piège test** : un test qui asserte `getAttribute('aria-hidden') === 'true'`
+**et** qui passe un consommateur avec `aria-label` passe trivialement sans
+détecter le conflit (les deux attrs coexistent). Ajouter un test strict :
+```ts
+mount(Wrapper, { props: { decorative: true }, attrs: { 'aria-label': 'fermer' } });
+expect(svg.getAttribute('aria-hidden')).toBe('true');
+expect(svg.getAttribute('aria-label')).toBeNull();  // ← anti-conflit strict
+```
+
+**Source** : Story 10.21 M-3 (Edge Case Hunter). Fix : `EsgIcon.vue`
+`defineOptions({ inheritAttrs: false })` + `useAttrs()` + filtrage ARIA.
+
+**Application anti-récurrence** : généralisable à tous les wrappers a11y
+(Modal, Dialog, Tooltip, MenuItem, Popover, Combobox, Drawer). Scan
+`rg "v-bind=\"ariaAttrs\"|v-bind=\"\\\$attrs\"" frontend/app/components/`
+→ chaque hit sans `defineOptions({ inheritAttrs: false })` = candidat
+suspect. Test checklist review : systématiquement simuler un consommateur
+qui passe un attr ARIA conflictuel et asserter le non-conflit.
+
+---
+
+**Cumul 35 leçons** cross-patterns (§4ter.bis → §4octies). **Mesure
+anti-récurrence cumulée** : Epic 11 Phase 1 MVP Cluster A (11.1-11.8) doit
+commencer par une checklist de pré-scan sur les 35 leçons, et tout 36ᵉ
+pattern émergeant créerait `§4nonies`.
+
+**Retrospective Epic 10 formelle** : à exécuter immédiatement après clôture
+des 3 commits de patch 10.21 via `bmad-retrospective` skill. Synthèse
+attendue : vélocité 60-75 % L + 20-50 % M confirmée, économie 12 semaines
+sprint v1 → v2, 35 leçons cumulées cross-patterns, transition Epic 11
+déclenchée.
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité
