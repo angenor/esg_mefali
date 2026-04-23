@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import svgLoader from 'vite-svg-loader'
 import type { Plugin } from 'vite'
 
 // Plugin pour simuler import.meta.client/server de Nuxt en environnement de test
@@ -18,7 +19,7 @@ function nuxtImportMetaPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [vue(), nuxtImportMetaPlugin()],
+  plugins: [vue(), nuxtImportMetaPlugin(), svgLoader()],
   test: {
     environment: 'happy-dom',
     setupFiles: ['tests/setup.ts'],

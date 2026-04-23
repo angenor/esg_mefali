@@ -1,5 +1,6 @@
 import type { StorybookConfig } from '@storybook/vue3-vite';
 import vue from '@vitejs/plugin-vue';
+import svgLoader from 'vite-svg-loader';
 import { mergeConfig } from 'vite';
 
 const config: StorybookConfig = {
@@ -21,7 +22,7 @@ const config: StorybookConfig = {
   // Storybook 9 corrige le comportement (suivi upgrade section Upgrade strategy).
   viteFinal: async (config) =>
     mergeConfig(config, {
-      plugins: [vue()],
+      plugins: [vue(), svgLoader()],
       resolve: {
         alias: {
           '~': new URL('../app', import.meta.url).pathname,

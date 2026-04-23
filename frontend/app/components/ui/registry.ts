@@ -217,3 +217,83 @@ export type TabsActivationMode = (typeof TABS_ACTIVATION_MODES)[number];
 export const DATEPICKER_MODES = Object.freeze(['single', 'range'] as const);
 
 export type DatePickerMode = (typeof DATEPICKER_MODES)[number];
+
+/**
+ * Registre `ui/EsgIcon.vue` (Story 10.21) — systeme iconographique projet
+ * unifie : dispatcher par registry `name -> composant Lucide OU SVG custom ESG`.
+ * 23e et derniere story Epic 10 Phase 0 Fondations.
+ *
+ *  - `ICON_SIZES`       : 5 tailles xs/sm/md/lg/xl (default `md` index 2, pas
+ *                         index 0 car xs=12px trop petit pour la majorite des
+ *                         usages inline primitives). Mapping pixels via
+ *                         SIZE_MAP dans EsgIcon.vue : xs=12 sm=16 md=20 lg=24 xl=32.
+ *  - `ICON_VARIANTS`    : 5 variants default/brand/danger/success/muted (ordre
+ *                         canonique default-first — cas majoritaire, heritier
+ *                         variant Lucide natif currentColor). Mapping Tailwind
+ *                         classes tokens `@theme` via VARIANT_MAP dans EsgIcon.vue.
+ *  - `ESG_ICON_NAMES`   : >=30 noms (20 Lucide whitelist MVP + 6 ESG custom
+ *                         `esg-*` + marge extensibilite Phase 1+). Literal
+ *                         union `EsgIconName` bloque compile-time `name="typo"`.
+ *
+ * Convention nommage : kebab-case dans registre, PascalCase a l'import Lucide
+ * (`chevron-down` -> `ChevronDown`). Prefixe `esg-*` reserve aux SVG custom
+ * metier (concepts ESG absents de Lucide : effluents, biodiversite, audit
+ * social, mobile money, taxonomie UEMOA, sceau SGES BETA).
+ *
+ * Invariants : length 5 / 5 / >=30 · Object.isFrozen === true · dedoublonne
+ * (`Set.size === length`) · types derives via `typeof TUPLE[number]`.
+ * Pattern CCC-9 byte-identique 10.15-10.20 (7e extension registre).
+ *
+ * Ordre canonique = piege #46/#47/#48 `docs/CODEMAPS/ui-primitives.md#§5`
+ * (inversion casse consommateurs downstream Epic 11+).
+ */
+export const ICON_SIZES = Object.freeze(['xs', 'sm', 'md', 'lg', 'xl'] as const);
+
+export const ICON_VARIANTS = Object.freeze([
+  'default',
+  'brand',
+  'danger',
+  'success',
+  'muted',
+] as const);
+
+export const ESG_ICON_NAMES = Object.freeze([
+  // Lucide whitelist MVP (chevrons + close + check + calendar + alert + status + action)
+  'chevron-down',
+  'chevron-up',
+  'chevron-left',
+  'chevron-right',
+  'check',
+  'x',
+  'calendar',
+  'clock',
+  'alert-circle',
+  'alert-triangle',
+  'info',
+  'check-circle',
+  'x-circle',
+  'loader',
+  'search',
+  'plus',
+  'minus',
+  'edit',
+  'trash',
+  'eye',
+  'eye-off',
+  'download',
+  'upload',
+  'file-text',
+  'link',
+  'external-link',
+  // ESG custom SVG (frontend/app/assets/icons/esg/*.svg)
+  'esg-effluents',
+  'esg-biodiversite',
+  'esg-audit-social',
+  'esg-mobile-money',
+  'esg-taxonomie-uemoa',
+  'esg-sges-beta-seal',
+] as const);
+
+export type IconSize = (typeof ICON_SIZES)[number];
+export type IconVariant = (typeof ICON_VARIANTS)[number];
+export type EsgIconName = (typeof ESG_ICON_NAMES)[number];
