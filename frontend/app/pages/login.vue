@@ -30,7 +30,7 @@ async function handleLogin() {
       <div class="bg-white dark:bg-dark-card rounded-2xl shadow-lg p-8">
         <div class="text-center mb-8">
           <h1 class="text-2xl font-bold text-surface-text dark:text-surface-dark-text">ESG Mefali</h1>
-          <p class="text-gray-500 dark:text-gray-400 mt-2">Connectez-vous a votre compte</p>
+          <p class="text-gray-500 dark:text-gray-400 mt-2">Connectez-vous à votre compte</p>
         </div>
 
         <form class="space-y-5" @submit.prevent="handleLogin">

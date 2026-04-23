@@ -56,7 +56,7 @@ async function handleRegister() {
       <div class="bg-white dark:bg-dark-card rounded-2xl shadow-lg p-8">
         <div class="text-center mb-8">
           <h1 class="text-2xl font-bold text-surface-text dark:text-surface-dark-text">ESG Mefali</h1>
-          <p class="text-gray-500 dark:text-gray-400 mt-2">Creer un compte</p>
+          <p class="text-gray-500 dark:text-gray-400 mt-2">Créer un compte</p>
         </div>
 
         <form class="space-y-4" @submit.prevent="handleRegister">
@@ -140,7 +140,7 @@ async function handleRegister() {
               minlength="8"
               autocomplete="new-password"
               class="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border dark:bg-dark-input dark:text-surface-dark-text rounded-lg focus:ring-2 focus:ring-brand-green focus:border-transparent outline-none"
-              placeholder="Minimum 8 caracteres"
+              placeholder="Minimum 8 caractères"
             />
           </div>
 
@@ -154,7 +154,7 @@ async function handleRegister() {
         </form>
 
         <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-          Deja un compte ?
+          Déjà un compte ?
           <NuxtLink to="/login" class="text-brand-green font-medium hover:underline">
             Se connecter
           </NuxtLink>
