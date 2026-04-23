@@ -293,6 +293,7 @@ const calendarAriaLabel = computed(
           <CalendarRoot
             v-if="mode === 'single'"
             :model-value="(modelValue as DateValue | null) ?? undefined"
+            :placeholder="currentMonth"
             :locale="locale"
             :min-value="minValue"
             :max-value="maxValue"
@@ -301,6 +302,7 @@ const calendarAriaLabel = computed(
             role="application"
             :aria-label="calendarAriaLabel"
             @update:model-value="handleSingleChange"
+            @update:placeholder="(p: DateValue) => (currentMonth = p)"
           >
             <template #default="{ weekDays, grid }">
               <CalendarHeader
@@ -391,6 +393,7 @@ const calendarAriaLabel = computed(
           <RangeCalendarRoot
             v-else
             :model-value="(modelValue as DateRange)"
+            :placeholder="currentMonth"
             :locale="locale"
             :min-value="minValue"
             :max-value="maxValue"
@@ -399,6 +402,7 @@ const calendarAriaLabel = computed(
             role="application"
             :aria-label="calendarAriaLabel"
             @update:model-value="handleRangeChange"
+            @update:placeholder="(p: DateValue) => (currentMonth = p)"
           >
             <template #default="{ weekDays, grid }">
               <RangeCalendarHeader
