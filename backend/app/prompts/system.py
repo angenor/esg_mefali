@@ -1,5 +1,12 @@
 """Prompt système dynamique pour l'assistant ESG Mefali."""
 
+LANGUAGE_INSTRUCTION = (
+    "LANGUE OBLIGATOIRE : Tu dois TOUJOURS répondre en français, sans aucune exception. "
+    "Même après avoir utilisé des outils (tools), même si le raisonnement interne est dans une autre langue, "
+    "ta réponse finale à l'utilisateur doit être intégralement en français. "
+    "Ne mélange jamais le français avec le chinois, l'anglais, l'arabe ou toute autre langue."
+)
+
 BASE_PROMPT = """Tu es l'assistant IA de la plateforme ESG Mefali, spécialisé dans la finance durable \
 et l'accompagnement ESG des PME africaines francophones.
 
@@ -178,7 +185,7 @@ def build_system_prompt(
     guidance_stats: dict | None = None,
 ) -> str:
     """Construire le prompt système avec le profil, la mémoire, le profilage guidé et le contexte document."""
-    sections: list[str] = [BASE_PROMPT]
+    sections: list[str] = [LANGUAGE_INSTRUCTION, BASE_PROMPT]
 
     # Injecter le profil entreprise
     if user_profile:

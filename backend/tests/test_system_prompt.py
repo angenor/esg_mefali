@@ -97,3 +97,8 @@ class TestBuildSystemPrompt:
         prompt = build_system_prompt(context_memory=[])
 
         assert "Résumés des conversations" not in prompt
+
+    def test_system_prompt_contains_french_language_instruction(self) -> None:
+        """Le prompt système contient une instruction langue française explicite (BUG-011)."""
+        prompt = build_system_prompt(user_profile=None, context_memory=[])
+        assert "LANGUE OBLIGATOIRE" in prompt

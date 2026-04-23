@@ -1193,7 +1193,9 @@ async def chat_node(state: ConversationState) -> ConversationState:
         "- Quand l'utilisateur demande un graphique, radar ou visuel de ses scores ESG/carbone/credit : "
         "appelle d'abord get_esg_assessment_chat (ou get_carbon_summary_chat) pour recuperer les scores "
         "existants, puis genere le bloc visuel avec les VRAIS scores. Ne relance JAMAIS une nouvelle "
-        "evaluation juste pour afficher un graphique."
+        "evaluation juste pour afficher un graphique.\n"
+        "- LANGUE : Réponds TOUJOURS en français, même après avoir utilisé un outil. "
+        "Jamais de chinois, jamais d'anglais dans ta réponse finale."
     )
 
     # CCC-9 (patch HIGH-10.8-1) : WIDGET_INSTRUCTION est desormais injecte
@@ -1213,7 +1215,12 @@ async def chat_node(state: ConversationState) -> ConversationState:
 
     response = await llm.ainvoke(chat_messages)
 
-    return {"messages": [response]}
+    tool_call_count = state.get("tool_call_count", 0)
+    new_tool_call_count = tool_call_count
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        new_tool_call_count = tool_call_count + 1
+
+    return {"messages": [response], "tool_call_count": new_tool_call_count}
 
 
 async def profiling_node(state: ConversationState) -> ConversationState:

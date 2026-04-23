@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: BUG-011 fix — langue MiniMax (2026-04-23)
+
+- **DEF-BUG-011-1 — `LANGUAGE_INSTRUCTION` absente des 6 builders spécialistes** — `build_esg_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_credit_prompt`, `build_application_prompt`, `build_action_plan_prompt` n'incluent pas `LANGUAGE_INSTRUCTION`. MiniMax peut toujours répondre en chinois dans les modules spécialistes. Fix : prepend `LANGUAGE_INSTRUCTION` dans chaque builder (ou via `build_prompt` du registre). Hors scope BUG-011 par contrainte utilisateur (ne pas modifier les autres nœuds). Coût estimé : 30 min.
+
 ## Deferred from: code review of 10-17-ui-badge-tokens-semantiques (2026-04-22)
 
 - **DEF-10.17-1 — `@ts-expect-error` non-spécifique dans Badge.test-d.ts** — Les 14 directives `@ts-expect-error` peuvent silencieusement catcher une erreur TS non-voulue (mauvais champ, narrowing différent). Migration recommandée vers `expectTypeOf<Bad>().not.toMatchTypeOf<BadgeProps>()` ou pattern TS 5.6+ `// @ts-expect-error description-matcher`. Amélioration méthodo transposable à Button/Input/Textarea/Select.test-d.ts. Coût estimé : 45 min (5 fichiers × ~10 assertions).
