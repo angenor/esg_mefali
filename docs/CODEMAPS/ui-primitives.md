@@ -792,7 +792,7 @@ function isWeekend(date: DateValue): boolean {
 ```
 
 ```ts
-// 5. TypeScript — modelValue doit être DateValue, pas string ISO (piège #43).
+// 5. TypeScript — modelValue doit être DateValue, pas string ISO (piège #44).
 // @ts-expect-error modelValue: string — CalendarDate requis @internationalized/date.
 const bad: DatePickerProps = { modelValue: '2026-04-15', label: 'Date' };
 ```
@@ -831,7 +831,7 @@ reset `currentMonth.value = initialMonth()` au close sans sélection.
 `:placeholder="currentMonth"` + `@update:placeholder` v-model tracking.
 Évite bug « utilisateur ouvre avril → nav PageDown 3× vers juillet →
 ferme sans sélectionner → réouvre et voit toujours juillet au lieu
-d'avril » (piège #41). Cross-ref [methodology.md §4quinquies L23](./methodology.md).
+d'avril » (piège #42). Cross-ref [methodology.md §4quinquies L23](./methodology.md).
 
 **displayValue trigger (L22 §4quinquies)** — `computed` formate
 `modelValue` via `DateFormatter` FR, retourne `null` si vide pour
@@ -866,6 +866,18 @@ détaille l'application proactive des 3 leçons §4quinquies 10.19 à 10.20.
    spécifiques dans §5 (ne JAMAIS rétrograder en dessous de 8 pièges documentés).
 
 ## 5. Pièges documentés
+
+> **Convention d'ordonnancement (Leçon 27 §4sexies post-10.20)** — La
+> numérotation est **continue séquentielle cross-story** : incrémenter à
+> partir du plus haut numéro déjà publié. Ne JAMAIS réutiliser un numéro
+> même si la spec d'une story le propose. Avant d'ouvrir une story, le
+> dev scanne `docs/CODEMAPS/*.md` + artefacts publiés pour détecter le
+> plus haut numéro existant. Exemple : Story 10.20 spec proposait pièges
+> `#41-#44` mais `#41` appartenait à Combobox 10.19 (`:display-value`)
+> → 10.20 a décalé à `#42-#45` pour préserver l'unicité. Test d'observabilité
+> associé : `test_docs_ui_primitives.test.ts` vérifie unicité +
+> continuité (`uniqueNumbers.size === matches.length`). Source :
+> 10.20 I-2 + M-5 post-review.
 
 1. **`hover:opacity-90` + `focus-visible:ring-2` coexistence** — Tailwind 4
    compose ces deux pseudo-classes indépendamment. Écrire `hover:opacity-90`

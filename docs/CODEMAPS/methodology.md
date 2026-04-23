@@ -667,6 +667,110 @@ wrappers Reka UI + tests observables + écarts spec + coverage c8
 runtime + ARIA strict. **Pattern wrapper Reka UI considéré stabilisé
 byte-identique** (4ᵉ itération sans découverte de pattern nouveau).
 
+### 4sexies.post-review Leçons 25-27 — Option 0 Fix-All Story 10.20
+
+**Contexte** : malgré l'application proactive des 5 leçons L20-L24, la code
+review Story 10.20 (17 findings, APPROVE-WITH-CHANGES) a révélé 3 patterns
+nouveaux spécifiques au wrapping Reka UI + à la délégation de tests runtime
++ à l'ordonnancement de pièges cross-story. Capitalisation post-Option 0
+Fix-All ci-dessous.
+
+#### Leçon 25 — Wrapper Reka UI : ne jamais injecter d'`id` custom sur primitives slot-forwarded
+
+**Symptôme** (10.20 H-1) : le wrapper injectait `const popoverId = useId()`
+puis `:aria-controls="popoverId"` sur `PopoverTrigger` + `:id="popoverId"`
+sur `PopoverContent`. Le test a11y était permissif (regex `/reka-popover-content-/`)
+et masquait le fait que la valeur réelle du DOM venait de `rootContext.contentId`
+généré par Reka UI, **pas** du `popoverId` Vue. La prop custom `:id` était
+systématiquement écrasée par l'id interne Reka, rendant `:aria-controls="popoverId"`
+du code mort.
+
+**Règle** : pour les primitives Reka UI qui forward un id interne via contexte
+(Popover, Combobox, DropdownMenu, ContextMenu, Select…), **laisser Reka UI
+gérer le wiring ARIA natif**. Ne pas injecter de `useId()` Vue ni de
+`:id="..."` sur la primitive slot-forwarded. Le lien `trigger.aria-controls
+=== content.id` est câblé automatiquement par le contexte racine.
+
+**Test d'observabilité strict** :
+
+```ts
+const ariaControls = trigger.getAttribute('aria-controls');
+const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+expect(ariaControls).not.toBeNull();
+expect(dialog).not.toBeNull();
+expect(dialog!.id).toBe(ariaControls!); // cohérence DOM, pas regex opaque
+```
+
+**Application** : stories 10.21+ wrappers Reka UI (Menu, DropdownMenu,
+ContextMenu, Select si migré). Source : Story 10.20 H-1.
+
+#### Leçon 26 — Délégation Storybook PER-PATH explicite, pas globale
+
+**Symptôme** (10.20 H-3 + M-1) : la Completion Notes déclarait
+« keyboard AC5 délégué Storybook » globalement, mais 9/12 chemins
+individuels n'étaient ni testés Vitest ni documentés individuellement
+avec un pointeur vers une story Storybook runtime. Le seul test keyboard
+écrit (`PageDown` via `dispatchEvent` + regex `/(avril|mai)/`) était un
+faux positif qui passait même si la touche ne faisait rien.
+
+**Règle** : chaque chemin AC délégué runtime doit avoir :
+
+1. Un marqueur inline Vitest `describe.skip('...' — DELEGATED Storybook
+   <story-id>)` + `it.todo('<key> — Storybook <story-id>')` per-path, ou
+2. Un `it.skip` explicite nommant la story runtime et la raison technique
+   (ex. « happy-dom focus bubbling limit »).
+
+La délégation globale sans granularité rend la couverture runtime
+non-mesurable et expose à des faux positifs.
+
+**Test d'observabilité strict** :
+
+```ts
+// Chemin PageDown délégué (exemple Story 10.20)
+it.skip('keyboard PageDown — DELEGATED Storybook DatePickerKeyboardNavigation--page-down (happy-dom focus bubbling limit)', () => {
+  // Vide intentionnellement. Couverture runtime story dédiée.
+});
+
+// 9 chemins keyboard délégués via describe.skip + it.todo nommés
+describe.skip('AC5 keyboard — DELEGATED Storybook per-path', () => {
+  it.todo('ArrowLeft/ArrowRight — Storybook DatePickerKeyboardNavigation--arrow-left-right');
+  it.todo('Home/End — Storybook DatePickerKeyboardNavigation--home / --end');
+  // ... un `it.todo` par chemin distinct
+});
+```
+
+**Application** : toute limitation happy-dom/jsdom future (focus bubbling,
+IntersectionObserver, ResizeObserver, CSS computed, animations, media
+queries). Source : Story 10.20 H-3 + M-1 (9/12 keyboard manquants).
+
+#### Leçon 27 — Ordonnancement pièges cross-story : continuité séquentielle stricte
+
+**Symptôme** (10.20 I-2 + M-5) : la spec Story 10.20 proposait 4 nouveaux
+pièges `#41-#44`, mais `#41` appartenait déjà à Combobox 10.19
+(`:display-value` single-select). Le dev a renuméroté `#42-#45` en fin
+d'implémentation — étape qui aurait été évitable par un scan préalable.
+
+**Règle** : avant d'ouvrir une story qui documente de nouveaux pièges
+dans un CODEMAP, le dev :
+
+1. Scanne `docs/CODEMAPS/*.md` pour détecter le plus haut numéro de
+   piège existant (grep `^\d+\. \*\*` dans §5 ou équivalent).
+2. Scanne les stories `ready-for-dev` et `in-progress` concurrentes du
+   sprint pour éviter les collisions d'attribution parallèle.
+3. Décale la numérotation proposée par la spec si collision détectée.
+
+La numérotation est **continue séquentielle cross-story** : jamais
+réutiliser un numéro publié. Test d'observabilité associé :
+`test_docs_ui_primitives.test.ts` vérifie unicité + continuité
+(`uniqueNumbers.size === matches.length`, pas seulement `matches.length >= N`).
+
+**Application** : toutes stories futures ajoutant des pièges §5 CODEMAPS
+(ui-primitives.md, architecture.md, rag.md…). Source : Story 10.20 I-2 + M-5.
+
+**Mesure anti-récurrence étendue** : le cumul est désormais **17 leçons**
+(14 §4sexies base + 3 Option 0 Fix-All 10.20). Si un 18ᵉ pattern émerge
+post-review 10.21+, créer `§4septies` (pas `§4sexies.deuxième-post-review`).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité

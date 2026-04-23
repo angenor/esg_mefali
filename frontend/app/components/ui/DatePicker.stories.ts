@@ -167,6 +167,20 @@ export const WithClearCustomLabel: Story = {
 };
 
 /**
+ * Cas label i18n anglais "Clear" : démonstration override locale consommateur
+ * (L-3 post-review 10.20 — couverture explicite clearLabel EN manquante).
+ */
+export const WithClearEnglishLabel: Story = {
+  args: {
+    modelValue: new CalendarDate(2026, 4, 15),
+    label: 'Date',
+    locale: 'en-US',
+    showClear: true,
+    clearLabel: 'Clear',
+  },
+};
+
+/**
  * Cas dark mode : decorator html.classList.add('dark').
  * DELEGATED TO runtime : contraste AA brand-green darken (10.15 HIGH-2).
  */
