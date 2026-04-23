@@ -15,6 +15,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue';
+import EsgIcon from './EsgIcon.vue';
 import type { FormSize } from './registry';
 import { TEXTAREA_DEFAULT_MAX_LENGTH } from './registry';
 
@@ -198,21 +199,8 @@ function handleInput(event: Event): void {
           role="alert"
           class="flex items-center gap-1 text-xs text-brand-red"
         >
-          <!-- STUB AlertCircle Lucide 10.21. -->
-          <svg
-            class="h-3.5 w-3.5 flex-shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
+          <!-- AlertCircle Lucide 10.21 migration (piege #48 shim class preserved). -->
+          <EsgIcon name="alert-circle" class="h-3.5 w-3.5 flex-shrink-0" decorative />
           <span>{{ error }}</span>
         </p>
         <!-- H-1 : hint rendu meme quand error present (v-if sans !error). -->

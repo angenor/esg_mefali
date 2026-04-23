@@ -10,6 +10,7 @@
 -->
 <script setup lang="ts">
 import { computed, useId } from 'vue';
+import EsgIcon from './EsgIcon.vue';
 import {
   DialogRoot,
   DialogPortal,
@@ -219,20 +220,7 @@ function handlePointerDownOutside(e: PointerEvent): void {
               :aria-label="closeLabel"
               class="ml-2 rounded p-1 text-surface-text dark:text-surface-dark-text hover:bg-gray-100 dark:hover:bg-dark-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             >
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-              >
-                <path
-                  d="M4 4 L12 12 M12 4 L4 12"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
+              <EsgIcon name="x" size="sm" decorative :stroke-width="1.5" />
             </DialogClose>
           </slot>
         </div>

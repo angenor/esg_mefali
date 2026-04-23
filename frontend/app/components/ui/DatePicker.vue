@@ -65,6 +65,7 @@ import {
   today,
   type DateValue,
 } from '@internationalized/date';
+import EsgIcon from './EsgIcon.vue';
 
 /**
  * Plage de dates (mode='range'). Chaque bornure est optionnelle (null autorisé
@@ -303,22 +304,13 @@ const calendarAriaLabel = computed(
         >
           {{ placeholder }}
         </span>
-        <svg
-          aria-hidden="true"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
+        <EsgIcon
+          name="calendar"
+          size="sm"
+          decorative
+          :stroke-width="1.5"
           class="flex-shrink-0"
-        >
-          <rect x="2" y="3" width="12" height="11" rx="1" stroke-width="1.5" />
-          <path
-            d="M2 6h12M5 1v3M11 1v3"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
+        />
       </PopoverTrigger>
       <PopoverPortal>
         <PopoverContent
@@ -349,21 +341,7 @@ const calendarAriaLabel = computed(
                   aria-label="Mois précédent"
                   class="p-2 hover:bg-gray-50 dark:hover:bg-dark-hover rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green motion-reduce:transition-none"
                 >
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M10 3l-4 5 4 5"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
+                  <EsgIcon name="chevron-left" size="sm" decorative :stroke-width="1.5" />
                 </CalendarPrev>
                 <CalendarHeading
                   class="font-semibold text-surface-text dark:text-surface-dark-text"
@@ -372,21 +350,7 @@ const calendarAriaLabel = computed(
                   aria-label="Mois suivant"
                   class="p-2 hover:bg-gray-50 dark:hover:bg-dark-hover rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green motion-reduce:transition-none"
                 >
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M6 3l4 5-4 5"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
+                  <EsgIcon name="chevron-right" size="sm" decorative :stroke-width="1.5" />
                 </CalendarNext>
               </CalendarHeader>
               <CalendarGrid
@@ -449,21 +413,7 @@ const calendarAriaLabel = computed(
                   aria-label="Mois précédent"
                   class="p-2 hover:bg-gray-50 dark:hover:bg-dark-hover rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green motion-reduce:transition-none"
                 >
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M10 3l-4 5 4 5"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
+                  <EsgIcon name="chevron-left" size="sm" decorative :stroke-width="1.5" />
                 </RangeCalendarPrev>
                 <RangeCalendarHeading
                   class="font-semibold text-surface-text dark:text-surface-dark-text"
@@ -472,21 +422,7 @@ const calendarAriaLabel = computed(
                   aria-label="Mois suivant"
                   class="p-2 hover:bg-gray-50 dark:hover:bg-dark-hover rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green motion-reduce:transition-none"
                 >
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M6 3l4 5-4 5"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
+                  <EsgIcon name="chevron-right" size="sm" decorative :stroke-width="1.5" />
                 </RangeCalendarNext>
               </RangeCalendarHeader>
               <RangeCalendarGrid

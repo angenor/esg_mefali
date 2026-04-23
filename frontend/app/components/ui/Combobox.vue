@@ -38,6 +38,7 @@ import {
   ComboboxViewport,
 } from 'reka-ui';
 import Badge from './Badge.vue';
+import EsgIcon from './EsgIcon.vue';
 
 export interface ComboboxOption<TValue extends string | number> {
   value: TValue;
@@ -265,9 +266,7 @@ watch(
                 :aria-label="`Retirer ${labelFor(val)}`"
                 @click.stop="removeValue(val)"
               >
-                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
-                  <path d="M3 3 L9 9 M9 3 L3 9" stroke-width="1.5" stroke-linecap="round" />
-                </svg>
+                <EsgIcon name="x" size="xs" decorative :stroke-width="1.5" />
               </button>
             </span>
           </Badge>
@@ -288,16 +287,12 @@ watch(
           class="inline-flex items-center justify-center min-h-11 min-w-11 p-1 text-surface-text/60 dark:text-surface-dark-text/60 hover:text-surface-text dark:hover:text-surface-dark-text"
           :aria-label="cancelLabel"
         >
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
-            <path d="M3 3 L11 11 M11 3 L3 11" stroke-width="1.5" stroke-linecap="round" />
-          </svg>
+          <EsgIcon name="x" size="sm" decorative :stroke-width="1.5" />
         </ComboboxCancel>
         <ComboboxTrigger
           class="inline-flex items-center justify-center p-1 text-surface-text dark:text-surface-dark-text disabled:cursor-not-allowed"
         >
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path d="M4 6 L8 10 L12 6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          <EsgIcon name="chevron-down" size="sm" decorative :stroke-width="1.5" />
         </ComboboxTrigger>
       </ComboboxAnchor>
       <ComboboxPortal>
@@ -334,9 +329,7 @@ watch(
                   >
                     <span>{{ opt.label }}</span>
                     <ComboboxItemIndicator>
-                      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                        <path d="M3 7 L6 10 L11 4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
+                      <EsgIcon name="check" size="sm" decorative :stroke-width="1.5" />
                     </ComboboxItemIndicator>
                   </ComboboxItem>
                 </ComboboxGroup>
@@ -351,9 +344,7 @@ watch(
                 >
                   <span>{{ opt.label }}</span>
                   <ComboboxItemIndicator>
-                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                      <path d="M3 7 L6 10 L11 4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
+                    <EsgIcon name="check" size="sm" decorative :stroke-width="1.5" />
                   </ComboboxItemIndicator>
                 </ComboboxItem>
               </template>
