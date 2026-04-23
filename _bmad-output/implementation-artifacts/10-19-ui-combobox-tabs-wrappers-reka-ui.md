@@ -1252,8 +1252,26 @@ $ npm run test -- --coverage --run 2>&1 | grep -E "Combobox|Tabs" | head -5
 - **AC4 ARIA `aria-controls` sur tabs inactifs Reka UI** : prescription originale AC10 « chaque `TabsTrigger` porte … `aria-controls="{panelId}"` ». Décision : **délégué à Reka UI** — `aria-controls` est exposé uniquement sur le `TabsTrigger` actif (source `reka-ui/src/Tabs/TabsTrigger.vue:29` : `contentId = computed(() => rootContext.contentIds.value.has(props.value) ? makeContentId(...) : undefined)` — retourne `undefined` tant que le `TabsContent` n'est pas enregistré). Raison : tabpanel inactif non monté (lazy default AC12) → pas de target ID à pointer. Cohérent WAI-ARIA (aria-controls facultatif quand le panel n'existe pas dans le DOM). Suivi : test `test_tabs_behavior.test.ts` assert `aria-selected` (true/false) strict + `role="tab"` sur tous, `aria-controls` vérifié indirectement via `tabpanel.aria-labelledby` pointant un ID existant.
 - **AC4 `aria-disabled` vs `data-disabled` pour options Combobox** : prescription originale « chaque `<ComboboxItem>` porte `role="option"` + `aria-selected="true|false"` » (l'attribut `aria-disabled` n'était pas explicitement prescrit). Décision : **délégué à Reka UI** — l'item disabled expose `data-disabled=""` (convention Reka UI Listbox : `reka-ui/src/Listbox/ListboxItem.vue:86 :data-disabled="disabled ? '' : undefined"`). Raison : consommable via sélecteur CSS `data-[disabled]` déjà utilisé dans `Combobox.vue` pour l'état visuel. Suivi : test `test_combobox_behavior.test.ts` assertè `hasAttribute('data-disabled')` plutôt que `aria-disabled` (cohérent convention Reka UI). Si un consommateur exige WAI-ARIA `aria-disabled` strict, pattern Phase Growth : `<span :aria-disabled="opt.disabled">...</span>` wrapper dans le slot item.
 - **AC1 typage générique `T | T[] | null` permissif Phase 0 (DEF-10.19-1)** : prescription originale AC2 « Note implémentation : TypeScript 5.x strict ne supporte pas nativement la contrainte `multiple → T[]` sans discriminated union, fallback `T | T[] | null` accepté Phase 0, discriminated union tracée `DEF-10.19-1` ». Décision : **déféré** via DEF-10.19-1 (explicitement prévu dans la spec). Raison : discriminated union via `defineProps<Union>` non supporté stablement Vue 3 SFC avec generic. Suivi : DEF-10.19-1 (à créer/confirmer dans `deferred-work.md`).
+- **AC4 tests `aria-controls` + `aria-activedescendant` réduits vs spec — 6ᵉ écart détecté review 10.19 (M-4 patch round)** : prescription originale AC4 ligne 439 exigeait explicitement `.getAttribute('aria-controls')` non-null + `aria-activedescendant` après ArrowDown. Livraison initiale (commit `36dcdf4`) : tests AC4 couvrent `role="combobox"` + `aria-expanded` + `role="listbox"` mais **pas** les 2 attributs strict-named → violation Leçon 21 §4quater (tests observables pas proxy). Décision : **réparé post-review round Option 0 Fix-All** via 2 tests stricts dans `test_combobox_a11y.test.ts` (describe « AC4 ARIA strict attribute-bound (H-4 patch) »). Raison : pattern attribute-strict capitalisé Leçon 24 §4quinquies (cross-ref `methodology.md`). Suivi : aucun — écart fermé.
 
-_(Toutes les autres prescriptions AC1-AC14 sont honorées intégralement : 14 AC couverts par 76 tests verts runtime + 22 typecheck + 19 stories Storybook.)_
+**Round Option 0 Fix-All (2026-04-23) — 18 findings patchés** :
+
+- **4 HIGH landed** : H-1 `displayValue` ComboboxInput (label lookup post-select + multi vide) + H-2 `searchTerm` lifecycle watcher `@update:open` + `watch(open)` + H-4 tests `aria-controls` / `aria-activedescendant` attribute-strict + H-5 coverage c8 instrumentée (Combobox 99.51 % stmts / 85.71 % branch / 100 % funcs / 99.51 % lines ; Tabs 100 % 4/4 ; seuil H-5 ≥ 85 % atteint).
+- **6 MEDIUM landed** : M-1 Badge count DOM-strict `[data-slot="badge"]` + M-2 IME Pattern A strict (`fireEvent.update` synchronise v-model, pas de write impératif `input.value=`) + M-3 `.toBeNull()` strict sur sénégal apres typing 'burkina' + M-4 écart AC4 6ᵉ documenté (cette section) + M-5 forceMount piège #37 tests explicites omission / false / true + JSDoc enrichie `forceMountProp` + M-6 `isComposing` flush Escape (handleInputKeydown + resetSearchIfNoSelection defensive Chrome macOS).
+- **5 LOW landed** : L-1 `handleCompositionEnd` typé `CompositionEvent` strict + L-2 Tabs `handleRootUpdate` extrait en fonction typée `(string | number) → string` + L-3 N/A (pas de `console.warn` IME guard — defer Leçon 10.18 M-2 cross-ref) + L-4 `cancelLabel` prop i18n ComboboxCancel (default `'Effacer la recherche'`) + L-5 cross-ref codemap bidirectionnel `ui-primitives.md §3.6 ↔ methodology.md §4quinquies`.
+- **3 INFO acknowledged** : I1 `ComboboxEmpty` `allItems.size === 0` doc §3.6 (cross-ref Reka UI `ComboboxEmpty.js:21`) + I2 Pattern B count runtime OK (capitalisé) + I3 typecheck +22 (commentaire pour traçabilité future).
+
+**Chiffres post-patch round** (runtime 2026-04-23 00:26 UTC) :
+- `npm run test -- --run` : **Test Files 1 failed | 69 passed (70) / Tests 1 failed | 759 passed (760)** → **+11 tests runtime** (748 → 759, H-1 single + H-1 multi + H-2 reset + H-4 aria-controls + H-4 aria-activedescendant + M-1 DOM-strict + M-5 × 3 forceMount piège + M-6 Escape flush + v-model:open externe). Seul échec = 1 flaky pré-existant `useGuidedTour` hors scope.
+- `npm run test:typecheck` : **Tests 85 passed (85)** → **+2 assertions typecheck** (83 → 85, L-4 `cancelLabel: string` valide + rejet number).
+- `npx vitest --coverage.include='app/components/ui/Combobox.vue|Tabs.vue' --coverage.reporter=text` : **Combobox 99.51 % stmts / 85.71 % branch / 100 % funcs / 99.51 % lines** + **Tabs 100 % partout** → seuil H-5 ≥ 85 % atteint.
+- `grep -oE "dark:" Combobox.vue | wc -l` : **21** (inchangé, cible ≥ 10 ✓).
+- `grep -oE "dark:" Tabs.vue | wc -l` : **12** (inchangé, cible ≥ 10 ✓).
+- Scan hex `0 hit` + scan `any` / `as unknown` `0 hit` (stable).
+
+**Capitalisation §4quinquies methodology.md** : 3 leçons ajoutées (22 + 23 + 24) — `displayValue` obligatoire + `searchTerm` lifecycle + tests ARIA attribute-strict. `ui-primitives.md §3.6` enrichi piège #41 (`:display-value`) + confirmation `:ignore-filter` API publique (ligne source `node_modules/reka-ui/src/Combobox/ComboboxRoot.vue:75,166`) + `§3.7` test `forceMount` prop-présence. Cross-ref bidirectionnel methodology ↔ ui-primitives.
+
+_(Toutes les autres prescriptions AC1-AC14 sont honorées intégralement : 14 AC couverts par 87 tests verts runtime + 24 typecheck + 19 stories Storybook + coverage H-5 ≥ 85 % instrumentée.)_
 
 ### File List
 
@@ -1274,11 +1292,19 @@ Fichiers créés (Story 10.19) :
 
 Fichiers modifiés :
 - `frontend/app/components/ui/registry.ts` (+28 lignes : `COMBOBOX_MODES` + `TABS_ORIENTATIONS` + `TABS_ACTIVATION_MODES` frozen tuples + 3 types dérivés `ComboboxMode` / `TabsOrientation` / `TabsActivationMode`, exports pré-existants 10.15-10.18 inchangés byte-identique)
-- `docs/CODEMAPS/ui-primitives.md` _(§2 arbo +6 lignes, §3.6 Combobox nouvelle sous-section ≈80 lignes avec 5 exemples, §3.7 Tabs nouvelle sous-section ≈80 lignes avec 5 exemples, §5 pièges +6 entrées 35-40)_
-- `docs/CODEMAPS/methodology.md` _(+§4ter.ter application proactive Story 10.19 — 6 leçons cumulées §4ter.bis + §4quater)_
+- `docs/CODEMAPS/ui-primitives.md` _(§2 arbo +6 lignes, §3.6 Combobox nouvelle sous-section ≈80 lignes avec 5 exemples, §3.7 Tabs nouvelle sous-section ≈80 lignes avec 5 exemples, §5 pièges +6 entrées 35-40, post-patch : +piège #41 displayValue + doc `:ignore-filter` public API + cross-ref §4quinquies)_
+- `docs/CODEMAPS/methodology.md` _(+§4ter.ter application proactive Story 10.19 — 6 leçons cumulées §4ter.bis + §4quater, post-patch : +§4quinquies Leçons 22-24 displayValue + searchTerm lifecycle + ARIA attribute-strict)_
 - `frontend/tests/test_docs_ui_primitives.test.ts` _(13 → ≥ 17 tests : §3.6 + §3.7 présents + ≥ 40 pièges + ≥ 4 exemples §3.6 + ≥ 4 exemples §3.7)_
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` _(ready-for-dev → in-progress → review)_
-- `_bmad-output/implementation-artifacts/10-19-ui-combobox-tabs-wrappers-reka-ui.md` _(ce fichier — Dev Agent Record complété)_
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` _(ready-for-dev → in-progress → review → in-progress (patch round) → done)_
+- `_bmad-output/implementation-artifacts/10-19-ui-combobox-tabs-wrappers-reka-ui.md` _(ce fichier — Dev Agent Record + Completion Notes patch round)_
+
+Fichiers modifiés round Option 0 Fix-All (2026-04-23) :
+- `frontend/app/components/ui/Combobox.vue` _(H-1 displayValue callback + H-2 watch(open) + handleOpenUpdate + resetSearchIfNoSelection + M-6 handleInputKeydown Escape flush + L-1 CompositionEvent strict + L-4 cancelLabel prop + M-5 aria-label Badge dynamique + data-slot badge)_
+- `frontend/app/components/ui/Tabs.vue` _(L-2 handleRootUpdate typé + M-5 JSDoc forceMountProp enrichie)_
+- `frontend/tests/components/ui/test_combobox_behavior.test.ts` _(+11 tests : H-1 single / H-1 multi / M-1 DOM-strict / H-2 reset / M-2 IME Pattern A strict / M-3 toBeNull sénégal / M-6 Escape + flush / v-model:open externe + branche fallback String(value))_
+- `frontend/tests/components/ui/test_combobox_a11y.test.ts` _(+2 tests H-4 aria-controls + aria-activedescendant attribute-strict)_
+- `frontend/tests/components/ui/test_tabs_behavior.test.ts` _(+3 tests M-5 piège #37 omission + false + true)_
+- `frontend/tests/components/ui/Combobox.test-d.ts` _(+2 typecheck L-4 cancelLabel valide/rejet)_
 
 Fichiers **inchangés** (pattern shims legacy 10.6 respecté) :
 - `frontend/app/assets/css/main.css` (tokens livrés 10.14-10.17)
@@ -1296,3 +1322,5 @@ Fichiers **inchangés** (pattern shims legacy 10.6 respecté) :
 | 2026-04-22 | (commit 2) | feat(10.19): ui/Combobox wrapper Reka UI 14 primitives + IME guard + multi-select badges + tests Pattern A + .test-d.ts 12 assertions |
 | 2026-04-22 | (commit 3) | feat(10.19): ui/Tabs wrapper Reka UI 4 primitives + orientation/activationMode/forceMount + tests Pattern A + .test-d.ts 10 assertions |
 | 2026-04-22 | (commit 4) | feat(10.19): stories CSF3 ≥14 + docs CODEMAPS §3.6 Combobox + §3.7 Tabs + pièges 35-40 + methodology §4ter.ter + sprint-status → review |
+| 2026-04-23 | 539c0c3 | fix(10.19): Option 0 Fix-All batch HIGH+MEDIUM+LOW (18 findings patches) — H-1 displayValue + H-2 searchTerm lifecycle + H-4 tests ARIA strict + H-5 coverage c8 ≥ 85 % + M-1-6 + L-1,2,4 |
+| 2026-04-23 | (commit docs) | docs(methodology+ui-primitives): §4quinquies leçons 22-24 (displayValue + searchTerm lifecycle + ARIA attribute-strict) + piège #41 + ui-primitives §3.6/§3.7 cross-ref + Completion Notes patch round |

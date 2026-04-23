@@ -422,6 +422,112 @@ inline `// DELEGATED TO Storybook ComboboxKeyboardNavigation` (piège #38 +
 capitalisés ET appliqués proactivement sur chaque nouvelle primitive
 (byte-identique).
 
+### 4quinquies Leçons post-review Story 10.19 (patches Option 0 Fix-All) — 3 patterns wrapper Reka UI
+
+La review adversariale 3 couches Story 10.19 (ui/Combobox + ui/Tabs,
+2026-04-22) a révélé **3 patterns wrapper Reka UI** récurrents qui
+échappent aux 6 patterns déjà capitalisés §4ter.bis + §4quater. Ils
+sont formalisés ici pour application proactive stories 10.20+
+(DatePicker, Select, etc.).
+
+#### Leçon 22 — Wrapper Reka UI `displayValue` obligatoire sur `ComboboxInput` single-select
+
+**Constat** : Reka UI `ComboboxInput` sans prop `display-value` fait
+`modelValue.toString()` → la clé brute (`'sn'`) s'affiche post-select
+au lieu du label humain (`'Sénégal'`). Bug silencieux : le watch
+`resetSearchTermOnSelect` déclenche le côté Reka UI même sans
+`displayValue`, mais le résultat est inutilisable UX.
+
+**Règle** : tout wrapper Reka UI qui expose un contrôleur de saisie
+**doit** passer un callback `:display-value="(v) => labelFor(v as T)"`
+si le `value` n'est pas le label rendu à l'utilisateur. En multi-select,
+retourner `''` (les labels sont rendus dans les badges — pas dans
+l'input).
+
+**Source** : Story 10.19 H-1 (edge+blind fusionnés). Piège **#41**
+codemap `ui-primitives.md §3.6`.
+
+**Acceptance test** : round-trip select → close → reopen observe le
+label (pas la clé) dans l'input ET la liste complète des options (pas
+filtrée par la clé).
+
+```vue
+<ComboboxInput :display-value="displayValueFor" />
+<script setup>
+function displayValueFor(value: unknown): string {
+  if (props.multiple) return '';
+  if (value === null || value === undefined || value === '') return '';
+  return labelFor(value as T);
+}
+</script>
+```
+
+#### Leçon 23 — `searchTerm` lifecycle au close drawer/combobox
+
+**Constat** : les wrappers qui gèrent un `searchTerm = ref('')` local
+doivent explicitement watch l'état `open` pour reset au
+close-without-select. La prop Reka UI `resetSearchTermOnSelect` ne
+couvre **que** le close-with-select. Un utilisateur qui tape `'zzz'`
+puis ferme par Escape/click-outside voit le searchTerm stale à la
+réouverture → empty state permanent silencieux.
+
+**Règle** : tout wrapper Reka UI avec state de search local →
+watcher `@update:open` (false) + `watch(() => props.open)` → reset du
+searchTerm. Pattern défensif bidirectionnel (controlled + uncontrolled).
+
+**Source** : Story 10.19 H-2. Extension Leçon 21 tests observables
+(round-trip cross-open).
+
+**Acceptance test** : ouvrir, taper `zzz`, fermer (Escape ou
+click-outside), rouvrir → liste complète visible, input vide.
+
+```ts
+function handleOpenUpdate(value: boolean) {
+  if (value === false) resetSearchIfNoSelection();
+  emit('update:open', value);
+}
+watch(() => props.open, (isOpen) => {
+  if (isOpen === false) resetSearchIfNoSelection();
+});
+```
+
+#### Leçon 24 — Tests ARIA attribute-strict pas proxy
+
+**Constat** : sur 3 stories a11y (10.15 + 10.17 + 10.19), les tests
+ARIA tendent à utiliser `getByRole('option', { name: ... })` comme
+proxy au lieu de `.getAttribute('aria-controls')` strict. Le test
+passe quand l'attribut est absent si un autre mécanisme (focus, DOM)
+happens to donner le même résultat. Même piège pour le count de
+badges via proxy `role="img"` au lieu de sélecteur DOM strict
+`[data-slot="badge"]`.
+
+**Règle** : quand une AC cite nominativement un attribut ARIA → le
+test doit le matcher **directement** via `.getAttribute('attr-name')`
++ match strict (regex canonique type `/reka-combobox-content-/`), pas
+via effet de bord. Pour les badges multi-select : `data-slot`
+explicite + `container.querySelectorAll('[data-slot="badge"]')`.
+
+**Source** : Story 10.19 H-4 + M-1.
+
+**Acceptance test** :
+
+```ts
+const ariaControls = combobox.getAttribute('aria-controls');
+expect(ariaControls).not.toBeNull();
+expect(ariaControls).toMatch(/reka-combobox-content-/);
+expect(document.getElementById(ariaControls!)!.getAttribute('role'))
+  .toBe('listbox');
+
+// Badges count :
+const badges = container.querySelectorAll('[data-slot="badge"]');
+expect(badges.length).toBe(2);
+```
+
+**Mesure anti-récurrence** : les 3 patterns §4quinquies sont désormais
+capitalisés ET appliqués proactivement. Si un 10ᵉ pattern émerge
+post-code-review 10.20+, créer `§4sexies`. Cumul 9 leçons couvrant
+wrappers Reka UI + tests observables + écarts spec.
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité

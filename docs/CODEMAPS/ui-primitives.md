@@ -541,9 +541,60 @@ const bad: ComboboxProps = { modelValue: null, options: [], label: 'X', multiple
 **Q5 searchable default `true`** — différenciateur vs `Select`. Désactiver
 search = utiliser `Select` 10.16 directement (UX équivalente).
 
+**`:display-value` obligatoire single-select (piège #41 post-10.19 H-1)** —
+Reka UI `ComboboxInput` sans prop `display-value` fait `modelValue.toString()`
+→ la clé brute (`'sn'`) s'affiche post-select au lieu du label humain
+(`'Sénégal'`). Bug silencieux (tests ne couvrent pas le round-trip sans
+displayValue). Pattern obligatoire :
+
+```vue
+<ComboboxInput :display-value="displayValueFor" />
+<script setup>
+function displayValueFor(value: unknown): string {
+  if (props.multiple) return ''; // labels dans badges
+  if (value === null || value === undefined || value === '') return '';
+  return labelFor(value as T);
+}
+</script>
+```
+
+Source : Leçon 22 §4quinquies methodology.md. Acceptance test : round-trip
+select → close → reopen observe le label (pas la clé) dans l'input.
+
+**`:ignore-filter="true"` — API publique Reka UI confirmée (post-10.19 review)** —
+`:ignore-filter` est exposé officiellement par `ComboboxRoot` (source
+`node_modules/reka-ui/src/Combobox/ComboboxRoot.vue:75` [prop] + `:166`
+[provide `ignoreFilter`]). Lecture en `ComboboxItem.vue` via
+`rootContext.ignoreFilter.value` qui court-circuite `isRender`. Justification
+vs `filterFunction` (signature prédicat `(val, term) => boolean` par-item) :
+`ignoreFilter` est le pattern correct pour déléguer **tout** le filtrage au
+composant (NFD + IME guard + diacritique) plutôt que du filtrage item-par-item.
+Risque CRITICAL « API privée » initialement suspecté review 10.19 **écarté**
+par lecture source.
+
+**`searchTerm` lifecycle au close (piège post-10.19 H-2)** — prop Reka UI
+`resetSearchTermOnSelect` ne couvre que le close-with-select. Pour
+close-without-select (Escape / click-outside), ajouter défensivement :
+
+```ts
+function handleOpenUpdate(value: boolean) {
+  if (value === false) resetSearchIfNoSelection();
+  emit('update:open', value);
+}
+watch(() => props.open, (isOpen) => {
+  if (isOpen === false) resetSearchIfNoSelection();
+});
+```
+
+Source : Leçon 23 §4quinquies methodology.md.
+
 **Cross-ref Storybook** — [storybook.md UX Patterns Dropdown/Combobox](./storybook.md)
 documente règle de décision Combobox vs Select (statique N options)
 vs Popover (contenu libre).
+
+**Cross-ref méthodologie** — [methodology.md §4quinquies](./methodology.md)
+détaille les Leçons 22 (displayValue) + 23 (searchTerm lifecycle) + 24
+(tests ARIA attribute-strict) capitalisées post-review 10.19.
 
 ### 3.7 `ui/Tabs` (Story 10.19)
 
@@ -618,7 +669,18 @@ dashboard Epic 11).
 
 **forceMount prop présence Reka UI (piège #37)** — ne PAS passer `false`,
 passer `undefined` ; `Tabs.vue` expose `forceMountProp = forceMount ? true : undefined`
-pour garantir le désactivation propre.
+pour garantir la désactivation propre.
+
+**forceMount tests attribute-strict post-10.19 M-5** — tester explicitement
+3 cas : omission (`<Tabs modelValue="t1" :tabs="…">`), valeur `false` explicite
+(`<Tabs :force-mount="false">`), valeur `true` (`<Tabs :force-mount="true">`).
+Les 2 premiers cas doivent produire le comportement lazy (un seul tabpanel
+monté), le 3ᵉ le comportement eager (tous montés). Pattern DOM-strict :
+`expect(screen.queryByTestId('tab-content-t2')).toBeNull()` (lazy) +
+`expect(screen.getByTestId('tab-content-t2')).toBeDefined()` (eager).
+
+**Cross-ref méthodologie** — [methodology.md §4quinquies Leçon 24](./methodology.md)
+détaille les tests ARIA attribute-strict appliqués à `forceMount` piège #37.
 
 ## 4. Ajouter une 8ᵉ primitive UI
 
@@ -1029,6 +1091,31 @@ pour garantir le désactivation propre.
     (devtools timeline) puis décider. Formulaire multi-step complexe →
     `forceMount: false` (économise re-render ++). Documentation longue →
     `forceMount: true` (a11y Ctrl+F + SR scan transversal).
+
+41. **Combobox `:display-value` obligatoire single-select (post-10.19 H-1)** —
+    Reka UI `ComboboxInput` sans prop `display-value` fait
+    `modelValue.toString()` dans `resetSearchTerm()` (`ComboboxInput.vue:94`).
+    Résultat : la clé brute (`'sn'`) s'affiche post-select au lieu du label
+    humain (`'Sénégal'`), et `searchTerm` devient `'sn'` → à la réouverture,
+    `filteredOptions` filtre avec `'sn'` et masque la plupart des options.
+    **Solution** : passer un callback `:display-value="(v) => labelFor(v as T)"`.
+    En multi-select, retourner `''` (labels rendus dans badges). Pattern
+    byte-identique :
+
+    ```vue
+    <ComboboxInput :display-value="displayValueFor" />
+    <script setup>
+    function displayValueFor(value: unknown): string {
+      if (props.multiple) return '';
+      if (value === null || value === undefined || value === '') return '';
+      return labelFor(value as T);
+    }
+    </script>
+    ```
+
+    **Acceptance test** : round-trip `select → close → reopen` observe le label
+    (pas la clé) dans l'input ET la liste complète des options (pas filtrée
+    par la clé). Cross-ref [methodology.md §4quinquies Leçon 22](./methodology.md).
 
 ---
 
