@@ -198,3 +198,22 @@ export const TABS_ACTIVATION_MODES = Object.freeze(['automatic', 'manual'] as co
 export type ComboboxMode = (typeof COMBOBOX_MODES)[number];
 export type TabsOrientation = (typeof TABS_ORIENTATIONS)[number];
 export type TabsActivationMode = (typeof TABS_ACTIVATION_MODES)[number];
+
+/**
+ * Registre `ui/DatePicker.vue` (Story 10.20) — 4ᵉ wrapper Reka UI apres
+ * Drawer 10.18 + Combobox/Tabs 10.19. Wrapper `<PopoverRoot>` +
+ * `<CalendarRoot>` (mode single) OU `<RangeCalendarRoot>` (mode range).
+ *
+ *  - `DATEPICKER_MODES` : single (default 90%+ cas) / range (echeances FA
+ *                         start-end Epic 9 deadline_at bailleurs UEMOA/BCEAO).
+ *
+ * Invariants : length 2 · Object.isFrozen === true · dedoublonne ·
+ * type derive via `typeof TUPLE[number]`. Ordre canonique `single-first` =
+ * default infere (index 0). Changer l'ordre = rupture API (piege #42
+ * `docs/CODEMAPS/ui-primitives.md#§5`).
+ *
+ * Pattern CCC-9 byte-identique 10.15-10.19 (frozen tuple dedoublonne).
+ */
+export const DATEPICKER_MODES = Object.freeze(['single', 'range'] as const);
+
+export type DatePickerMode = (typeof DATEPICKER_MODES)[number];
