@@ -31,19 +31,19 @@ const identityFields = [
   { field: 'company_name', label: "Nom de l'entreprise", type: 'text' as const },
   { field: 'sector', label: 'Secteur', type: 'select' as const, options: sectorOptions },
   { field: 'sub_sector', label: 'Sous-secteur', type: 'text' as const },
-  { field: 'employee_count', label: "Nombre d'employes", type: 'number' as const },
-  { field: 'annual_revenue_xof', label: 'Chiffre d\'affaires (FCFA)', type: 'number' as const },
-  { field: 'year_founded', label: 'Annee de creation', type: 'number' as const },
+  { field: 'employee_count', label: "Nombre d'employés", type: 'number' as const },
+  { field: 'annual_revenue_xof', label: "Chiffre d'affaires (FCFA)", type: 'number' as const },
+  { field: 'year_founded', label: 'Année de création', type: 'number' as const },
   { field: 'city', label: 'Ville', type: 'text' as const },
   { field: 'country', label: 'Pays', type: 'text' as const },
 ]
 
 const esgFields = [
-  { field: 'has_waste_management', label: 'Gestion des dechets', type: 'boolean' as const },
-  { field: 'has_energy_policy', label: 'Politique energetique', type: 'boolean' as const },
+  { field: 'has_waste_management', label: 'Gestion des déchets', type: 'boolean' as const },
+  { field: 'has_energy_policy', label: 'Politique énergétique', type: 'boolean' as const },
   { field: 'has_gender_policy', label: 'Politique genre', type: 'boolean' as const },
   { field: 'has_training_program', label: 'Programme de formation', type: 'boolean' as const },
-  { field: 'has_financial_transparency', label: 'Transparence financiere', type: 'boolean' as const },
+  { field: 'has_financial_transparency', label: 'Transparence financière', type: 'boolean' as const },
   { field: 'governance_structure', label: 'Gouvernance', type: 'text' as const },
   { field: 'environmental_practices', label: 'Pratiques environnementales', type: 'text' as const },
   { field: 'social_practices', label: 'Pratiques sociales', type: 'text' as const },
@@ -72,7 +72,7 @@ function handleUpdate(field: string, value: string | number | boolean | null) {
     <!-- Indicateur de chargement -->
     <div v-if="loading" class="flex items-center justify-center py-4">
       <div class="w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
-      <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">Mise a jour...</span>
+      <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">Mise à jour...</span>
     </div>
 
     <!-- Identité & Localisation -->
@@ -81,7 +81,7 @@ function handleUpdate(field: string, value: string | number | boolean | null) {
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H4a1 1 0 010-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" clip-rule="evenodd" />
         </svg>
-        Identite & Localisation
+        Identité & Localisation
       </h3>
       <div class="space-y-2">
         <ProfileField
@@ -104,7 +104,7 @@ function handleUpdate(field: string, value: string | number | boolean | null) {
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
         </svg>
-        Criteres ESG
+        Critères ESG
       </h3>
       <div class="space-y-2">
         <ProfileField

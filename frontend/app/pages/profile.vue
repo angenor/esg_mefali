@@ -32,7 +32,7 @@ onMounted(async () => {
           Profil Entreprise
         </h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Completez votre profil pour recevoir des conseils ESG personnalises.
+          Complétez votre profil pour recevoir des conseils ESG personnalisés.
         </p>
       </div>
 
