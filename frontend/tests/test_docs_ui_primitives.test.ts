@@ -159,4 +159,44 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
     const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
     expect(body).toMatch(/CalendarDate.*Date native|piege.*43|piege.*44/is);
   });
+
+  it('AC10 Story 10.21 : §3.9 EsgIcon present avec dispatcher registry Lucide + ESG custom', () => {
+    expect(content).toContain('### 3.9 `ui/EsgIcon`');
+    const section39 = content.split('### 3.9')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section39).toMatch(/dispatcher/i);
+    expect(section39).toMatch(/lucide/i);
+    expect(section39).toMatch(/ESG custom/i);
+  });
+
+  it('AC10 Story 10.21 : §3.9 EsgIcon contient >= 3 exemples Vue', () => {
+    const section39 = content.split('### 3.9')[1]?.split(/^##\s/m)[0] ?? '';
+    const exampleMatches = section39.match(/\*\*Exemple\s+\d+/gi) ?? [];
+    expect(exampleMatches.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('AC10 Story 10.21 : §5 pieges contient >= 48 entrees numerotees (+3 post-10.20)', () => {
+    const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
+    const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
+    const matches = body.match(/^\d+\.\s/gm) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(48);
+  });
+
+  it('AC10 Story 10.21 : §5 pieges numerotation unique et continue (L27)', () => {
+    const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
+    const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
+    const matches = body.match(/^(\d+)\.\s/gm) ?? [];
+    const numbers = matches.map((m) => parseInt(m, 10));
+    const unique = new Set(numbers);
+    expect(unique.size).toBe(matches.length);
+  });
+
+  it('AC10 Story 10.21 : §5 pieges documente #46 #47 #48 (tree-shaking Lucide, dispatcher, shim migration)', () => {
+    const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
+    const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
+    expect(body).toMatch(/^46\.\s/m);
+    expect(body).toMatch(/^47\.\s/m);
+    expect(body).toMatch(/^48\.\s/m);
+    expect(body).toMatch(/tree-shaking|named imports/i);
+    expect(body).toMatch(/shim|byte-identique/i);
+  });
 });

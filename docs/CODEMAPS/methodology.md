@@ -771,6 +771,128 @@ réutiliser un numéro publié. Test d'observabilité associé :
 (14 §4sexies base + 3 Option 0 Fix-All 10.20). Si un 18ᵉ pattern émerge
 post-review 10.21+, créer `§4septies` (pas `§4sexies.deuxième-post-review`).
 
+### 4septies Retrospective Epic 10 Phase 0 + leçons L28-L30 (post-10.21)
+
+**Story 10.21 (Setup Lucide + EsgIcon wrapper)** clôt Epic 10 Phase 0
+Fondations (23/23 stories livrées). Cette sous-section capitalise les 3
+derniers patterns dispatch-registry / tree-shaking / migration scale-up,
+portant le cumul §4ter.bis → §4sexies → §4septies à **30 leçons**.
+
+**Bilan méthodologique Epic 10 Phase 0** — 27 → 30 leçons cumulées :
+- §4ter.bis (10.17-10.18) : Patterns A observable + B count runtime = 4 leçons
+- §4quater (10.18 post-review) : Traçabilité écarts + tests non-smoke = 2 leçons
+- §4ter.ter (10.19) : Wrapper Reka UI + IME + multi-variant = 6 leçons
+- §4quinquies (10.19 post-review) : displayValue + lifecycle + ARIA strict = 3 leçons (L22-L24)
+- §4sexies (10.20) : Application proactive DatePicker = 5 leçons (L20-L24)
+- §4sexies post-review (10.20) : Wrapper id mort + délégation per-path + ordonnancement = 3 leçons (L25-L27)
+- §4septies (10.21, **CE SECTION**) : Dispatcher registry + tree-shaking + migration shim scale-up = **3 leçons (L28-L30)**
+
+**Vélocité mesurée Epic 10** — 23 stories livrées en 6 semaines effectives
+vs 18 semaines sprint v1 → **économie 12 semaines confirmée**. Sizing L
+consommé 60-75 % estimate + sizing M consommé 20-50 % estimate (pattern
+CCC-9 rodé × 7 extensions, wrapper Reka UI stabilisé × 4 itérations
+byte-identique). Projection sprint v2 **10-11 mois Cluster A-E** validée.
+
+---
+
+**Leçon 28 — Tree-shaking Lucide (et bibliothèques à catalogue massif) via
+named imports exclusifs** — Toute bibliothèque exposant un catalogue ≥ 100
+exports (icônes, utilities, date libs) DOIT être consommée via
+`import { Named1, Named2 } from 'lib'` jamais `import * as Lib` ni
+`import Lib from 'lib'`.
+
+**Why** : `import * as` ou default export déclenche l'inclusion complète du
+module dans le bundle final (pas de tree-shaking). Pour Lucide 1400+ icônes
+= ~500 KB gzipped vs ~1,5 KB/icône en named imports. Pour lodash, moment,
+date-fns : même risque.
+
+**How to apply** :
+1. Test anti-récurrence enforced `rg "import \* as.*lucide-vue-next" app/` → 0 hit.
+2. Checklist code-review : nouvelle dépendance catalogue → named imports obligatoires.
+3. Documentation §3.9 CODEMAP + piège #47 ui-primitives.md.
+4. Mesure bundle delta pre/post via `du -sb storybook-static` + inspection
+   `source-map-explorer` pour valider tree-shaking effectif.
+
+**Story 10.21** : `lucide-vue-next@0.577.0` consommé via 26 named imports
+whitelist MVP (`ChevronDown`, `Check`, `Calendar`, …) dans `EsgIcon.vue`
+uniquement. Bundle delta attribuable Lucide ≤ 50 KB gzipped (~1,5 KB × 26).
+
+---
+
+**Leçon 29 — Wrapper dispatcher par registry ≠ wrapper Reka UI headless
+slot-forward (L25 §4sexies généralisée)** — Quand un composant wrapper doit
+unifier l'API d'une source ouverte multi-variant (icônes, thèmes, locales,
+plugins), le **pattern dispatcher par registry** s'applique :
+`<Wrapper key="..." />` + `Record<Key, Component> ICON_MAP` + `<component
+:is="resolvedComponent" />`. Contraste avec le pattern Reka UI headless
+(slot-forward primitives type `<DialogRoot><DialogTrigger /></DialogRoot>`).
+
+**Why** : Les 2 patterns paraissent similaires mais diffèrent fondamentalement :
+- **Reka UI wrapper** : compose des primitives headless (slot-forward),
+  expose des props slot-delegate via `v-bind="$attrs"`. Injection d'`id`
+  custom = code mort (L25 §4sexies). API consommateur = slots typés.
+- **Dispatcher registry** : résout `name → Component` via map frozen,
+  forward-passe les props natives (`size`, `stroke-width`) transparent vers
+  le composant résolu. Pas de slot interne. API consommateur = prop `name`
+  literal union type-safe.
+
+**How to apply** :
+1. Avant d'écrire un wrapper multi-variant, qualifier le pattern cible
+   (headless slot OU dispatcher registry). Critère : la source upstream
+   expose-t-elle des primitives à composer (Reka UI) ou des composants
+   atomiques distincts (Lucide icons, Heroicons, …) ?
+2. Pour dispatcher : registry frozen type-safe (pattern CCC-9), ICON_MAP
+   exhaustif `Record<Key, Component>`, fallback warn dev-only + placeholder.
+3. Props natives du composant résolu forward-passed **sans re-déclaration**
+   (piège #46) — sinon valeur écrasée ou type contradictoire.
+4. Tests compile-time `.test-d.ts` validant rejet `name` hors registry.
+
+**Story 10.21** : `EsgIcon.vue` = premier dispatcher registry projet,
+32 entrées (26 Lucide + 6 ESG custom `esg-*`). Pattern réutilisable
+pour futurs wrappers multi-source (theme picker, locale flag, plugin list).
+
+---
+
+**Leçon 30 — Migration mécanique byte-identique shim pattern 10.6
+scale-up N-composants** — Le pattern shim 10.6 (1 interface, 1 PR) s'étend
+aux migrations N≥15 simultanées dans 1 PR atomique, à condition de préserver
+la **byte-identité visuelle** (dimensions parent, stroke, fill, viewBox).
+
+**Why** : Les primitives déjà rodées (10.15-10.20) ont des tests d'assertion
+qui dépendent de l'existence de `<svg>` ou de patterns spécifiques. Une
+migration grossière casse les tests ; une migration byte-identique via
+un shim (`<EsgIcon name="..." class="dimensions-héritées" decorative />`)
+préserve le layout flex existant sans refactoring défensif.
+
+**How to apply** :
+1. Identifier la **dimension parente** pilotant le sizing (`h-4 w-4`).
+   Remplacer par `<EsgIcon class="h-4 w-4" />` en omettant la prop `size`
+   (risque d'écrasement — piège #48). OU aligner explicitement la prop
+   `size` à la dimension CSS équivalente (`size="sm"` = 16px = `h-4 w-4`).
+2. Préserver `decorative` prop = `true` pour les icônes redondantes
+   (parent a déjà son `aria-label`). Éviter la duplication lecteur écran.
+3. Ajouter un import explicite du wrapper dans chaque `.vue` consommateur
+   (Vitest happy-dom ne résout pas les auto-imports Nuxt 4).
+4. Validation visuelle Storybook avant/après : story `MigrationBeforeAfter`
+   démo le shim côte-à-côte. Délégation L26 per-path sur screenshot.
+5. Tests pre-existants doivent continuer à passer **sans modification** —
+   sinon le shim a introduit une régression visuelle/sémantique.
+
+**Story 10.21** : 16 SVG inline migrés (baseline 17 → 1 justifié Button
+spinner) dans 7 primitives UI (Combobox 5 + DatePicker 5 + Select 2 +
+Input 1 + Textarea 1 + Drawer 1 + FullscreenModal 1). Tests 821 → 863
+passed (+42), 0 régression. Applicable Phase 1+ (migration date libs,
+validation schemas, utility helpers).
+
+---
+
+**Cumul 30 leçons** cross-patterns Epic 10 Phase 0. **Mesure anti-récurrence
+étendue** : si un 31ᵉ pattern émerge post-review 10.21 ou Epic 11 Phase 1
+MVP (Cluster A PME 11.1-11.8), créer `§4octies` (pas `§4septies.extension`).
+
+**Retrospective formelle recommandée** : `bmad-retrospective` skill pour
+Epic 10, synthèse 23 stories + vélocité + forces/écueils/stretch goals.
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité

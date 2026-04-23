@@ -57,7 +57,16 @@ frontend/
 │           ├── Tabs.vue                  (NEW 10.19 wrapper Reka UI 4 primitives + orientation/activationMode/forceMount)
 │           ├── Tabs.stories.ts           (NEW 10.19 ≥ 7 stories CSF 3.0)
 │           ├── DatePicker.vue            (NEW 10.20 wrapper Reka UI 27 primitives Popover+Calendar+RangeCalendar + @internationalized/date FR + L22/L23/L24)
-│           └── DatePicker.stories.ts     (NEW 10.20 ≥ 12 stories CSF 3.0)
+│           ├── DatePicker.stories.ts     (NEW 10.20 ≥ 12 stories CSF 3.0)
+│           ├── EsgIcon.vue               (NEW 10.21 dispatcher registry Lucide + ESG custom + ARIA L24 strict + fallback warn dev)
+│           └── EsgIcon.stories.ts        (NEW 10.21 ≥ 12 stories CSF 3.0 + Grid + MigrationBeforeAfter)
+├── app/assets/icons/esg/
+│   ├── effluents.svg                (NEW 10.21 ODD 6 eau propre)
+│   ├── biodiversite.svg             (NEW 10.21 ODD 15 vie terrestre)
+│   ├── audit-social.svg             (NEW 10.21 ESG social)
+│   ├── mobile-money.svg             (NEW 10.21 inclusion financière UEMOA)
+│   ├── taxonomie-uemoa.svg          (NEW 10.21 finance durable régionale)
+│   └── sges-beta-seal.svg           (NEW 10.21 SGES BETA certification)
 ├── tests/components/ui/
 │   ├── test_button_registry.test.ts      (4 tests frozen/length/dedup)
 │   ├── test_button_variants.test.ts      (14 tests 4×3 + defaults + focus)
@@ -83,11 +92,16 @@ frontend/
 │   ├── test_datepicker_behavior.test.ts  (NEW 10.20 27 tests Pattern A user-event + L21/L22/L23 stricts)
 │   ├── test_datepicker_a11y.test.ts      (NEW 10.20 7 tests ARIA L24 attribute-strict + vitest-axe smoke)
 │   ├── test_no_hex_hardcoded_datepicker.test.ts (NEW 10.20 3 scans NFR66)
-│   └── DatePicker.test-d.ts              (NEW 10.20 14 @ts-expect-error assertions union discriminée)
-└── tests/test_docs_ui_primitives.test.ts (scan 8 sections + ≥ 45 pièges post-10.20)
+│   ├── DatePicker.test-d.ts              (NEW 10.20 14 @ts-expect-error assertions union discriminée)
+│   ├── test_esgicon_registry.test.ts     (NEW 10.21 12 tests ICON_SIZES + ICON_VARIANTS + ESG_ICON_NAMES)
+│   ├── test_esgicon_behavior.test.ts     (NEW 10.21 19 tests Pattern A observable Lucide + ESG custom + fallback)
+│   ├── test_esgicon_a11y.test.ts         (NEW 10.21 6 tests ARIA L24 attribute-strict + 6 todo délégués Storybook)
+│   ├── test_no_hex_hardcoded_esgicon.test.ts (NEW 10.21 4 scans EsgIcon.vue + stories + SVG custom)
+│   └── EsgIcon.test-d.ts                 (NEW 10.21 14 tests ≥ 8 @ts-expect-error assertions)
+└── tests/test_docs_ui_primitives.test.ts (scan 9 sections + ≥ 48 pièges post-10.21)
 
 docs/CODEMAPS/
-├── ui-primitives.md                (ce fichier, 7 sections H2 + 45 pièges §5 post-10.20)
+├── ui-primitives.md                (ce fichier, 7 sections H2 + 48 pièges §5 post-10.21)
 └── index.md                        (+1 ligne référence)
 ```
 
@@ -849,6 +863,68 @@ ticket-child migration mécanique ≤ 2 fichiers.
 **Cross-ref méthodologie** — [methodology.md §4sexies Leçons L22-L24](./methodology.md)
 détaille l'application proactive des 3 leçons §4quinquies 10.19 à 10.20.
 
+### 3.9 `ui/EsgIcon` (Story 10.21)
+
+Dispatcher iconographique projet unifié. 23ᵉ et dernière primitive Epic 10
+Phase 0. Résout `<EsgIcon name="..." />` vers un composant Lucide (named import
+tree-shake) OU un SVG custom ESG (vite-svg-loader `?component`) via registry
+frozen `ICON_MAP: Record<EsgIconName, Component>`.
+
+**Exemple 1 — Lucide de base (décoratif, shim migration primitives)**
+
+```vue
+<template>
+  <button aria-label="Ouvrir le menu">
+    <EsgIcon name="chevron-down" class="h-4 w-4" decorative />
+  </button>
+</template>
+```
+
+Dimensions pilotées par `class="h-4 w-4"` parent (Tailwind). Le SVG Lucide
+hérite `stroke="currentColor"` → couleur du parent (piège #48 byte-identique).
+
+**Exemple 2 — ESG custom avec variant brand + accessible**
+
+```vue
+<template>
+  <div class="flex items-center gap-2 text-brand-green">
+    <EsgIcon name="esg-mobile-money" variant="brand" size="lg" />
+    <span>Inclusion financière UEMOA</span>
+  </div>
+</template>
+```
+
+`decorative` absent (défaut `false`) → `role="img" aria-label="esg-mobile-money"`.
+Variant `brand` injecte `text-brand-green dark:text-brand-green` (piège #46
+pass-through vs double-déclaration props natives).
+
+**Exemple 3 — Shim migration SVG inline → EsgIcon (pattern 10.6 byte-identique)**
+
+```diff
+-<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+-  <path d="M4 6 L8 10 L12 6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+-</svg>
++<EsgIcon name="chevron-down" size="sm" decorative :stroke-width="1.5" />
+```
+
+Dimensions préservées (size="sm" → 16px, identique à width="16"), même
+visuellement. Tests primitives 10.15-10.20 continuent à passer sans
+modification (assertion agnostique via `findComponent(EsgIcon)`).
+
+**Registry CCC-9** — 3 tuples frozen dans `registry.ts` :
+- `ICON_SIZES` (5) — `xs=12` | `sm=16` | `md=20` (default) | `lg=24` | `xl=32` pixels.
+- `ICON_VARIANTS` (5) — `default` (currentColor) | `brand` (green AA) | `danger` (red AA) | `success` (verdict-pass) | `muted` (surface-text/60).
+- `ESG_ICON_NAMES` (32) — 26 Lucide whitelist + 6 ESG custom préfixés `esg-*`.
+
+**Tree-shaking critique (piège #47)** — Imports Lucide nommés individuels
+obligatoires : `import { ChevronDown, Check } from 'lucide-vue-next'`. Jamais
+`import * as Lucide` ni `import Lucide from` (bundle 1400+ icônes ≈ 500 KB non
+tree-shaké = P0 regression).
+
+**Fallback dev-only (AC5)** — Si `name` absent du registry, `console.warn` en
+DEV (`import.meta.env.DEV`) + placeholder cercle barré. En prod, Vite DCE
+strippe le warn (0 bloat).
+
 ## 4. Ajouter une 8ᵉ primitive UI
 
 1. **Créer le squelette Vue** — `app/components/ui/NewPrimitive.vue` avec
@@ -1365,6 +1441,40 @@ détaille l'application proactive des 3 leçons §4quinquies 10.19 à 10.20.
     potentiellement buggy). La prop `modelValue: DateRange` reçue par le
     consommateur est **toujours ordonnée** après un cycle select complet.
     Documenté §3.8 cas Range AC2.
+
+46. **EsgIcon dispatcher ne double-déclare pas les props natives Lucide
+    (L25 §4sexies généralisée 10.21)** — Les composants Lucide (`ChevronDown`,
+    `Check`, `Calendar`, …) acceptent nativement des props `size`, `color`,
+    `stroke-width`. Le wrapper `EsgIcon` forward-passe ces valeurs via le
+    template `<component :is="resolvedComponent" :size :stroke-width />` sans
+    ré-injecter de props dupliquées. Principe hérité de la Leçon 25 10.20
+    (Wrapper Reka UI `id` custom = code mort) **généralisé aux dispatchers
+    par registry**. Anti-exemple : injecter une prop `color: string` dans
+    `EsgIcon` puis la remapper vers `style="color: ..."` casse la chaîne
+    `currentColor` → couleur du parent Tailwind. Application correcte :
+    prop `variant` côté wrapper (classe Tailwind tokens `@theme`) + Lucide
+    natif `stroke="currentColor"` qui hérite.
+
+47. **Tree-shaking Lucide — named imports obligatoires (10.21 AC1 + AC3)**
+    — `import { ChevronDown, X, Calendar } from 'lucide-vue-next'` (named)
+    ≈ ~1,5 KB/icône gzipped bundle final. `import * as Lucide from
+    'lucide-vue-next'` OU `import Lucide from 'lucide-vue-next'` =
+    **bundle 1400+ icônes ≈ 500 KB+ non tree-shaké = P0 regression**.
+    Test anti-récurrence runtime : `rg "import \* as.*lucide-vue-next" app/`
+    doit retourner 0 hit. Application : tout nouveau composant consommant
+    Lucide directement (hors EsgIcon dispatcher) DOIT utiliser named imports.
+
+48. **Migration SVG inline → EsgIcon byte-identique via `class` parent pas
+    `size` prop (pattern shim 10.6 scale-up 10.21 AC9)** — Le sizing historique
+    des SVG inline des primitives 10.15-10.20 est piloté par **class Tailwind
+    parent** (`h-4 w-4`, `h-5 w-5`, `h-3.5 w-3.5`). Remplacer par `<EsgIcon
+    size="md" />` mappe à 20px (≠ `h-4 w-4 = 16px` = `size="sm"`) et casse
+    le flex layout existant. **Solution** : préserver `class="h-4 w-4"` du
+    parent + omettre la prop `size` (EsgIcon forward le width/height Lucide
+    natif mais le parent impose la dimension finale via CSS). OU aligner
+    explicitement `size="sm"` (16px) + supprimer `class="h-4 w-4"`. Validation
+    visuelle Storybook avant/après : story `MigrationBeforeAfter` démo le
+    shim byte-identique. Documenté §3.9 exemple 3.
 
 ---
 
