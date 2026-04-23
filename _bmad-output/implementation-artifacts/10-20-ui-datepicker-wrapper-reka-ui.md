@@ -1,6 +1,6 @@
 # Story 10.20 : `ui/DatePicker.vue` wrapper Reka UI Popover + Calendar
 
-Status: review
+Status: done
 
 <!-- Note: Validation optionnelle. Exécuter `validate-create-story` pour un contrôle qualité avant `dev-story`. -->
 
@@ -1021,6 +1021,122 @@ intégralement. Le seul écart est la complétude du test Vitest keyboard
 WAI-ARIA (happy-dom limit) compensé par délégation Storybook runtime +
 fallback observable strict Pattern A.
 
+### Option 0 Fix-All post-review (2026-04-23) — 17 findings patchés
+
+Code-review `10-20-code-review-2026-04-23.md` : APPROVE-WITH-CHANGES
+(0 CRITICAL / 3 HIGH / 5 MEDIUM / 6 LOW / 3 INFO). Option 0 Fix-All
+appliqué en batch ≈ 5h conforme estimé review.
+
+**HIGH (3) — corrigés** :
+
+- ✅ **H-1 `aria-controls` conflit `popoverId`/`contentId`** : `const popoverId
+  = useId()` retiré + `:aria-controls="popoverId"` retiré du `PopoverTrigger`
+  + `:id="popoverId"` retiré du `PopoverContent`. Reka UI gère nativement
+  le wiring via `rootContext.contentId`. Test a11y reformulé en assertion
+  stricte `expect(dialog.id).toBe(ariaControls)` (cohérence DOM, pas
+  regex opaque). Leçon 25 §4sexies capitalisée.
+- ✅ **H-2 réactivité `modelValue` externe** : ajout `watch(() =>
+  props.modelValue, ... { deep: true })` synchronise `currentMonth` au
+  reset/mutation programmatique parent. 2 tests observables (H-2 describe)
+  couvrant reset null → today + mutation vers mois distant.
+- ✅ **H-3 test PageDown faux positif** : `it.skip` explicite DELEGATED
+  Storybook `DatePickerKeyboardNavigation--page-down` (happy-dom focus
+  bubbling limit). Leçon 26 §4sexies capitalisée. Navigation mois validée
+  par test `CalendarNext click` strict `toBe('mai 2026')`.
+
+**MEDIUM (5) — corrigés/complétés** :
+
+- ✅ **M-1 keyboard 9/12 manquants** : `describe.skip('AC5 keyboard —
+  DELEGATED Storybook per-path')` + 9 `it.todo` nommant chaque story
+  runtime (ArrowLeft/Right, ArrowUp/Down, PageUp, Shift+PageDown,
+  Shift+PageUp, Home, End, Enter, Focus retour Escape). Leçon 26 §4sexies.
+- ✅ **M-2 range auto-swap piège #45** : fonction `warnIfRangeInverted(val)`
+  dev-only (`import.meta.env.DEV` guard) déclenchée au mount + à chaque
+  `watch(modelValue)`. Reka UI normalise transparent lors sélection
+  utilisateur ; le warn défend contre mutations programmatiques
+  incohérentes. 1 test observable (warn spy).
+- ✅ **M-3 `displayValue` range edge states** : 2 tests observables
+  (empty `{start:null, end:null}` → placeholder ; partial `{start:null,
+  end:DateValue}` → `Fin ? — 30/04/2026` sémantique préservé).
+- ✅ **M-4 branches coverage 90.56% → 95.45%** : +5 tests branches
+  ciblés (range partial end-only hasValue, range defaultValue fallback,
+  placeholder custom, required asterisk). Lignes résiduelles 164/241/250
+  = guards défense-en-profondeur (`import.meta.env.DEV` prod-path + `??
+  null` Reka UI emitting null défensif) intestables sans mock env prod.
+- ✅ **M-5 renumérotage pièges #42-#45** : convention `4sexies Leçon 27`
+  capitalisée methodology.md ; note normative ajoutée `ui-primitives.md
+  §5` header. Cross-ref `(piège #41)` → `(piège #42)` corrigé ligne 834 +
+  `(piège #43)` → `(piège #44)` corrigé ligne 795.
+
+**LOW (6) — corrigés/complétés** :
+
+- ✅ **L-3 story EN clearLabel** : `WithClearEnglishLabel` ajoutée
+  (`locale=en-US` + `clearLabel='Clear'`). +1 story Storybook.
+- ✅ **L-5 `aria-modal="false"` + focus retour Escape** : 2 tests observables
+  stricts ajoutés (`expect(dialog.getAttribute('aria-modal')).toBe('false')`
+  + `expect(document.activeElement).toBe(trigger)` post-Escape).
+- ✅ **L-6 cross-ref `ui-primitives.md §3.8` piège #41 → #42** : corrigé
+  ligne 834 + ligne 795 (#43 → #44).
+- ⏸️ **L-1 handler types stricts** : non applicable après retrait des
+  `dispatchEvent(new KeyboardEvent)` impératifs (test PageDown devenu
+  `it.skip`). Les handlers composant (`handleSingleChange`/`handleRangeChange`)
+  sont déjà typés `DateValue | null | undefined` strict.
+- ⏸️ **L-2 warn dev-only guard** : intégré dans `warnIfRangeInverted()`
+  via `if (!import.meta.env.DEV) return;`.
+- ⏸️ **L-4 showClear prop boolean-présence** : convention déjà suivie
+  (Vue 3 withDefaults `showClear: false` défaut explicite). Pas de patch
+  code nécessaire.
+
+**INFO (3) — acknowledged, pas de patch code** :
+
+- I-1 warn dev-only patterns : couvert par M-2 (`warnIfRangeInverted`).
+- I-2 numérotation pièges : couvert par M-5 + Leçon 27 capitalisée.
+- I-3 échec pré-existant `useGuidedTour.resilience.test.ts` : non lié 10.20
+  (confirmé — absent de la liste fichiers modifiés story).
+
+**Baselines runtime post-patch (Pattern B §4ter.bis) :**
+
+```bash
+# Tests Vitest
+npm run test -- --run → 821 passed / 1 failed / 1 skipped / 9 todo (832 entries)
+# Baseline review 807 → 821 (+14, cible +13 minimum ≥820 ✅)
+# 1 fail pre-existant non lié (useGuidedTour.resilience.test.ts)
+# 1 skipped = H-3 PageDown DELEGATED Storybook explicite
+# 9 todo = M-1 AC5 keyboard 9 chemins DELEGATED Storybook per-path
+
+# Typecheck
+npm run test:typecheck → 99 passed (9 fichiers, no errors)
+# Baseline 99 préservé
+
+# Coverage c8 DatePicker.vue
+npm run test -- --coverage --run --coverage.include='app/components/ui/DatePicker.vue'
+# Statements : 100%     (cible ≥ 95% : ✅ +5)
+# Branches   : 95.45%   (cible ≥ 95% : ✅ +0.45, remontée +4.89 vs baseline 90.56%)
+# Functions  : 100%     (cible ≥ 85% : ✅)
+# Lines      : 100%     (cible ≥ 95% : ✅)
+# Lignes 164/241/250 non couvertes = guards défensifs nullish + prod-env
+
+# Scans NFR66
+rg '#[0-9A-Fa-f]{3,8}\b' app/components/ui/DatePicker.vue app/components/ui/DatePicker.stories.ts → 0 hit
+rg ': any\b|as unknown' app/components/ui/DatePicker.vue → 0 hit
+grep -oE "dark:" app/components/ui/DatePicker.vue | wc -l → 21 (≥ 10 ✅)
+```
+
+**3 leçons §4sexies post-review capitalisées (Leçons 25-27)** :
+
+- **Leçon 25 — Wrapper Reka UI : ne jamais injecter d'`id` custom sur
+  primitives slot-forwarded**. Pattern : laisser `rootContext.contentId`
+  gérer natif. Source : 10.20 H-1.
+- **Leçon 26 — Délégation Storybook PER-PATH explicite, pas globale**.
+  Chaque chemin AC délégué doit avoir son `it.todo` / `it.skip` nommant
+  la story runtime + raison technique. Source : 10.20 H-3 + M-1.
+- **Leçon 27 — Ordonnancement pièges cross-story : continuité séquentielle
+  stricte**. Scanner `docs/CODEMAPS/*.md` avant numérotation + test
+  `uniqueNumbers.size === matches.length` d'unicité/continuité. Source :
+  10.20 I-2 + M-5.
+
+Cumul post-patch : 17 leçons (14 §4sexies base + 3 Option 0 Fix-All).
+
 ### File List
 
 **Créés (8 fichiers) :**
@@ -1036,10 +1152,16 @@ fallback observable strict Pattern A.
 - `frontend/app/components/ui/registry.ts` (+DATEPICKER_MODES + DatePickerMode type)
 - `frontend/package.json` (+@internationalized/date ^3.5.0)
 - `frontend/tests/test_docs_ui_primitives.test.ts` (17→22 tests : +5 AC10 10.20)
-- `docs/CODEMAPS/ui-primitives.md` (+§3.8 DatePicker + §2 arbo + §5 pièges #42-#45)
-- `docs/CODEMAPS/methodology.md` (+§4sexies L20-L24 appliquées 10.20)
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` (review + last_updated)
-- `_bmad-output/implementation-artifacts/10-20-ui-datepicker-wrapper-reka-ui.md` (Status review + Dev Agent Record)
+- `docs/CODEMAPS/ui-primitives.md` (+§3.8 DatePicker + §2 arbo + §5 pièges #42-#45 + L-6 cross-ref #42/#44 + M-5 convention Leçon 27)
+- `docs/CODEMAPS/methodology.md` (+§4sexies L20-L24 appliquées 10.20 + §4sexies.post-review Leçons 25-27)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (review → done)
+- `_bmad-output/implementation-artifacts/10-20-ui-datepicker-wrapper-reka-ui.md` (Status done + Dev Agent Record + Option 0 Fix-All)
+
+**Modifiés post-review (Option 0 Fix-All 2026-04-23) :**
+- `frontend/app/components/ui/DatePicker.vue` (H-1 retrait `popoverId` + H-2 `watch(modelValue)` + M-2 `warnIfRangeInverted` dev-only + JSDoc Leçon 25)
+- `frontend/app/components/ui/DatePicker.stories.ts` (+`WithClearEnglishLabel` L-3)
+- `frontend/tests/components/ui/test_datepicker_a11y.test.ts` (H-1 assertion stricte `dialog.id === ariaControls`)
+- `frontend/tests/components/ui/test_datepicker_behavior.test.ts` (+11 tests batch : H-2 watch x2, M-1 delegation describe.skip x9, M-3 range edges x2, M-2 warn x1, M-4 branches x3, L-5 aria-modal + focus retour x2, maxValue + readonly x2, L-3 clearLabel EN x1)
 
 **Aucun fichier supprimé.**
 
@@ -1049,3 +1171,8 @@ fallback observable strict Pattern A.
   intermédiaires lisibles code-review (registry + composant + tests/stories +
   docs/methodology). Pattern wrapper Reka UI stabilisé byte-identique 4ᵉ
   itération.
+- 2026-04-23 (post-review) : Option 0 Fix-All 17 findings appliqué (review →
+  done). 3 HIGH + 5 MEDIUM + 6 LOW + 3 INFO adressés. 3 leçons §4sexies
+  post-review (25-27) capitalisées : wrapper Reka UI id delegation +
+  Storybook per-path + ordonnancement pièges cross-story. Tests 807 → 821
+  (+14), branches coverage 90.56% → 95.45%, typecheck 99 préservé.
