@@ -1,6 +1,6 @@
 # Story 10.21 : Setup Lucide + dossier icônes ESG custom + `ui/EsgIcon.vue` wrapper
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation optionnelle. Exécuter `validate-create-story` pour un contrôle qualité avant `dev-story`. -->
 
@@ -343,80 +343,80 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Scan NFR66 préalable + baseline + audit SVG inline existants** (AC1, AC10)
-  - [ ] 1.1 Grep `EsgIcon\.vue|lucide-vue-next|ICON_SIZES|ICON_VARIANTS|ESG_ICON_NAMES` sur `frontend/app/components/**` + `frontend/tests/**` + `frontend/package.json` → attendu **0 hit** (hors `_bmad-output/` artefacts).
-  - [ ] 1.2 Baseline tests : `cd frontend && npm run test -- --run 2>&1 | tail -5` → consigner exact post-10.20 (≥ 820 attendu).
-  - [ ] 1.3 Baseline typecheck : `npm run test:typecheck 2>&1 | tail -5` → consigner (≥ 99 attendu post-10.20).
-  - [ ] 1.4 Baseline Storybook : `jq '.entries | keys | length' frontend/storybook-static/index.json` → consigner (≥ 224 attendu post-10.20).
-  - [ ] 1.5 Baseline Storybook bundle : `du -sh frontend/storybook-static` → consigner (≤ 15 MB attendu).
-  - [ ] 1.6 Audit SVG inline existants primitives : `rg '<svg\b' frontend/app/components/ui/*.vue -c` → consigner count par fichier (baseline **≥ 17 attendu** pour AC9 validation).
-  - [ ] 1.7 Audit pièges publiés CODEMAPS (L27 §4sexies) : `grep -nE "^[0-9]+\. \*\*" docs/CODEMAPS/ui-primitives.md | tail -5` → consigner plus haut numéro (attendu **#45** post-10.20). **Nouveaux pièges 10.21 = #46-#48** (pas réutiliser un numéro publié).
-  - [ ] 1.8 Vérif Nuxt 4 SVG loader disponible : `grep -rE "svg.*component|vite-svg-loader" frontend/nuxt.config.ts` → si absent, ajouter `modules: ['@nuxtjs/svg-sprite']` OU `vite: { plugins: [svgLoader()] }` (vite-svg-loader — attention compat Nuxt 4). Si installation nécessaire, documenter Task 1.9 + bundle impact.
-  - [ ] 1.9 Recherche npm registry Lucide version stable courante : `npm view lucide-vue-next version` → consigner version ≥ 0.400.0.
+- [x] **Task 1 — Scan NFR66 préalable + baseline + audit SVG inline existants** (AC1, AC10)
+  - [x] 1.1 Grep `EsgIcon\.vue|lucide-vue-next|ICON_SIZES|ICON_VARIANTS|ESG_ICON_NAMES` sur `frontend/app/components/**` + `frontend/tests/**` + `frontend/package.json` → attendu **0 hit** (hors `_bmad-output/` artefacts).
+  - [x] 1.2 Baseline tests : `cd frontend && npm run test -- --run 2>&1 | tail -5` → consigner exact post-10.20 (≥ 820 attendu).
+  - [x] 1.3 Baseline typecheck : `npm run test:typecheck 2>&1 | tail -5` → consigner (≥ 99 attendu post-10.20).
+  - [x] 1.4 Baseline Storybook : `jq '.entries | keys | length' frontend/storybook-static/index.json` → consigner (≥ 224 attendu post-10.20).
+  - [x] 1.5 Baseline Storybook bundle : `du -sh frontend/storybook-static` → consigner (≤ 15 MB attendu).
+  - [x] 1.6 Audit SVG inline existants primitives : `rg '<svg\b' frontend/app/components/ui/*.vue -c` → consigner count par fichier (baseline **≥ 17 attendu** pour AC9 validation).
+  - [x] 1.7 Audit pièges publiés CODEMAPS (L27 §4sexies) : `grep -nE "^[0-9]+\. \*\*" docs/CODEMAPS/ui-primitives.md | tail -5` → consigner plus haut numéro (attendu **#45** post-10.20). **Nouveaux pièges 10.21 = #46-#48** (pas réutiliser un numéro publié).
+  - [x] 1.8 Vérif Nuxt 4 SVG loader disponible : `grep -rE "svg.*component|vite-svg-loader" frontend/nuxt.config.ts` → si absent, ajouter `modules: ['@nuxtjs/svg-sprite']` OU `vite: { plugins: [svgLoader()] }` (vite-svg-loader — attention compat Nuxt 4). Si installation nécessaire, documenter Task 1.9 + bundle impact.
+  - [x] 1.9 Recherche npm registry Lucide version stable courante : `npm view lucide-vue-next version` → consigner version ≥ 0.400.0.
 
-- [ ] **Task 2 — Installation `lucide-vue-next` + config tree-shaking** (AC1, AC2, AC3)
-  - [ ] 2.1 `cd frontend && npm install lucide-vue-next@^0.400.0 --save` (runtime dependency, pas devDep).
-  - [ ] 2.2 Vérifier `package.json dependencies` contient `"lucide-vue-next": "^0.400.0"` + `package-lock.json` régénéré sans conflit (`npm ls lucide-vue-next` → 0 conflict).
-  - [ ] 2.3 Test smoke import : créer temporairement `frontend/tests/__smoke_lucide__.test.ts` avec `import { ChevronDown } from 'lucide-vue-next'; test('import works', () => { expect(ChevronDown).toBeDefined(); });` → run → vert → supprimer le fichier (validation install sans polluer tests).
-  - [ ] 2.4 **Pré-mesure bundle pré-integration** : `npm run storybook:build && du -sh storybook-static` → consigner baseline **avant** EsgIcon (référence AC3 delta ≤ 50 KB).
-  - [ ] 2.5 Si Nuxt 4 SVG loader pas configuré (Task 1.8) : `npm install -D vite-svg-loader` + ajouter `frontend/nuxt.config.ts` → `vite: { plugins: [svgLoader()] }` avec import dynamique conditionnel. Tester via `import X from '~/assets/icons/esg/test.svg?component'` depuis une story Storybook.
+- [x] **Task 2 — Installation `lucide-vue-next` + config tree-shaking** (AC1, AC2, AC3)
+  - [x] 2.1 `cd frontend && npm install lucide-vue-next@^0.400.0 --save` (runtime dependency, pas devDep).
+  - [x] 2.2 Vérifier `package.json dependencies` contient `"lucide-vue-next": "^0.400.0"` + `package-lock.json` régénéré sans conflit (`npm ls lucide-vue-next` → 0 conflict).
+  - [x] 2.3 Test smoke import : créer temporairement `frontend/tests/__smoke_lucide__.test.ts` avec `import { ChevronDown } from 'lucide-vue-next'; test('import works', () => { expect(ChevronDown).toBeDefined(); });` → run → vert → supprimer le fichier (validation install sans polluer tests).
+  - [x] 2.4 **Pré-mesure bundle pré-integration** : `npm run storybook:build && du -sh storybook-static` → consigner baseline **avant** EsgIcon (référence AC3 delta ≤ 50 KB).
+  - [x] 2.5 Si Nuxt 4 SVG loader pas configuré (Task 1.8) : `npm install -D vite-svg-loader` + ajouter `frontend/nuxt.config.ts` → `vite: { plugins: [svgLoader()] }` avec import dynamique conditionnel. Tester via `import X from '~/assets/icons/esg/test.svg?component'` depuis une story Storybook.
 
-- [ ] **Task 3 — Registry `ui/registry.ts` extension 3 tuples CCC-9** (AC1, AC2, AC4)
-  - [ ] 3.1 Ajouter `ICON_SIZES = Object.freeze(['xs', 'sm', 'md', 'lg', 'xl'] as const)` (ordre canonique croissant, default = index 2 `md` — pas index 0 car `xs` trop petit).
-  - [ ] 3.2 Ajouter `ICON_VARIANTS = Object.freeze(['default', 'brand', 'danger', 'success', 'muted'] as const)` (ordre canonique default-first — cas majoritaire).
-  - [ ] 3.3 Ajouter `ESG_ICON_NAMES = Object.freeze([ /* ≥ 30 noms */ ] as const)` (20 Lucide whitelist + 6 ESG custom + marge 4 extensibilité Phase 1+).
-  - [ ] 3.4 Types dérivés `IconSize`, `IconVariant`, `EsgIconName` via `typeof TUPLE[number]`.
-  - [ ] 3.5 Docstring JSDoc référençant Story 10.21 + rationale ordre canonique (pièges #46-#48 pour inversions éventuelles) + convention `esg-*` prefix pour SVG custom.
-  - [ ] 3.6 Exports 10.15-10.20 byte-identique préservés (diff `git diff frontend/app/components/ui/registry.ts` restreint aux ajouts).
-  - [ ] 3.7 `npm run test:typecheck` → baseline préservé (registry ne change pas count tant que `.test-d.ts` EsgIcon pas ajouté — check Task 5.4).
-  - [ ] 3.8 `test_esgicon_registry.test.ts` **6 tests** :
+- [x] **Task 3 — Registry `ui/registry.ts` extension 3 tuples CCC-9** (AC1, AC2, AC4)
+  - [x] 3.1 Ajouter `ICON_SIZES = Object.freeze(['xs', 'sm', 'md', 'lg', 'xl'] as const)` (ordre canonique croissant, default = index 2 `md` — pas index 0 car `xs` trop petit).
+  - [x] 3.2 Ajouter `ICON_VARIANTS = Object.freeze(['default', 'brand', 'danger', 'success', 'muted'] as const)` (ordre canonique default-first — cas majoritaire).
+  - [x] 3.3 Ajouter `ESG_ICON_NAMES = Object.freeze([ /* ≥ 30 noms */ ] as const)` (20 Lucide whitelist + 6 ESG custom + marge 4 extensibilité Phase 1+).
+  - [x] 3.4 Types dérivés `IconSize`, `IconVariant`, `EsgIconName` via `typeof TUPLE[number]`.
+  - [x] 3.5 Docstring JSDoc référençant Story 10.21 + rationale ordre canonique (pièges #46-#48 pour inversions éventuelles) + convention `esg-*` prefix pour SVG custom.
+  - [x] 3.6 Exports 10.15-10.20 byte-identique préservés (diff `git diff frontend/app/components/ui/registry.ts` restreint aux ajouts).
+  - [x] 3.7 `npm run test:typecheck` → baseline préservé (registry ne change pas count tant que `.test-d.ts` EsgIcon pas ajouté — check Task 5.4).
+  - [x] 3.8 `test_esgicon_registry.test.ts` **6 tests** :
     - `ICON_SIZES.length === 5` + `ICON_VARIANTS.length === 5` + `ESG_ICON_NAMES.length >= 30` (AC2).
     - `Object.isFrozen(ICON_SIZES) && Object.isFrozen(ICON_VARIANTS) && Object.isFrozen(ESG_ICON_NAMES)`.
     - Dédoublonnement : `new Set(ESG_ICON_NAMES).size === ESG_ICON_NAMES.length`.
     - Ordre canonique : `ICON_SIZES[2] === 'md'` + `ICON_VARIANTS[0] === 'default'`.
     - ESG prefix : `ESG_ICON_NAMES.filter(n => n.startsWith('esg-')).length >= 6` (AC8).
     - Lucide whitelist minimum : `ESG_ICON_NAMES.filter(n => !n.startsWith('esg-')).length >= 20` (AC2).
-  - [ ] 3.9 **Commit intermédiaire 1** : `feat(10.21): install lucide-vue-next ^0.400 + registry CCC-9 ICON_SIZES/VARIANTS/NAMES + 6 SVG custom ESG`.
+  - [x] 3.9 **Commit intermédiaire 1** : `feat(10.21): install lucide-vue-next ^0.400 + registry CCC-9 ICON_SIZES/VARIANTS/NAMES + 6 SVG custom ESG`.
 
-- [ ] **Task 4 — SVG custom ESG `frontend/app/assets/icons/esg/` ≥ 6 fichiers** (AC8)
-  - [ ] 4.1 Créer dossier `frontend/app/assets/icons/esg/` si absent.
-  - [ ] 4.2 Créer `effluents.svg` — gouttes + filtre — viewBox 0 0 24 24 + convention Lucide stricte (stroke currentColor + stroke-width 2 + fill none).
-  - [ ] 4.3 Créer `biodiversite.svg` — feuille + insecte — convention Lucide.
-  - [ ] 4.4 Créer `audit-social.svg` — document + checkmark + personnage.
-  - [ ] 4.5 Créer `mobile-money.svg` — smartphone + symbole FCFA.
-  - [ ] 4.6 Créer `taxonomie-uemoa.svg` — sigle UEMOA stylisé OU carte Afrique Ouest.
-  - [ ] 4.7 Créer `sges-beta-seal.svg` — sceau rond + texte « SGES β ».
-  - [ ] 4.8 Optimiser chaque SVG via SVGO `npx svgo frontend/app/assets/icons/esg/*.svg --config='{"plugins":["preset-default","removeXMLNS","removeViewBox"]}'` (attention garder viewBox — config custom pour préserver viewBox).
-  - [ ] 4.9 Scan hex SVG custom : `rg '#[0-9A-Fa-f]{3,8}|fill="[^n]' frontend/app/assets/icons/esg/*.svg` → **0 hit** (hors `fill="none"`). Couleur uniquement via `stroke="currentColor"`.
-  - [ ] 4.10 Test smoke import : `import EsgEffluents from '~/assets/icons/esg/effluents.svg?component'` depuis story ou test → rend SVG valide.
+- [x] **Task 4 — SVG custom ESG `frontend/app/assets/icons/esg/` ≥ 6 fichiers** (AC8)
+  - [x] 4.1 Créer dossier `frontend/app/assets/icons/esg/` si absent.
+  - [x] 4.2 Créer `effluents.svg` — gouttes + filtre — viewBox 0 0 24 24 + convention Lucide stricte (stroke currentColor + stroke-width 2 + fill none).
+  - [x] 4.3 Créer `biodiversite.svg` — feuille + insecte — convention Lucide.
+  - [x] 4.4 Créer `audit-social.svg` — document + checkmark + personnage.
+  - [x] 4.5 Créer `mobile-money.svg` — smartphone + symbole FCFA.
+  - [x] 4.6 Créer `taxonomie-uemoa.svg` — sigle UEMOA stylisé OU carte Afrique Ouest.
+  - [x] 4.7 Créer `sges-beta-seal.svg` — sceau rond + texte « SGES β ».
+  - [x] 4.8 Optimiser chaque SVG via SVGO `npx svgo frontend/app/assets/icons/esg/*.svg --config='{"plugins":["preset-default","removeXMLNS","removeViewBox"]}'` (attention garder viewBox — config custom pour préserver viewBox).
+  - [x] 4.9 Scan hex SVG custom : `rg '#[0-9A-Fa-f]{3,8}|fill="[^n]' frontend/app/assets/icons/esg/*.svg` → **0 hit** (hors `fill="none"`). Couleur uniquement via `stroke="currentColor"`.
+  - [x] 4.10 Test smoke import : `import EsgEffluents from '~/assets/icons/esg/effluents.svg?component'` depuis story ou test → rend SVG valide.
 
-- [ ] **Task 5 — Composant `ui/EsgIcon.vue` dispatcher + `EsgIcon.test-d.ts`** (AC4-AC7)
-  - [ ] 5.1 `<script setup lang="ts">` avec imports :
+- [x] **Task 5 — Composant `ui/EsgIcon.vue` dispatcher + `EsgIcon.test-d.ts`** (AC4-AC7)
+  - [x] 5.1 `<script setup lang="ts">` avec imports :
     - Named imports Lucide ≥ 20 : `ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Check, X, Calendar, Clock, AlertCircle, AlertTriangle, Info, CheckCircle2 as CheckCircle, XCircle, Loader2 as Loader, Search, Plus, Minus, Edit, Trash2 as Trash, Eye, EyeOff, Download, Upload, FileText, Link, ExternalLink` depuis `'lucide-vue-next'`.
     - Imports SVG custom : `EsgEffluents, EsgBiodiversite, EsgAuditSocial, EsgMobileMoney, EsgTaxonomieUemoa, EsgSgesBetaSeal` depuis `~/assets/icons/esg/*.svg?component`.
     - Types registry : `IconSize, IconVariant, EsgIconName`.
     - Vue 3 : `computed, h, type Component` (h pour placeholder fallback).
-  - [ ] 5.2 `defineProps<EsgIconProps>()` + `withDefaults` : `size: 'md'`, `variant: 'default'`, `decorative: false`, `strokeWidth: 2`.
-  - [ ] 5.3 Constante `ICON_MAP: Record<EsgIconName, Component>` avec mapping complet ≥ 30 entrées (20 Lucide + 6 ESG + marge).
-  - [ ] 5.4 Constante `SIZE_MAP: Record<IconSize, number> = { xs: 12, sm: 16, md: 20, lg: 24, xl: 32 }`.
-  - [ ] 5.5 Constante `VARIANT_MAP: Record<IconVariant, string>` = mapping Tailwind classes tokens `@theme` (AC6).
-  - [ ] 5.6 Computed `resolvedComponent`: `ICON_MAP[props.name] ?? placeholderComponent`. Helper `placeholderComponent` rend `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>` (cercle barré).
-  - [ ] 5.7 Watcher/effect fallback warn dev-only (AC5) :
+  - [x] 5.2 `defineProps<EsgIconProps>()` + `withDefaults` : `size: 'md'`, `variant: 'default'`, `decorative: false`, `strokeWidth: 2`.
+  - [x] 5.3 Constante `ICON_MAP: Record<EsgIconName, Component>` avec mapping complet ≥ 30 entrées (20 Lucide + 6 ESG + marge).
+  - [x] 5.4 Constante `SIZE_MAP: Record<IconSize, number> = { xs: 12, sm: 16, md: 20, lg: 24, xl: 32 }`.
+  - [x] 5.5 Constante `VARIANT_MAP: Record<IconVariant, string>` = mapping Tailwind classes tokens `@theme` (AC6).
+  - [x] 5.6 Computed `resolvedComponent`: `ICON_MAP[props.name] ?? placeholderComponent`. Helper `placeholderComponent` rend `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>` (cercle barré).
+  - [x] 5.7 Watcher/effect fallback warn dev-only (AC5) :
     ```ts
     if (import.meta.env.DEV && !(props.name in ICON_MAP)) {
       console.warn(`[EsgIcon] Unknown icon name: "${props.name}". Falling back to placeholder.`);
     }
     ```
-  - [ ] 5.8 Computed `pixelSize = computed(() => SIZE_MAP[props.size])`.
-  - [ ] 5.9 Computed `variantClass = computed(() => VARIANT_MAP[props.variant])`.
-  - [ ] 5.10 Computed `finalClass = computed(() => [variantClass.value, props.class].filter(Boolean).join(' '))` — merge avec class prop consommateur (pas écrase).
-  - [ ] 5.11 Computed `ariaAttrs` (AC7 L24) :
+  - [x] 5.8 Computed `pixelSize = computed(() => SIZE_MAP[props.size])`.
+  - [x] 5.9 Computed `variantClass = computed(() => VARIANT_MAP[props.variant])`.
+  - [x] 5.10 Computed `finalClass = computed(() => [variantClass.value, props.class].filter(Boolean).join(' '))` — merge avec class prop consommateur (pas écrase).
+  - [x] 5.11 Computed `ariaAttrs` (AC7 L24) :
     ```ts
     const ariaAttrs = computed(() => props.decorative
       ? { 'aria-hidden': 'true' as const }
       : { role: 'img' as const, 'aria-label': props.name });
     ```
-  - [ ] 5.12 Template :
+  - [x] 5.12 Template :
     ```vue
     <template>
       <component
@@ -428,10 +428,10 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
       />
     </template>
     ```
-  - [ ] 5.13 Scan hex : `rg '#[0-9A-Fa-f]{3,8}' frontend/app/components/ui/EsgIcon.vue` → **0 hit**.
-  - [ ] 5.14 Scan any : `rg ': any\b|as unknown' frontend/app/components/ui/EsgIcon.vue` → **0 hit**.
-  - [ ] 5.15 Scan dark: `grep -oE "dark:" frontend/app/components/ui/EsgIcon.vue | wc -l` → **≥ 8** (via VARIANT_MAP : brand/danger/success/muted × `text-*` + `dark:text-*` = 8 minimum).
-  - [ ] 5.16 `EsgIcon.test-d.ts` **≥ 8 `@ts-expect-error`** (AC4) :
+  - [x] 5.13 Scan hex : `rg '#[0-9A-Fa-f]{3,8}' frontend/app/components/ui/EsgIcon.vue` → **0 hit**.
+  - [x] 5.14 Scan any : `rg ': any\b|as unknown' frontend/app/components/ui/EsgIcon.vue` → **0 hit**.
+  - [x] 5.15 Scan dark: `grep -oE "dark:" frontend/app/components/ui/EsgIcon.vue | wc -l` → **≥ 8** (via VARIANT_MAP : brand/danger/success/muted × `text-*` + `dark:text-*` = 8 minimum).
+  - [x] 5.16 `EsgIcon.test-d.ts` **≥ 8 `@ts-expect-error`** (AC4) :
     ```ts
     import { h } from 'vue';
     import EsgIcon from '~/components/ui/EsgIcon.vue';
@@ -453,11 +453,11 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
     // @ts-expect-error class number au lieu de string
     h(EsgIcon, { name: 'check', class: 123 });
     ```
-  - [ ] 5.17 `npm run test:typecheck` → baseline ≥ 99 → **≥ 107 passed** (+8 minimum).
-  - [ ] 5.18 **Commit intermédiaire 2** : `feat(10.21): ui/EsgIcon dispatcher registry + ARIA L24 strict + fallback warn dev + tests behavior/a11y`.
+  - [x] 5.17 `npm run test:typecheck` → baseline ≥ 99 → **≥ 107 passed** (+8 minimum).
+  - [x] 5.18 **Commit intermédiaire 2** : `feat(10.21): ui/EsgIcon dispatcher registry + ARIA L24 strict + fallback warn dev + tests behavior/a11y`.
 
-- [ ] **Task 6 — Tests Vitest EsgIcon (Pattern A observable + L21 strict + L24 attribute-strict)** (AC10)
-  - [ ] 6.1 `test_esgicon_behavior.test.ts` : **≥ 12 tests** Pattern A observable :
+- [x] **Task 6 — Tests Vitest EsgIcon (Pattern A observable + L21 strict + L24 attribute-strict)** (AC10)
+  - [x] 6.1 `test_esgicon_behavior.test.ts` : **≥ 12 tests** Pattern A observable :
     - **Rendering Lucide** : `<EsgIcon name="chevron-down" />` → `expect(wrapper.find('svg').exists()).toBe(true)` + `expect(wrapper.find('svg').html()).toContain('polyline')` (L21 strict pas smoke existence).
     - **Rendering ESG custom** : `<EsgIcon name="esg-effluents" />` → `expect(wrapper.find('svg').attributes('viewbox')).toBe('0 0 24 24')` + `stroke === 'currentColor'`.
     - **Size xs** : `size="xs"` → `expect(wrapper.find('svg').attributes('width')).toBe('12')`.
@@ -478,7 +478,7 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
     - **Class merge** : `<EsgIcon class="custom-foo" variant="brand" />` → classes contient `custom-foo` AND `text-brand-green` (merge pas écrase).
     - **Decorative true** : `decorative={true}` → `aria-hidden="true"` strict + pas de `role` + pas de `aria-label`.
     - **Decorative false (default)** : `role="img"` strict + `aria-label="calendar"` strict.
-  - [ ] 6.2 `test_esgicon_a11y.test.ts` : **≥ 6 tests** ARIA attribute-strict L24 §4quinquies :
+  - [x] 6.2 `test_esgicon_a11y.test.ts` : **≥ 6 tests** ARIA attribute-strict L24 §4quinquies :
     - `expect(icon.getAttribute('aria-hidden')).toBe('true')` (valeur stricte string, pas `.toHaveAttribute('aria-hidden')` sans 2ᵉ arg).
     - `expect(icon.getAttribute('role')).toBe('img')` strict.
     - `expect(icon.getAttribute('aria-label')).toBe('calendar')` strict (valeur exacte = prop `name`).
@@ -494,19 +494,19 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
         it.todo('variant=muted dark — Storybook ui-esgicon--dark-mode--muted');
       });
       ```
-  - [ ] 6.3 `test_no_hex_hardcoded_esgicon.test.ts` : **2 tests** scan `EsgIcon.vue` + `EsgIcon.stories.ts` + `assets/icons/esg/*.svg` → 0 hit hex + 0 hit `: any`/`as unknown`.
-  - [ ] 6.4 **Assertions strictes L21 §4quater appliquées proactivement** :
+  - [x] 6.3 `test_no_hex_hardcoded_esgicon.test.ts` : **2 tests** scan `EsgIcon.vue` + `EsgIcon.stories.ts` + `assets/icons/esg/*.svg` → 0 hit hex + 0 hit `: any`/`as unknown`.
+  - [x] 6.4 **Assertions strictes L21 §4quater appliquées proactivement** :
     - AC5 fallback warn : `expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown-xyz'))` strict (pas `.toHaveBeenCalled()` permissif).
     - AC6 variant class : `expect(classes).toContain('text-brand-green')` strict (pas `.toMatch(/text-/)` laxiste).
     - AC7 ARIA : `toBe('true')` + `toBeNull()` strict (pas `toHaveAttribute(key)` sans 2ᵉ arg — L24).
     - AC4 props : `expect(wrapper.props()).toEqual(expect.objectContaining({ name: 'check', size: 'md' }))` strict.
-  - [ ] 6.5 `npm run test -- --run` → baseline ≥ 820 → **≥ 830 passed** (+10 minimum demandé).
-  - [ ] 6.6 **Commit intermédiaire 3 (fusionnable avec 2)** : si 2 + 5-6 séparés : `test(10.21): EsgIcon behavior + a11y L24 strict + L21 observable + coverage c8 ≥85%`.
+  - [x] 6.5 `npm run test -- --run` → baseline ≥ 820 → **≥ 830 passed** (+10 minimum demandé).
+  - [x] 6.6 **Commit intermédiaire 3 (fusionnable avec 2)** : si 2 + 5-6 séparés : `test(10.21): EsgIcon behavior + a11y L24 strict + L21 observable + coverage c8 ≥85%`.
 
-- [ ] **Task 7 — Migration mécanique ≥ 15 SVG inline UI primitives 10.15-10.20** (AC9)
-  - [ ] 7.1 Inventaire précis `rg '<svg\b' frontend/app/components/ui/*.vue -A 0 --line-number` → liste exhaustive lignes + fichiers.
-  - [ ] 7.2 Pour chaque SVG inline, identifier le nom EsgIcon correspondant dans `ESG_ICON_NAMES` (chevron-down, x, check, calendar, loader, etc.).
-  - [ ] 7.3 Migration **byte-identique shim pattern 10.6** :
+- [x] **Task 7 — Migration mécanique ≥ 15 SVG inline UI primitives 10.15-10.20** (AC9)
+  - [x] 7.1 Inventaire précis `rg '<svg\b' frontend/app/components/ui/*.vue -A 0 --line-number` → liste exhaustive lignes + fichiers.
+  - [x] 7.2 Pour chaque SVG inline, identifier le nom EsgIcon correspondant dans `ESG_ICON_NAMES` (chevron-down, x, check, calendar, loader, etc.).
+  - [x] 7.3 Migration **byte-identique shim pattern 10.6** :
     - Combobox.vue (5 SVG) : chevron-down trigger + X cancel + check option + search icon + clear → 5 × `<EsgIcon name="..." class="h-4 w-4" decorative />`.
     - DatePicker.vue (5 SVG) : calendar trigger + ← prev + → next + x clear + check selected → 5 × `<EsgIcon />`.
     - Button.vue (1 SVG loader) : `<EsgIcon name="loader" class="h-4 w-4 animate-spin motion-reduce:animate-none" decorative />`.
@@ -515,40 +515,40 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
     - Select.vue (2 SVG) : chevron-down + check selected.
     - Textarea.vue (1 SVG warning si existant).
     - FullscreenModal.vue (1 SVG close) : `<EsgIcon name="x" />`.
-  - [ ] 7.4 Post-migration audit : `rg '<svg\b' frontend/app/components/ui/*.vue -c | sort -t: -k2 -n` → baseline 17 → **≤ 2** (tolérance 2 SVG inline justifiés doc Completion Notes si refactor animation spinner casse).
-  - [ ] 7.5 Tests primitives 10.15-10.20 **doivent continuer à passer sans modification** : `npm run test -- --run frontend/tests/components/ui/test_combobox_*.test.ts frontend/tests/components/ui/test_datepicker_*.test.ts ...` → 0 régression.
-  - [ ] 7.6 Si un test assert directement `svg.querySelector('polyline')` ou `svg.innerHTML`, refactorer pour asserter via `<EsgIcon name="...">` rendering (assertion agnostique : `wrapper.findComponent(EsgIcon).props('name') === 'chevron-down'`).
-  - [ ] 7.7 Snapshot Storybook avant/après : `npm run storybook:build && du -sh storybook-static` → vérifier **pas de régression visuelle** stories `ui-combobox--*`, `ui-datepicker--*`, `ui-button--*`, `ui-drawer--*` (délégation runtime L26 documenté inline skips).
-  - [ ] 7.8 **Commit intermédiaire 3** : `refactor(10.21): migration ≥15 SVG inline UI primitives 10.15-10.20 → <EsgIcon /> byte-identique shim 10.6`.
+  - [x] 7.4 Post-migration audit : `rg '<svg\b' frontend/app/components/ui/*.vue -c | sort -t: -k2 -n` → baseline 17 → **≤ 2** (tolérance 2 SVG inline justifiés doc Completion Notes si refactor animation spinner casse).
+  - [x] 7.5 Tests primitives 10.15-10.20 **doivent continuer à passer sans modification** : `npm run test -- --run frontend/tests/components/ui/test_combobox_*.test.ts frontend/tests/components/ui/test_datepicker_*.test.ts ...` → 0 régression.
+  - [x] 7.6 Si un test assert directement `svg.querySelector('polyline')` ou `svg.innerHTML`, refactorer pour asserter via `<EsgIcon name="...">` rendering (assertion agnostique : `wrapper.findComponent(EsgIcon).props('name') === 'chevron-down'`).
+  - [x] 7.7 Snapshot Storybook avant/après : `npm run storybook:build && du -sh storybook-static` → vérifier **pas de régression visuelle** stories `ui-combobox--*`, `ui-datepicker--*`, `ui-button--*`, `ui-drawer--*` (délégation runtime L26 documenté inline skips).
+  - [x] 7.8 **Commit intermédiaire 3** : `refactor(10.21): migration ≥15 SVG inline UI primitives 10.15-10.20 → <EsgIcon /> byte-identique shim 10.6`.
 
-- [ ] **Task 8 — Stories `EsgIcon.stories.ts` + Documentation CODEMAPS §3.9 + §4septies methodology** (AC10)
-  - [ ] 8.1 `EsgIcon.stories.ts` co-localisée ≥ 12 stories (Grid + Sizes + Variants + Decorative + WithLabel + DarkMode + MappingRegistry + LucideOnly + EsgCustomOnly + UnknownNameFallback + StrokeWidth + Spinner + optionnels MigrationBeforeAfter + Grid500Icons).
-  - [ ] 8.2 Play functions interactives avec `@storybook/test` : `Grid` play = screenshot rendering mode visuel (décorative validation L26) ; `WithLabel` play = `await expect(canvas.getByRole('img', {name: /calendar/})).toBeInTheDocument()`.
-  - [ ] 8.3 Helper `asStorybookComponent<T>()` réutilisé `frontend/app/types/storybook.ts` (pattern 10.15 M-3).
-  - [ ] 8.4 **Comptage runtime OBLIGATOIRE post-build** (pattern B §4ter.bis + L26 §4sexies 10.20 capitalisé) : consigner EXACT avant Completion Notes.
-  - [ ] 8.5 `docs/CODEMAPS/ui-primitives.md` §3.9 EsgIcon inséré après §3.8 DatePicker avec **≥ 3 exemples Vue** :
+- [x] **Task 8 — Stories `EsgIcon.stories.ts` + Documentation CODEMAPS §3.9 + §4septies methodology** (AC10)
+  - [x] 8.1 `EsgIcon.stories.ts` co-localisée ≥ 12 stories (Grid + Sizes + Variants + Decorative + WithLabel + DarkMode + MappingRegistry + LucideOnly + EsgCustomOnly + UnknownNameFallback + StrokeWidth + Spinner + optionnels MigrationBeforeAfter + Grid500Icons).
+  - [x] 8.2 Play functions interactives avec `@storybook/test` : `Grid` play = screenshot rendering mode visuel (décorative validation L26) ; `WithLabel` play = `await expect(canvas.getByRole('img', {name: /calendar/})).toBeInTheDocument()`.
+  - [x] 8.3 Helper `asStorybookComponent<T>()` réutilisé `frontend/app/types/storybook.ts` (pattern 10.15 M-3).
+  - [x] 8.4 **Comptage runtime OBLIGATOIRE post-build** (pattern B §4ter.bis + L26 §4sexies 10.20 capitalisé) : consigner EXACT avant Completion Notes.
+  - [x] 8.5 `docs/CODEMAPS/ui-primitives.md` §3.9 EsgIcon inséré après §3.8 DatePicker avec **≥ 3 exemples Vue** :
     1. Lucide basique `<EsgIcon name="chevron-down" class="h-4 w-4" decorative />`.
     2. ESG custom avec variant + accessible `<EsgIcon name="esg-mobile-money" variant="brand" :decorative="false" />`.
     3. Migration shim pattern : ancien SVG inline Combobox trigger → `<EsgIcon name="chevron-down" class="h-4 w-4" decorative />` (démo comparison).
-  - [ ] 8.6 §5 Pièges étendu **45 post-10.20 → 48 post-10.21** (+3 nouveaux) :
+  - [x] 8.6 §5 Pièges étendu **45 post-10.20 → 48 post-10.21** (+3 nouveaux) :
     - **#46 Wrapper EsgIcon ne double-déclare pas les props natives Lucide (L25 §4sexies généralisée)** : `size`, `color`, `strokeWidth` sont forward-passed directement via mapping registry → composant Lucide natif. Ne JAMAIS injecter `<EsgIcon :size="24" />` ET puis `<LucideIcon :size="24" />` double-déclaré (la valeur Vue serait écrasée par Lucide défaut si `:size` absent template wrapper). Principe généralisé 10.20 L25 appliqué aux dispatchers par registry.
     - **#47 Tree-shaking Lucide named imports obligatoires** : `import { ChevronDown, X } from 'lucide-vue-next'` (named) → ~1.5 KB/icône gzipped. `import * as Lucide from 'lucide-vue-next'` OU `import Lucide from 'lucide-vue-next'` → **bundle 1400+ icônes = ~500 KB+ non tree-shaké = P0 bundle regression**. Test grep `rg "import \* as.*lucide" frontend/` → 0 hit strict. Application : tout nouveau composant consommant Lucide directement (non via EsgIcon) DOIT faire named imports.
     - **#48 Migration SVG inline → EsgIcon byte-identique via `class` parent pas `size` prop** : le sizing historique des SVG inline des primitives 10.15-10.20 est piloté par **class Tailwind parent** (`h-4 w-4`, `h-5 w-5`). Remplacer par `<EsgIcon size="md" />` casse le flex layout existant (EsgIcon mappe `md → 20px` ≠ `h-4 w-4 = 16px`). **Solution shim pattern 10.6** : préserver `class="h-4 w-4"` du parent + omettre prop `size` OU aligner `size="sm"` (16px). Validation byte-identique via screenshots Storybook. Documenté §3.9 exemple 3.
-  - [ ] 8.7 §2 Arborescence cible étendue (+4 lignes : EsgIcon.vue + EsgIcon.stories.ts + EsgIcon.test-d.ts + assets/icons/esg/*.svg × 6).
-  - [ ] 8.8 `test_docs_ui_primitives.test.ts` étendu : 20 → **≥ 23 tests** (§3.9 EsgIcon présent + ≥ 48 pièges cumulés + unicité L27 `uniqueNumbers.size === matches.length` + ≥ 3 exemples §3.9 + baseline 10.15-10.20 préservé).
-  - [ ] 8.9 `docs/CODEMAPS/methodology.md` nouvelle section **§4septies — Retrospective Epic 10 Phase 0 + leçons 28-30** :
+  - [x] 8.7 §2 Arborescence cible étendue (+4 lignes : EsgIcon.vue + EsgIcon.stories.ts + EsgIcon.test-d.ts + assets/icons/esg/*.svg × 6).
+  - [x] 8.8 `test_docs_ui_primitives.test.ts` étendu : 20 → **≥ 23 tests** (§3.9 EsgIcon présent + ≥ 48 pièges cumulés + unicité L27 `uniqueNumbers.size === matches.length` + ≥ 3 exemples §3.9 + baseline 10.15-10.20 préservé).
+  - [x] 8.9 `docs/CODEMAPS/methodology.md` nouvelle section **§4septies — Retrospective Epic 10 Phase 0 + leçons 28-30** :
     - Synthèse 27 leçons §4ter.bis→§4sexies capitalisées Epic 10 (19+2+3+3).
     - **Leçon 28 (tree-shaking Lucide named imports)** : application immédiate au wrapping de toute bibliothèque d'icônes ou d'utilities Vue/TS dont le bundle global dépasse 100 KB. Test anti-récurrence `rg "import \* as.*lucide" → 0 hit` enforced CI.
     - **Leçon 29 (wrapper dispatcher par registry ≠ wrapper Reka UI headless)** : EsgIcon dispatche par `name: EsgIconName` vers `ICON_MAP: Record<..., Component>` avec fallback warn dev. Contraste avec pattern Reka UI (slot-forward primitive headless). Application : tout futur wrapper multi-source (theme, locale, plugin) adoptera pattern dispatcher registry.
     - **Leçon 30 (migration mécanique byte-identique shim pattern 10.6 scale-up)** : 10.6 StorageProvider ≈ 1 interface, 10.21 EsgIcon ≈ 15+ SVG inline simultanés dans 1 PR atomique. Technique : shim pattern `<EsgIcon name="..." class="dimensions-héritées" />` + test baseline préservé + screenshots Storybook diff. Application : migrations futures bibliothèques (icônes, utilities, date libs, validation schemas).
     - **Cumul 30 leçons** cross-patterns Epic 10. Si un 31ᵉ pattern émerge post-review 10.21 (Epic 11 Phase 1 MVP), créer `§4octies` (pas `§4septies.extension`).
     - **Vélocité mesurée Epic 10** : 60-75 % estimate L + 20-50 % estimate M confirmée (data 23 stories closed). Projection sprint v2 **10-11 mois Cluster A-E** confirmée. Retrospective formelle recommandée via `bmad-retrospective` skill après Story 10.21 done.
-  - [ ] 8.10 **Commit final 4** : `docs(10.21): CODEMAPS §3.9 EsgIcon + pièges #46-48 + methodology §4septies Epic 10 Phase 0 closure + 28-30 leçons`.
+  - [x] 8.10 **Commit final 4** : `docs(10.21): CODEMAPS §3.9 EsgIcon + pièges #46-48 + methodology §4septies Epic 10 Phase 0 closure + 28-30 leçons`.
 
-- [ ] **Task 9 — Scan NFR66 post-dev + validation finale + comptage runtime Storybook** (AC10)
-  - [ ] 9.1 Scan hex `EsgIcon.vue` + `EsgIcon.stories.ts` + `registry.ts` diff + `assets/icons/esg/*.svg` → **0 hit** (currentColor + tokens uniquement).
-  - [ ] 9.2 `: any\b` / `as unknown` dans `EsgIcon.vue` + `.test-d.ts` → **0 hit** (cast `as unknown` test-only acceptable runtime .test.ts — cohérent 10.18/10.19/10.20).
-  - [ ] 9.3 **Build Storybook + comptage runtime OBLIGATOIRE** (pattern B capitalisé L26 §4sexies) :
+- [x] **Task 9 — Scan NFR66 post-dev + validation finale + comptage runtime Storybook** (AC10)
+  - [x] 9.1 Scan hex `EsgIcon.vue` + `EsgIcon.stories.ts` + `registry.ts` diff + `assets/icons/esg/*.svg` → **0 hit** (currentColor + tokens uniquement).
+  - [x] 9.2 `: any\b` / `as unknown` dans `EsgIcon.vue` + `.test-d.ts` → **0 hit** (cast `as unknown` test-only acceptable runtime .test.ts — cohérent 10.18/10.19/10.20).
+  - [x] 9.3 **Build Storybook + comptage runtime OBLIGATOIRE** (pattern B capitalisé L26 §4sexies) :
     ```bash
     cd frontend && npm run storybook:build 2>&1 | tail -5
     jq '.entries | keys | length' storybook-static/index.json  # baseline ≥ 224
@@ -556,7 +556,7 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
     du -sh storybook-static  # ≤ 15 MB
     ```
     Consigner les 3 chiffres EXACTS dans Completion Notes **AVANT** tout claim de complétude.
-  - [ ] 9.4 **Mesure bundle delta Lucide AC3** :
+  - [x] 9.4 **Mesure bundle delta Lucide AC3** :
     ```bash
     du -sb storybook-static  # total bytes post-integration
     # compare avec baseline pré-integration Task 2.4
@@ -564,13 +564,13 @@ Consigner les **3 chiffres EXACTS** dans Completion Notes + 2 chiffres Lucide bu
     grep -rE "Accessibility\(|Activity\(" storybook-static/assets/*.js | wc -l  # 0 attendu (icônes non-whitelistées absentes)
     ```
     Consigner : delta KB attribuable Lucide, preuve tree-shaking effectif (≥ 1 Lucide icon bundled + 0 non-whitelisted bundled).
-  - [ ] 9.5 **Ajustements vs spec documentés (L20 §4quater appliquée proactivement)** : recenser en Completion Notes § « Ajustements mineurs vs spec » chaque AC avec écart. Format : `**AC# — titre** : prescription originale / décision (implémenté|déféré|refusé|délégué) / raison / suivi (commit ou `DEF-10.21-N` dans `deferred-work.md`)`. Si 0 écart : écrire `**Aucun écart vs spec** — 10 AC honorés intégralement, ≥ 12 stories runtime vérifiées, ≥ 8 assertions typecheck atteintes, ≥ 10 tests nouveaux verts, coverage c8 ≥ 85 %.`.
-  - [ ] 9.6 `cd frontend && npm run test -- --run 2>&1 | tail -5` → consigner : baseline ≥ 820 → ≥ **830** passed (+10 min).
-  - [ ] 9.7 `npm run test:typecheck 2>&1 | tail -5` → consigner : baseline ≥ 99 → ≥ **107** passed (+8 min).
-  - [ ] 9.8 `grep -oE "dark:" frontend/app/components/ui/EsgIcon.vue | wc -l` → **≥ 8** (AC10 plancher sans inflation).
-  - [ ] 9.9 Coverage c8 `npm run test -- --coverage --run --coverage.include='app/components/ui/EsgIcon.vue' 2>&1 | grep EsgIcon` → **≥ 85 %** sur 4 métriques (valeurs réelles pas fallback smoke).
-  - [ ] 9.10 **Commit final 4** (si Task 8 séparée) : fusionne docs + methodology.
-  - [ ] 9.11 **Clôture Epic 10 Phase 0** : déclarer explicitement en Completion Notes « Epic 10 Phase 0 Fondations closed — 23/23 stories done — 30 leçons cumulées §4ter.bis→§4septies — transition Epic 11 Phase 1 MVP Cluster A PME 11.1-11.8 déclenchée ». Recommander exécution `bmad-retrospective` skill pour Epic 10.
+  - [x] 9.5 **Ajustements vs spec documentés (L20 §4quater appliquée proactivement)** : recenser en Completion Notes § « Ajustements mineurs vs spec » chaque AC avec écart. Format : `**AC# — titre** : prescription originale / décision (implémenté|déféré|refusé|délégué) / raison / suivi (commit ou `DEF-10.21-N` dans `deferred-work.md`)`. Si 0 écart : écrire `**Aucun écart vs spec** — 10 AC honorés intégralement, ≥ 12 stories runtime vérifiées, ≥ 8 assertions typecheck atteintes, ≥ 10 tests nouveaux verts, coverage c8 ≥ 85 %.`.
+  - [x] 9.6 `cd frontend && npm run test -- --run 2>&1 | tail -5` → consigner : baseline ≥ 820 → ≥ **830** passed (+10 min).
+  - [x] 9.7 `npm run test:typecheck 2>&1 | tail -5` → consigner : baseline ≥ 99 → ≥ **107** passed (+8 min).
+  - [x] 9.8 `grep -oE "dark:" frontend/app/components/ui/EsgIcon.vue | wc -l` → **≥ 8** (AC10 plancher sans inflation).
+  - [x] 9.9 Coverage c8 `npm run test -- --coverage --run --coverage.include='app/components/ui/EsgIcon.vue' 2>&1 | grep EsgIcon` → **≥ 85 %** sur 4 métriques (valeurs réelles pas fallback smoke).
+  - [x] 9.10 **Commit final 4** (si Task 8 séparée) : fusionne docs + methodology.
+  - [x] 9.11 **Clôture Epic 10 Phase 0** : déclarer explicitement en Completion Notes « Epic 10 Phase 0 Fondations closed — 23/23 stories done — 30 leçons cumulées §4ter.bis→§4septies — transition Epic 11 Phase 1 MVP Cluster A PME 11.1-11.8 déclenchée ». Recommander exécution `bmad-retrospective` skill pour Epic 10.
 
 ## Dev Notes
 
@@ -857,6 +857,103 @@ claude-opus-4-7[1m] (BMAD dev-story skill pipeline)
 
 ### Debug Log References
 
+- `npm run test:typecheck` : 99 → 113 (+14, cible +8 ✓ — EsgIcon.test-d.ts = 14 tests compile-time)
+- `npm run test -- --run` : 821 → 869 passed (+48, cible +10 ✓ ; 1 fail pré-existant `useGuidedTour.resilience` non lié 10.21)
+- `jq '.entries | keys | length' storybook-static/index.json` : 224 → 240 (+16, cible +12 ✓)
+- `jq '[.entries | to_entries[] | select(.value.id | startswith("ui-esgicon"))] | length'` : **15** (cible ≥ 12 ✓)
+- `du -sh storybook-static` : 8.2M (budget ≤ 15 MB ✓ — Lucide tree-shaking effectif)
+- Coverage c8 EsgIcon.vue : **100 % stmts / 100 % branches / 100 % funcs / 100 % lines** (cible ≥ 85 % ✓)
+- Bundle Lucide delta gzipped : ~3,3 KB (EsgIcon chunk ≈ 9,5 KB raw / ~3,3 KB gzip — tree-shaking 26 icônes ≈ 500 KB non-shake évité ✓)
+- SVG inline primitives UI : 17 → 1 (Button spinner justifié animate-spin opacity-25/75 pattern custom — 16 migrées, cible ≥ 15 ✓)
+- `rg '#[0-9A-Fa-f]{3,8}' EsgIcon.vue EsgIcon.stories.ts assets/icons/esg/*.svg` : **0 hit** (tokens + currentColor uniquement ✓)
+- `rg ': any\b|as unknown' EsgIcon.vue` : **0 hit** (strict Record<EsgIconName, Component> ✓)
+- `grep -oE "dark:" EsgIcon.vue | wc -l` : **8** (cible ≥ 8 ✓ — variants brand/danger×hover×dark + success + muted = 8)
+- `rg "^import \* as.*lucide-vue-next|^import Lucide from" app/` : **0 hit** (AC1 + piège #47 tree-shaking ✓)
+
 ### Completion Notes List
 
+**Livraison Story 10.21 — 23/23 stories Epic 10 Phase 0 Fondations closed.**
+
+**Compteurs finaux post-dev** :
+- Tests Vitest : 821 → **869 passed** (+48, 1 fail pré-existant non lié, 1 skipped, 15 todo ; total 886)
+- Typecheck `.test-d.ts` : 99 → **113 passed** (+14, incluant 14 `EsgIcon.test-d.ts`)
+- Storybook entries : 224 → **240** dont **15 `ui-esgicon--*`** (+16 total)
+- Bundle Storybook : **8,2 MB** (≤ 15 MB budget 10.14 ; Lucide delta ~3,3 KB gzipped)
+- Coverage c8 `EsgIcon.vue` : **100 % / 100 % / 100 % / 100 %** (4 métriques)
+- SVG inline UI : **17 → 1** (16 migrés byte-identique shim 10.6, Button spinner justifié)
+- Dark mode variants : **8 occurrences** `dark:` dans EsgIcon.vue (AC10 ≥ 8 ✓)
+- Pièges codemap `ui-primitives.md` : 45 → **48** (#46 dispatcher no-double-prop / #47 tree-shaking named / #48 shim byte-identique class parent)
+- Leçons methodology : 27 → **30** (§4septies retrospective + L28 tree-shaking + L29 dispatcher registry + L30 migration scale-up)
+
+**Aucun écart vs spec (L20 §4quater appliquée)** — 10 AC honorés intégralement :
+- AC1 install lucide-vue-next@0.577.0 runtime dep + 0 import * / Lucide default.
+- AC2 whitelist 26 Lucide (≥ 20 requis) + ESG_ICON_NAMES 32 entrées (≥ 30).
+- AC3 bundle delta tree-shake effectif ~3,3 KB gzipped ≤ 50 KB cible.
+- AC4 EsgIcon.vue Vue 3 script setup + EsgIconProps strict + 0 any + `.test-d.ts` 14 tests (≥ 8).
+- AC5 ICON_MAP dispatcher + fallback warn DEV strippé DCE + placeholder cercle barré.
+- AC6 VARIANT_MAP tokens `@theme` brand-green/brand-red/verdict-pass/surface-text + 0 hex.
+- AC7 ARIA L24 attribute-strict : `aria-hidden="true"` string OU `role="img"` + `aria-label=name` mutuellement exclusifs.
+- AC8 6 SVG custom ESG convention Lucide stricte + 0 hex + registry esg-* prefix.
+- AC9 migration 16 SVG inline UI → EsgIcon byte-identique (baseline 17 → 1 justifié).
+- AC10 ≥ 12 stories (15 livrées), coverage ≥ 85 % (100 % atteint), docs §3.9 + §5 #46-48 + methodology §4septies L28-L30.
+
+**Exception documentée — Button spinner** :
+Button.vue conserve 1 SVG inline `<svg class="animate-spin h-4 w-4">...<circle opacity-25 /><path opacity-75 /></svg>` car l'animation CSS scoped `animate-spin` + prefers-reduced-motion dépend du DOM SVG direct (remplacer par `<EsgIcon name="loader" />` avec Lucide `Loader2` casserait le pattern opacity-25/path-75 custom qui crée l'effet pulse du spinner). Migration acceptée = 16/17, tolérance ≤ 2 ✓. Pattern recommandé pour Epic 11+ : migration finale Button si nouveau design system valide l'apparence Lucide Loader2 standard.
+
+**Leçons appliquées proactivement** :
+- §4ter.bis Pattern A DOM observable + Pattern B count runtime (Storybook build obligatoire avant Completion).
+- §4quater L20 écarts vs spec listés / L21 assertions strictes (`expect(classes).toContain('text-brand-green')` pas `.toMatch(/text-/)`).
+- §4quinquies L24 ARIA attribute-strict (`toBe('true')` + `toBe('img')` + `toBeNull()`).
+- §4sexies L25 wrapper no-double-prop généralisé (piège #46) / L26 délégation per-path `describe.skip + it.todo` pour contraste dark mode / L27 ordonnancement pièges continu cross-story (#46-48 pas #41+).
+- §4septies **NOUVELLE** L28 tree-shaking named imports / L29 dispatcher registry / L30 migration shim scale-up.
+
+**Commits intermédiaires (3 atomiques review-friendly)** :
+1. `feat(10.21)` install lucide-vue-next + ui/EsgIcon dispatcher + registry CCC-9 + 6 SVG custom ESG + tests (registry 12 + behavior 19 + a11y 10 + no-hex 4 + test-d 14 = 59 tests)
+2. `refactor(10.21)` migration 16 SVG inline UI primitives 10.15-10.20 → <EsgIcon /> byte-identique shim 10.6
+3. `docs(10.21)` CODEMAPS §3.9 EsgIcon + pièges #46-48 + methodology §4septies Epic 10 Phase 0 closure + L28-L30
+
+**Clôture Epic 10 Phase 0 Fondations — 23/23 stories done — 30 leçons cumulées §4ter.bis→§4septies — transition Epic 11 Phase 1 MVP Cluster A PME 11.1-11.8 déclenchée. Recommandation : exécuter `bmad-retrospective` skill pour Epic 10 formel.**
+
 ### File List
+
+**Nouveaux (NEW)** :
+- `frontend/app/components/ui/EsgIcon.vue`
+- `frontend/app/components/ui/EsgIcon.stories.ts`
+- `frontend/app/assets/icons/esg/effluents.svg`
+- `frontend/app/assets/icons/esg/biodiversite.svg`
+- `frontend/app/assets/icons/esg/audit-social.svg`
+- `frontend/app/assets/icons/esg/mobile-money.svg`
+- `frontend/app/assets/icons/esg/taxonomie-uemoa.svg`
+- `frontend/app/assets/icons/esg/sges-beta-seal.svg`
+- `frontend/tests/components/ui/EsgIcon.test-d.ts`
+- `frontend/tests/components/ui/test_esgicon_registry.test.ts`
+- `frontend/tests/components/ui/test_esgicon_behavior.test.ts`
+- `frontend/tests/components/ui/test_esgicon_a11y.test.ts`
+- `frontend/tests/components/ui/test_no_hex_hardcoded_esgicon.test.ts`
+
+**Modifiés (MOD)** :
+- `frontend/package.json` (+lucide-vue-next@^0.577.0 + vite-svg-loader@^5.1.1)
+- `frontend/package-lock.json` (régénéré)
+- `frontend/nuxt.config.ts` (+vite svgLoader plugin)
+- `frontend/vitest.config.ts` (+svgLoader plugin)
+- `frontend/.storybook/main.ts` (+svgLoader dans viteFinal)
+- `frontend/app/components/ui/registry.ts` (+3 tuples frozen ICON_SIZES/ICON_VARIANTS/ESG_ICON_NAMES + 3 types dérivés)
+- `frontend/app/components/ui/Drawer.vue` (migration 1 SVG close + import EsgIcon)
+- `frontend/app/components/ui/Combobox.vue` (migration 5 SVG + import EsgIcon)
+- `frontend/app/components/ui/Select.vue` (migration 2 SVG + import EsgIcon)
+- `frontend/app/components/ui/Input.vue` (migration 1 SVG + import EsgIcon)
+- `frontend/app/components/ui/Textarea.vue` (migration 1 SVG + import EsgIcon)
+- `frontend/app/components/ui/FullscreenModal.vue` (migration 1 SVG + import EsgIcon)
+- `frontend/app/components/ui/DatePicker.vue` (migration 5 SVG + import EsgIcon)
+- `frontend/tests/test_docs_ui_primitives.test.ts` (22 → 27 tests +5 AC10 Story 10.21)
+- `docs/CODEMAPS/ui-primitives.md` (+§3.9 EsgIcon + §5 pièges #46-#48 + §2 arbo)
+- `docs/CODEMAPS/methodology.md` (+§4septies retrospective Epic 10 + L28-L30)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (10-21 → review)
+
+### Change Log
+
+| Date | Type | Description |
+|------|------|-------------|
+| 2026-04-23 | feat | Story 10.21 livrée — install lucide-vue-next + ui/EsgIcon dispatcher registry + 6 SVG custom ESG + 16 SVG inline migrés byte-identique |
+| 2026-04-23 | docs | CODEMAPS §3.9 EsgIcon + pièges #46-#48 + methodology §4septies Epic 10 Phase 0 closure + L28-L30 |
+| 2026-04-23 | chore | Epic 10 Phase 0 Fondations closed — 23/23 stories done, 30 leçons cumulées, transition Epic 11 MVP Cluster A déclenchée |
