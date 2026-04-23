@@ -81,7 +81,7 @@ describe('ui/DatePicker : AC4 ARIA attribute-strict (L24 §4quinquies)', () => {
     });
   });
 
-  it('trigger aria-controls reference le PopoverContent ouvert', async () => {
+  it('trigger aria-controls === content.id (cohérence DOM Reka UI délégué)', async () => {
     const user = userEvent.setup();
     render(DatePicker, {
       props: {
@@ -95,10 +95,14 @@ describe('ui/DatePicker : AC4 ARIA attribute-strict (L24 §4quinquies)', () => {
       expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     });
     const ariaControls = trigger.getAttribute('aria-controls');
-    // L24 strict : pattern Reka UI useId (reka-popover-content-<n>)
-    expect(ariaControls).toMatch(/reka-popover-content-/);
-    const dialog = document.getElementById(ariaControls!);
+    // L24 strict + Leçon 25 §4sexies (post-10.20 H-1) : ne pas asserter une
+    // regex opaque /reka-popover-content-/ (code mort si wrapper injecte un
+    // id custom qui est écrasé par rootContext.contentId). On asserte la
+    // cohérence DOM observable : aria-controls === content.id.
+    expect(ariaControls).not.toBeNull();
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
     expect(dialog).not.toBeNull();
+    expect(dialog!.id).toBe(ariaControls!);
     expect(dialog!.getAttribute('role')).toBe('dialog');
   });
 

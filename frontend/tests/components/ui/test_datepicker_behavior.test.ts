@@ -18,7 +18,7 @@
  * template) pour distinguer. Pour les cells, on interroge `data-value` qui
  * est unique par date (ex. `[data-value="2026-04-15"]`).
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { CalendarDate } from '@internationalized/date';
@@ -261,45 +261,16 @@ describe('ui/DatePicker : AC5 keyboard WAI-ARIA (Pattern A user-event)', () => {
     });
   });
 
-  it('keyboard PageDown navigue au mois suivant ("mai 2026")', async () => {
-    const user = userEvent.setup();
-    render(DatePicker, {
-      props: {
-        modelValue: new CalendarDate(2026, 4, 15),
-        label: 'Date',
-      },
-    });
-    await openPopover(user);
-    await waitFor(() =>
-      expect(getHeading().textContent?.toLowerCase()).toContain('avril 2026'),
-    );
-    // Note : PageDown keyboard sur happy-dom ne route pas toujours au handler
-    // Reka UI (DELEGATED TO Storybook DatePickerKeyboardNavigation pour test
-    // runtime). Ici on utilise fireEvent.keyDown ciblant la cell focusee
-    // (Pattern A fallback equivalent-strict, Leçon L21 observable).
-    const cellFocused = document.body.querySelector<HTMLElement>(
-      '[role="button"][data-value="2026-04-15"]',
-    )!;
-    cellFocused.focus();
-    // Forcage du PageDown sur l'application calendar (parent keyboard listener)
-    const app = document.body.querySelector<HTMLElement>(
-      '[role="application"][aria-label*="Calendrier"]',
-    )!;
-    const event = new KeyboardEvent('keydown', {
-      key: 'PageDown',
-      bubbles: true,
-      cancelable: true,
-    });
-    cellFocused.dispatchEvent(event);
-    app.dispatchEvent(event);
-    await new Promise((r) => setTimeout(r, 50));
-    // DELEGATED TO Storybook DatePickerKeyboardNavigation : validation keyboard
-    // runtime complete. Ici : pattern keyboard emis via dispatchEvent, si Reka
-    // happy-dom ne repond pas, fallback CalendarNext click (suivant test).
-    // Assertion observable : heading contient toujours un mois valide.
-    expect(getHeading().textContent?.toLowerCase()).toMatch(
-      /(avril|mai) 2026/,
-    );
+  // H-3 post-review 10.20 + Leçon 26 §4sexies : délégation per-path explicite,
+  // pas de faux positif dispatchEvent + assertion permissive /(avril|mai)/.
+  // Le test original passait même si PageDown ne faisait rien (heading restait
+  // avril 2026 = match du regex). La navigation clavier PageDown est couverte
+  // runtime par Storybook `DatePickerKeyboardNavigation--page-down` (happy-dom
+  // limite le focus bubbling keyboard vers le handler interne Reka UI).
+  // Fallback observable strict : voir test `CalendarNext click` ci-dessous
+  // (mois suivant observé via UI équivalente).
+  it.skip('keyboard PageDown — DELEGATED Storybook DatePickerKeyboardNavigation--page-down (happy-dom focus bubbling limit)', () => {
+    // Intentionnellement vide : couverture runtime Storybook per-path.
   });
 
   it('CalendarNext click navigue au mois suivant', async () => {
@@ -350,6 +321,174 @@ describe('ui/DatePicker : AC5 keyboard WAI-ARIA (Pattern A user-event)', () => {
       const last = events[events.length - 1]![0] as CalendarDate;
       expect(last.day).toBe(22);
     });
+  });
+});
+
+// ============================================================================
+// AC5 keyboard — M-1 post-review 10.20 + Leçon 26 §4sexies
+// Délégation per-path Storybook (9/12 chemins). Chaque `it.todo` nomme sa
+// story runtime. Happy-dom ne route pas le focus bubbling keyboard au handler
+// Reka UI Calendar interne → validation runtime obligatoire.
+// ============================================================================
+describe.skip('ui/DatePicker : AC5 keyboard — DELEGATED Storybook per-path (Leçon 26 §4sexies)', () => {
+  it.todo('ArrowLeft/ArrowRight (jour ±1) — Storybook DatePickerKeyboardNavigation--arrow-left-right');
+  it.todo('ArrowUp/ArrowDown (semaine ±1) — Storybook DatePickerKeyboardNavigation--arrow-up-down');
+  it.todo('PageUp (mois -1) — Storybook DatePickerKeyboardNavigation--page-up');
+  it.todo('Shift+PageDown (année +1) — Storybook DatePickerKeyboardNavigation--shift-page-down');
+  it.todo('Shift+PageUp (année -1) — Storybook DatePickerKeyboardNavigation--shift-page-up');
+  it.todo('Home (début semaine lundi) — Storybook DatePickerKeyboardNavigation--home');
+  it.todo('End (fin semaine dimanche) — Storybook DatePickerKeyboardNavigation--end');
+  it.todo('Enter (sélection date focusée) — Storybook DatePickerKeyboardNavigation--enter-select');
+  it.todo('Focus retour trigger après Escape — Storybook DatePickerKeyboardNavigation--escape-focus-return');
+});
+
+// ============================================================================
+// H-2 post-review 10.20 — Réactivité modelValue externe (watch modelValue)
+// ============================================================================
+describe('ui/DatePicker : H-2 réactivité modelValue externe (watch)', () => {
+  it('parent mute modelValue null → popover rouvre et heading affiche today (reset via initialMonth)', async () => {
+    const user = userEvent.setup();
+    const initial = new CalendarDate(2026, 4, 15);
+    const { rerender } = render(DatePicker, {
+      props: { modelValue: initial, label: 'Date' },
+    });
+    // 1. Ouvre : avril 2026
+    await openPopover(user);
+    await waitFor(() =>
+      expect(getHeading().textContent?.toLowerCase()).toContain('avril 2026'),
+    );
+    // 2. Ferme
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull(),
+    );
+    // 3. Parent reset modelValue → null pendant popover fermé
+    await rerender({ modelValue: null, label: 'Date' });
+    // 4. Reopen : heading affiche mois today() (pas avril 2026 ancien)
+    await openPopover(user);
+    const now = new Date();
+    const frMonth = new Intl.DateTimeFormat('fr-FR', { month: 'long' })
+      .format(now)
+      .toLowerCase();
+    await waitFor(() =>
+      expect(getHeading().textContent?.toLowerCase()).toContain(frMonth),
+    );
+  });
+
+  it('parent mute modelValue vers nouvelle date → heading reflète le nouveau mois', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(DatePicker, {
+      props: { modelValue: new CalendarDate(2026, 4, 15), label: 'Date' },
+    });
+    await openPopover(user);
+    await waitFor(() =>
+      expect(getHeading().textContent?.toLowerCase()).toContain('avril 2026'),
+    );
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull(),
+    );
+    // Parent change modelValue → septembre 2026
+    await rerender({
+      modelValue: new CalendarDate(2026, 9, 10),
+      label: 'Date',
+    });
+    await openPopover(user);
+    await waitFor(() =>
+      expect(getHeading().textContent?.toLowerCase()).toContain(
+        'septembre 2026',
+      ),
+    );
+    expect(getHeading().textContent?.toLowerCase()).not.toContain(
+      'avril 2026',
+    );
+  });
+});
+
+// ============================================================================
+// M-3 post-review 10.20 — displayValue range edge states (empty + partial end-only)
+// ============================================================================
+describe('ui/DatePicker : M-3 displayValue range edge states', () => {
+  it('range {start:null, end:null} : trigger affiche placeholder (pas " — ")', () => {
+    render(DatePicker, {
+      props: {
+        mode: 'range',
+        modelValue: { start: null, end: null },
+        label: 'Periode',
+      },
+    });
+    const trigger = screen
+      .getAllByRole('button')
+      .find((b) => b.getAttribute('aria-haspopup') === 'dialog')!;
+    // Pas d'em-dash quand les 2 bornes sont vides : fallback placeholder
+    expect(trigger.textContent).not.toMatch(/—/);
+    expect(trigger.textContent).toMatch(/Sélectionner une date/);
+  });
+
+  it('range {start:null, end:DateValue} : trigger affiche "Fin ? — 30/04/2026" sémantique préservé', () => {
+    render(DatePicker, {
+      props: {
+        mode: 'range',
+        modelValue: { start: null, end: new CalendarDate(2026, 4, 30) },
+        label: 'Periode',
+      },
+    });
+    const trigger = screen
+      .getAllByRole('button')
+      .find((b) => b.getAttribute('aria-haspopup') === 'dialog')!;
+    // Gate review M-3 : startStr = rangePartialLabel, endStr = date formatée
+    expect(trigger.textContent).toMatch(/Fin \?\s*—\s*30\/04\/2026/);
+  });
+});
+
+// ============================================================================
+// M-2 post-review 10.20 — Range auto-swap (piège #45 validation defensive dev)
+// Reka UI RangeCalendarRoot normalise transparent si l'utilisateur clique
+// end avant start. Défense supplémentaire : dev-only warn si parent passe
+// une plage inversée via v-model (ex. Zod loose schema).
+// ============================================================================
+describe('ui/DatePicker : M-2 range inversé → dev-only warn (piège #45)', () => {
+  it('modelValue {start: 30/04, end: 01/04} → console.warn en DEV (pas throw, pas crash)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      render(DatePicker, {
+        props: {
+          mode: 'range',
+          modelValue: {
+            start: new CalendarDate(2026, 4, 30),
+            end: new CalendarDate(2026, 4, 1),
+          },
+          label: 'Periode',
+        },
+      });
+      // DEV warn attendu (import.meta.env.DEV default true en test)
+      const calls = warnSpy.mock.calls.flat().join(' ');
+      expect(calls).toMatch(/DatePicker.*range.*end.*start/i);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+// ============================================================================
+// M-4 post-review 10.20 — Range mode initialMonth avec defaultValue seul
+// Couverture branche initialMonth() range : modelValue.start null + defaultValue fourni
+// ============================================================================
+describe('ui/DatePicker : M-4 range initialMonth fallback defaultValue (branch coverage)', () => {
+  it('mode=range + modelValue.start=null + defaultValue=juin 2026 : heading juin 2026', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: {
+        mode: 'range',
+        modelValue: { start: null, end: null },
+        defaultValue: new CalendarDate(2026, 6, 1),
+        label: 'Periode',
+      },
+    });
+    await openPopover(user);
+    await waitFor(() =>
+      expect(getHeading().textContent?.toLowerCase()).toContain('juin 2026'),
+    );
   });
 });
 
@@ -626,5 +765,168 @@ describe('ui/DatePicker : AC9 clearLabel + showClear', () => {
     };
     expect(last.start).toBeNull();
     expect(last.end).toBeNull();
+  });
+});
+
+// ============================================================================
+// L-5 post-review 10.20 — Attributs ARIA complémentaires et focus retour trigger
+// ============================================================================
+describe('ui/DatePicker : L-5 ARIA aria-modal + focus retour Escape', () => {
+  it('PopoverContent porte aria-modal="false" (popover non-bloquant)', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: { modelValue: null, label: 'Date' },
+    });
+    await openPopover(user);
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.getAttribute('aria-modal')).toBe('false');
+  });
+
+  it('Escape ferme le popover et le focus revient sur le trigger', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: { modelValue: null, label: 'Date' },
+    });
+    const trigger = getTrigger();
+    await user.click(trigger);
+    await waitFor(() =>
+      expect(document.body.querySelector('[role="dialog"]')).not.toBeNull(),
+    );
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull(),
+    );
+    // WAI-ARIA Dialog : focus retour sur l'élément qui a ouvert le popover
+    expect(document.activeElement).toBe(trigger);
+  });
+});
+
+// ============================================================================
+// M-2 review findings — maxValue bound disabled sur CalendarNext + readonly
+// (Auditor A2 — AC8 couverture manquante complétée en batch Fix-All)
+// ============================================================================
+describe('ui/DatePicker : AC8 maxValue + readonly (couverture additionnelle)', () => {
+  it('maxValue : jour postérieur à max est aria-disabled (parent gridcell)', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: {
+        modelValue: new CalendarDate(2026, 4, 15),
+        maxValue: new CalendarDate(2026, 4, 20),
+        label: 'Date',
+      },
+    });
+    await openPopover(user);
+    const cell25 = getCellByDate('2026-04-25');
+    const parent = cell25.closest('[role="gridcell"]');
+    expect(parent?.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('readonly: true — popover ouvre mais click cell no-op (aucune émission modelValue)', async () => {
+    const user = userEvent.setup();
+    const { emitted } = render(DatePicker, {
+      props: {
+        modelValue: new CalendarDate(2026, 4, 15),
+        readonly: true,
+        label: 'Date',
+      },
+    });
+    await openPopover(user);
+    await user.click(getCellByDate('2026-04-22'));
+    // Pas d'émission update:modelValue — readonly bloque la sélection
+    const events = emitted()['update:modelValue'] as unknown[][] | undefined;
+    expect(events).toBeUndefined();
+    // Popover reste ouvert
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+});
+
+// ============================================================================
+// L-3 post-review 10.20 — clearLabel locale anglaise (couverture story EN)
+// ============================================================================
+describe('ui/DatePicker : L-3 clearLabel locale EN', () => {
+  it('locale=en-US + clearLabel="Clear" : bouton rendu avec label anglais', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: {
+        modelValue: new CalendarDate(2026, 4, 15),
+        label: 'Date',
+        locale: 'en-US',
+        showClear: true,
+        clearLabel: 'Clear',
+      },
+    });
+    await openPopover(user);
+    const clearBtn = await waitFor(() =>
+      screen.getByRole('button', { name: /^Clear$/ }),
+    );
+    expect(clearBtn.textContent?.trim()).toBe('Clear');
+  });
+});
+
+// ============================================================================
+// Couverture branches additionnelles (M-4 remontée ≥95%)
+// ============================================================================
+describe('ui/DatePicker : branches edge additionnelles (M-4 coverage)', () => {
+  it('displayValue single null + placeholder custom : trigger affiche placeholder custom', () => {
+    render(DatePicker, {
+      props: {
+        modelValue: null,
+        label: 'Date',
+        placeholder: 'Choisir une date',
+      },
+    });
+    const trigger = screen
+      .getAllByRole('button')
+      .find((b) => b.getAttribute('aria-haspopup') === 'dialog')!;
+    expect(trigger.textContent).toMatch(/Choisir une date/);
+  });
+
+  it('hasValue range partial (start seul) : bouton Effacer visible', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: {
+        mode: 'range',
+        modelValue: { start: new CalendarDate(2026, 4, 1), end: null },
+        label: 'Periode',
+        showClear: true,
+      },
+    });
+    await openPopover(user);
+    // hasValue = true car start existe même si end null → clear visible
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: /^Effacer$/ }),
+      ).not.toBeNull(),
+    );
+  });
+
+  it('hasValue range partial (end seul) : bouton Effacer visible (branch r.end fallback)', async () => {
+    const user = userEvent.setup();
+    render(DatePicker, {
+      props: {
+        mode: 'range',
+        modelValue: { start: null, end: new CalendarDate(2026, 4, 30) },
+        label: 'Periode',
+        showClear: true,
+      },
+    });
+    await openPopover(user);
+    // hasValue = !!(r.start || r.end) : couverture branche r.end seul
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: /^Effacer$/ }),
+      ).not.toBeNull(),
+    );
+  });
+
+  it('Required=true : asterisque rouge rendu + aria-hidden', () => {
+    render(DatePicker, {
+      props: { modelValue: null, label: 'Date', required: true },
+    });
+    // L'asterisque est dans le label (before trigger)
+    const asterisk = document.querySelector('span[aria-hidden="true"]');
+    expect(asterisk).not.toBeNull();
+    expect(asterisk!.textContent?.trim()).toBe('*');
   });
 });

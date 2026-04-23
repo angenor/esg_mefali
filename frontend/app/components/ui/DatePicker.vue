@@ -10,7 +10,9 @@
  *  - lifecycle close sans sélection (L23 §4quinquies 10.19) — reset mois
  *    courant au mois de modelValue / defaultValue / today() au close,
  *  - ARIA strict attribute (L24 §4quinquies 10.19) — `aria-haspopup='dialog'`
- *    + `aria-expanded` + `aria-controls` + `role='application'` Calendar,
+ *    + `aria-expanded` + `aria-controls` délégué Reka UI (Leçon 25 §4sexies
+ *    post-10.20 : ne jamais injecter d'`id` custom sur primitives slot-forwarded)
+ *    + `role='application'` Calendar,
  *  - keyboard WAI-ARIA Date Picker Dialog complet (Arrow/Page/Home/End/
  *    Enter/Escape) natif Reka UI,
  *  - bornes `minValue` + `maxValue` + `isDateDisabled` fonction custom,
@@ -134,7 +136,6 @@ const emit = defineEmits<{
 
 const isOpen = ref(false);
 const labelId = useId();
-const popoverId = useId();
 
 /**
  * Mois initial affiche au premier rendu + au reset close (L23).
@@ -153,16 +154,54 @@ function initialMonth(): DateValue {
 
 const currentMonth = ref<DateValue>(initialMonth());
 
+// M-2 post-review 10.20 (piège #45) — dev-only warn si le parent passe une
+// plage inversée via v-model (ex. Zod schema loose côté form). Reka UI
+// RangeCalendarRoot normalise transparent lors d'une sélection utilisateur,
+// mais rien ne protège contre une mutation programmatique incohérente. Warn
+// sans throw : le consommateur peut continuer à rendre, Reka UI affichera
+// la plage telle quelle ou swappera à la prochaine interaction.
+function warnIfRangeInverted(val: unknown): void {
+  if (!import.meta.env.DEV) return;
+  if (props.mode !== 'range') return;
+  const range = val as DateRange | null | undefined;
+  if (!range || !range.start || !range.end) return;
+  if (range.end.compare(range.start) < 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[DatePicker] modelValue range end < start — Reka UI auto-swaps en sélection utilisateur, mais la plage programmatique est incohérente.',
+    );
+  }
+}
+
+warnIfRangeInverted(props.modelValue);
+
 // L23 §4quinquies — reset mois courant au close sans sélection.
 // Si l'utilisateur navigue PageDown plusieurs mois puis ferme sans sélectionner,
 // le mois courant revient au mois de modelValue (ou fallback). Évite le bug
-// capitalisé 10.19 Combobox searchTerm non-cleared (piège #41 codemap §5).
+// capitalisé 10.19 Combobox searchTerm non-cleared (piège #42 codemap §5).
 watch(isOpen, (newValue: boolean) => {
   if (!newValue) {
     currentMonth.value = initialMonth();
   }
   emit('update:open', newValue);
 });
+
+// H-2 post-review 10.20 — réactivité modelValue parent→composant.
+// Si le consommateur mute modelValue via v-model (reset formulaire, correction
+// programmatique) pendant que le popover est fermé, le DatePicker doit
+// afficher le mois de la nouvelle valeur à la prochaine ouverture. Le watcher
+// isOpen seul ne suffit pas : il se déclenche au close, pas au modelValue change
+// externe. Deep watcher pour gérer le cas range {start, end} objet muté.
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    warnIfRangeInverted(newVal);
+    if (!isOpen.value) {
+      currentMonth.value = initialMonth();
+    }
+  },
+  { deep: true },
+);
 
 const formatter = computed(
   () =>
@@ -250,7 +289,6 @@ const calendarAriaLabel = computed(
         :aria-labelledby="labelId"
         aria-haspopup="dialog"
         :aria-expanded="isOpen ? 'true' : 'false'"
-        :aria-controls="popoverId"
         class="min-h-11 w-full px-3 py-2 text-left border rounded-md bg-white dark:bg-dark-input border-gray-300 dark:border-dark-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-between gap-2"
       >
         <span
@@ -284,7 +322,6 @@ const calendarAriaLabel = computed(
       </PopoverTrigger>
       <PopoverPortal>
         <PopoverContent
-          :id="popoverId"
           role="dialog"
           aria-modal="false"
           :aria-labelledby="labelId"
