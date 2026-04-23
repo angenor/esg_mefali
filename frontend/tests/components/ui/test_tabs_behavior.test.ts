@@ -268,6 +268,31 @@ describe('ui/Tabs : AC12 forceMount lazy vs eager', () => {
     await user.click(screen.getByRole('tab', { name: /onglet 2/i }));
     expect(screen.getByTestId('tab-content-t2')).toBeDefined();
   });
+
+  it('M-5 piège #37 : forceMount omis ≡ forceMount=false (lazy)', () => {
+    // M-5 / Leçon 24 §4quinquies — Reka UI traite forceMount comme prop-presence.
+    // Notre wrapper mappe explicitement `false → undefined` pour neutraliser ce
+    // piège. Test : omission + false produisent le meme comportement (lazy).
+    render(makeParent('t1'));
+    expect(screen.queryByTestId('tab-content-t2')).toBeNull();
+    expect(screen.queryByTestId('tab-content-t3')).toBeNull();
+  });
+
+  it('M-5 piège #37 : forceMount=false explicite equivalent a omission (lazy)', () => {
+    render(makeParent('t1', { forceMount: false }));
+    // Verif comportement equivalent a omission : un seul tabpanel monte.
+    expect(screen.queryByTestId('tab-content-t2')).toBeNull();
+    expect(screen.queryByTestId('tab-content-t3')).toBeNull();
+    expect(screen.getByTestId('tab-content-t1')).toBeDefined();
+  });
+
+  it('M-5 piège #37 : forceMount=true explicite active le mode eager', () => {
+    // forceMount true → tous les tabpanels rendus (piège inverse : boolean
+    // true est le seul equivalent fonctionnel de prop-presence chez Reka UI).
+    render(makeParent('t1', { forceMount: true }));
+    expect(screen.getByTestId('tab-content-t2')).toBeDefined();
+    expect(screen.getByTestId('tab-content-t3')).toBeDefined();
+  });
 });
 
 describe('ui/Tabs : AC7 icon slot + aria-hidden', () => {

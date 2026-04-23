@@ -30,6 +30,8 @@ interface ComboboxProps<TValue extends string | number = string> {
   disabled?: boolean;
   required?: boolean;
   open?: boolean;
+  /** L-4 patch — label i18n du bouton d'effacement de la recherche. */
+  cancelLabel?: string;
 }
 
 describe('ui/Combobox : AC1 type safety (compile-time)', () => {
@@ -144,6 +146,27 @@ describe('ui/Combobox : AC1 type safety (compile-time)', () => {
       options: [],
       label: 'Pays',
       searchable: 'maybe',
+    };
+    void bad;
+  });
+
+  it('L-4 cancelLabel: string valide', () => {
+    const ok: ComboboxProps = {
+      modelValue: null,
+      options: [],
+      label: 'Pays',
+      cancelLabel: 'Clear search',
+    };
+    void ok;
+  });
+
+  it('L-4 cancelLabel: number est rejete (string strict)', () => {
+    // @ts-expect-error cancelLabel doit etre string
+    const bad: ComboboxProps = {
+      modelValue: null,
+      options: [],
+      label: 'Pays',
+      cancelLabel: 42,
     };
     void bad;
   });

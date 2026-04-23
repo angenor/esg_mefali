@@ -20,7 +20,7 @@
  *  - registry.ts COMBOBOX_MODES + ComboboxMode type
  *  - tests/components/ui/test_combobox_behavior.test.ts (Pattern A user-event)
  */
-import { computed, ref, useId } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import {
   ComboboxAnchor,
   ComboboxCancel,
@@ -74,6 +74,11 @@ export interface ComboboxProps<TValue extends string | number = string> {
   required?: boolean;
   /** v-model:open optionnel (par defaut controle par Reka UI). */
   open?: boolean;
+  /**
+   * Label i18n du bouton d'effacement de la recherche (ComboboxCancel).
+   * Default 'Effacer la recherche'. Leçon 10.19 L-4 (cross-ref 10.18 closeLabel).
+   */
+  cancelLabel?: string;
 }
 
 type ComboboxPropsWithGeneric = ComboboxProps<T>;
@@ -86,6 +91,7 @@ const props = withDefaults(defineProps<ComboboxPropsWithGeneric>(), {
   disabled: false,
   required: false,
   open: undefined,
+  cancelLabel: 'Effacer la recherche',
 });
 
 const emit = defineEmits<{
@@ -138,6 +144,16 @@ function labelFor(value: T): string {
   return props.options.find((o) => o.value === value)?.label ?? String(value);
 }
 
+// H-1 patch (Leçon 22 §4quinquies) — displayValue pour ComboboxInput : Reka UI
+// fait `modelValue.toString()` par defaut ce qui affiche la cle brute ('sn')
+// au lieu du label ('Sénégal') post-select. En multi-select, on vide l'input
+// (les labels sont rendus dans les badges).
+function displayValueFor(value: unknown): string {
+  if (props.multiple) return '';
+  if (value === null || value === undefined || value === '') return '';
+  return labelFor(value as T);
+}
+
 function removeValue(value: T) {
   if (!props.multiple) return;
   const next = selectedValues.value.filter((v) => v !== value);
@@ -148,17 +164,60 @@ function handleCompositionStart() {
   isComposing.value = true;
 }
 
-function handleCompositionEnd(e: Event) {
+function handleCompositionEnd(e: CompositionEvent) {
   isComposing.value = false;
-  const target = e.target as HTMLInputElement | null;
+  // L-1 patch : type strict CompositionEvent (leçon 10.18 L-2).
+  // currentTarget si bindé directement sur l'input, fallback target.
+  const target = (e.currentTarget ?? e.target) as HTMLInputElement | null;
   if (target) {
     searchTerm.value = target.value;
+  }
+}
+
+// M-6 patch — Chrome macOS annule une composition sur Escape sans emettre
+// compositionend → isComposing reste true → filter casse silencieusement.
+// On flush au keydown Escape (defensive).
+function handleInputKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isComposing.value) {
+    isComposing.value = false;
   }
 }
 
 function handleRootUpdate(value: string | number | boolean | Array<string | number | boolean> | null | undefined) {
   emit('update:modelValue', value as T | T[] | null);
 }
+
+// H-2 patch (Leçon 23 §4quinquies) — searchTerm lifecycle au close sans
+// selection : si l'utilisateur tape 'zzz' puis ferme sans choisir, Reka UI ne
+// reset PAS le state local → reouverture affiche empty state stale.
+// Pattern : intercepte @update:open + watch(open) → reset si !open ET pas de
+// selection active en single. En multi-select, on reset systematiquement
+// (les selections sont rendues dans les badges, pas dans l'input).
+function resetSearchIfNoSelection() {
+  const hasSingleSelection =
+    !props.multiple && props.modelValue !== null && props.modelValue !== undefined;
+  if (!hasSingleSelection) {
+    searchTerm.value = '';
+  }
+  // M-6 defensive : flush isComposing au close (Chrome macOS Escape peut le
+  // laisser bloque a true).
+  if (isComposing.value) isComposing.value = false;
+}
+
+function handleOpenUpdate(value: boolean) {
+  if (value === false) {
+    resetSearchIfNoSelection();
+  }
+  emit('update:open', value);
+}
+
+// Couvre aussi le mode controle externe (v-model:open).
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen === false) resetSearchIfNoSelection();
+  },
+);
 
 // Reka UI ComboboxRoot applique par defaut un filter interne sur le contenu
 // texte de `ComboboxItem` qui se superpose a notre `filteredOptions` computed
@@ -183,7 +242,7 @@ function handleRootUpdate(value: string | number | boolean | Array<string | numb
       :open="open"
       :ignore-filter="true"
       @update:model-value="handleRootUpdate"
-      @update:open="(v: boolean) => emit('update:open', v)"
+      @update:open="handleOpenUpdate"
     >
       <ComboboxAnchor
         class="flex flex-wrap items-center gap-1 min-h-11 px-2 py-1 border rounded-md bg-white dark:bg-dark-input border-gray-300 dark:border-dark-border focus-within:ring-2 focus-within:ring-brand-green dark:focus-within:ring-brand-green"
@@ -195,6 +254,8 @@ function handleRootUpdate(value: string | number | boolean | Array<string | numb
             variant="lifecycle"
             state="draft"
             size="sm"
+            :aria-label="labelFor(val)"
+            data-slot="badge"
           >
             <span class="inline-flex items-center gap-1">
               <span>{{ labelFor(val) }}</span>
@@ -213,17 +274,19 @@ function handleRootUpdate(value: string | number | boolean | Array<string | numb
         </template>
         <ComboboxInput
           v-model="searchTerm"
+          :display-value="displayValueFor"
           :placeholder="placeholder"
           :aria-labelledby="labelId"
           :required="required"
           class="flex-1 min-w-0 bg-transparent outline-none text-surface-text dark:text-surface-dark-text placeholder:text-surface-text/40 dark:placeholder:text-surface-dark-text/40 disabled:cursor-not-allowed disabled:opacity-50"
           @compositionstart="handleCompositionStart"
           @compositionend="handleCompositionEnd"
+          @keydown="handleInputKeydown"
         />
         <ComboboxCancel
           v-if="searchable && searchTerm.length > 0"
           class="inline-flex items-center justify-center min-h-11 min-w-11 p-1 text-surface-text/60 dark:text-surface-dark-text/60 hover:text-surface-text dark:hover:text-surface-dark-text"
-          :aria-label="'Effacer la recherche'"
+          :aria-label="cancelLabel"
         >
           <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
             <path d="M3 3 L11 11 M11 3 L3 11" stroke-width="1.5" stroke-linecap="round" />

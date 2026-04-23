@@ -63,9 +63,16 @@ const props = withDefaults(defineProps<TabsProps>(), {
   label: undefined,
 });
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
 }>();
+
+// L-2 patch (leçon 10.18 L-2 cross-ref) — handler typé strict plutôt qu'un
+// lambda inline dans le template. Reka UI TabsRoot emit string | number ;
+// notre contrat expose toujours string (canonique spec TabItem.value).
+function handleRootUpdate(value: string | number) {
+  emit('update:modelValue', String(value));
+}
 
 defineSlots<{
   /** Slot dynamique `content-${tab.value}` injecte par onglet. */
@@ -95,8 +102,15 @@ const orientationClasses = computed(() => {
   } as const;
 });
 
-// Piege #37 : forceMount doit etre `undefined` (pas `false`) pour que Reka UI
-// ne le considere pas comme active. On le calcule une fois ici pour clarte.
+/**
+ * Piege #37 — Reka UI traite `forceMount` comme **prop-presence boolean** :
+ * `<TabsContent forceMount>` ≡ `<TabsContent :force-mount="true">` activent
+ * le mode eager, mais `<TabsContent :force-mount="false">` (presence !) active
+ * aussi tout comme `:force-mount="'anything'"`. Seul `undefined` (ou omission
+ * complete) reellement desactive. Solution : on mappe `false → undefined`.
+ * Source : `reka-ui/src/Tabs/TabsContent.vue` Presence pattern.
+ * Leçon 10.19 M-5 (cross-ref §3.7 codemap).
+ */
 const forceMountProp = computed<true | undefined>(() =>
   props.forceMount ? true : undefined
 );
@@ -108,7 +122,7 @@ const forceMountProp = computed<true | undefined>(() =>
     :orientation="orientation"
     :activation-mode="activationMode"
     :class="['w-full', orientationClasses.root]"
-    @update:model-value="(v: string | number) => $emit('update:modelValue', String(v))"
+    @update:model-value="handleRootUpdate"
   >
     <TabsList
       :aria-label="label"

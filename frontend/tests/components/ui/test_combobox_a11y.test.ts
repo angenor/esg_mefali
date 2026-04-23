@@ -80,6 +80,59 @@ describe('ui/Combobox : AC4 ARIA DOM (Pattern A)', () => {
   });
 });
 
+describe('ui/Combobox : AC4 ARIA strict attribute-bound (H-4 patch)', () => {
+  /**
+   * H-4 / Leçon 24 §4quinquies — tests `aria-controls` + `aria-activedescendant`
+   * asserts l'attribut ARIA reellement present via `.getAttribute(...)` strict
+   * (pattern attribute-strict, pas proxy `role="img"` ou effet de bord).
+   * Source : Story 10.19 H-4 patch round.
+   */
+  it('aria-controls reference l\'ID du listbox ouvert', async () => {
+    const user = userEvent.setup();
+    render(Combobox, {
+      props: {
+        modelValue: null,
+        options: [{ value: 'sn', label: 'Sénégal' }],
+        label: 'Pays',
+      },
+    });
+    const combobox = screen.getByRole('combobox');
+    combobox.focus();
+    await user.keyboard('{ArrowDown}');
+    const ariaControls = combobox.getAttribute('aria-controls');
+    expect(ariaControls).not.toBeNull();
+    // Reka UI emet des IDs 'reka-combobox-content-<n>' via useId() interne.
+    expect(ariaControls).toMatch(/reka-combobox-content-/);
+    const listbox = document.getElementById(ariaControls!);
+    expect(listbox).not.toBeNull();
+    expect(listbox!.getAttribute('role')).toBe('listbox');
+  });
+
+  it('aria-activedescendant suit le highlight apres ArrowDown', async () => {
+    const user = userEvent.setup();
+    render(Combobox, {
+      props: {
+        modelValue: null,
+        options: [
+          { value: 'sn', label: 'Sénégal' },
+          { value: 'ci', label: "Côte d'Ivoire" },
+        ],
+        label: 'Pays',
+      },
+    });
+    const combobox = screen.getByRole('combobox');
+    combobox.focus();
+    await user.keyboard('{ArrowDown}');
+    const activeDescendant = combobox.getAttribute('aria-activedescendant');
+    expect(activeDescendant).not.toBeNull();
+    // Reka UI emet des IDs 'reka-combobox-item-<n>' pour les options.
+    expect(activeDescendant).toMatch(/reka-combobox-item-/);
+    const activeOption = document.getElementById(activeDescendant!);
+    expect(activeOption).not.toBeNull();
+    expect(activeOption!.getAttribute('role')).toBe('option');
+  });
+});
+
 describe('ui/Combobox : vitest-axe smoke (DELEGATED contrast/portal runtime)', () => {
   it('rendu ferme : aucune violation axe hors regles deleguees', async () => {
     const { container } = render(Combobox, {
