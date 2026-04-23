@@ -55,7 +55,9 @@ frontend/
 │           ├── Combobox.vue              (NEW 10.19 wrapper Reka UI 14 primitives + IME guard + multi-select badges)
 │           ├── Combobox.stories.ts       (NEW 10.19 ≥ 7 stories CSF 3.0)
 │           ├── Tabs.vue                  (NEW 10.19 wrapper Reka UI 4 primitives + orientation/activationMode/forceMount)
-│           └── Tabs.stories.ts           (NEW 10.19 ≥ 7 stories CSF 3.0)
+│           ├── Tabs.stories.ts           (NEW 10.19 ≥ 7 stories CSF 3.0)
+│           ├── DatePicker.vue            (NEW 10.20 wrapper Reka UI 27 primitives Popover+Calendar+RangeCalendar + @internationalized/date FR + L22/L23/L24)
+│           └── DatePicker.stories.ts     (NEW 10.20 ≥ 12 stories CSF 3.0)
 ├── tests/components/ui/
 │   ├── test_button_registry.test.ts      (4 tests frozen/length/dedup)
 │   ├── test_button_variants.test.ts      (14 tests 4×3 + defaults + focus)
@@ -76,11 +78,16 @@ frontend/
 │   ├── test_tabs_a11y.test.ts            (NEW 10.19 6 tests ARIA + vitest-axe smoke)
 │   ├── test_no_hex_hardcoded_combobox_tabs.test.ts (NEW 10.19 4 scans Combobox+Tabs .vue + stories)
 │   ├── Combobox.test-d.ts                (NEW 10.19 12 @ts-expect-error assertions)
-│   └── Tabs.test-d.ts                    (NEW 10.19 10 @ts-expect-error assertions)
-└── tests/test_docs_ui_primitives.test.ts (scan 7 sections + ≥ 40 pièges)
+│   ├── Tabs.test-d.ts                    (NEW 10.19 10 @ts-expect-error assertions)
+│   ├── test_datepicker_registry.test.ts  (NEW 10.20 4 tests DATEPICKER_MODES frozen single-first)
+│   ├── test_datepicker_behavior.test.ts  (NEW 10.20 27 tests Pattern A user-event + L21/L22/L23 stricts)
+│   ├── test_datepicker_a11y.test.ts      (NEW 10.20 7 tests ARIA L24 attribute-strict + vitest-axe smoke)
+│   ├── test_no_hex_hardcoded_datepicker.test.ts (NEW 10.20 3 scans NFR66)
+│   └── DatePicker.test-d.ts              (NEW 10.20 14 @ts-expect-error assertions union discriminée)
+└── tests/test_docs_ui_primitives.test.ts (scan 8 sections + ≥ 45 pièges post-10.20)
 
 docs/CODEMAPS/
-├── ui-primitives.md                (ce fichier, 7 sections H2 + 40 pièges §5)
+├── ui-primitives.md                (ce fichier, 7 sections H2 + 45 pièges §5 post-10.20)
 └── index.md                        (+1 ligne référence)
 ```
 
@@ -682,6 +689,166 @@ monté), le 3ᵉ le comportement eager (tous montés). Pattern DOM-strict :
 **Cross-ref méthodologie** — [methodology.md §4quinquies Leçon 24](./methodology.md)
 détaille les tests ARIA attribute-strict appliqués à `forceMount` piège #37.
 
+### 3.8 `ui/DatePicker` (Story 10.20)
+
+Wrapper Reka UI `PopoverRoot` + `PopoverTrigger` + `PopoverContent` +
+`PopoverPortal` + `CalendarRoot` (mode `single`) OU `RangeCalendarRoot`
+(mode `range`) — **27 primitives Reka UI importées** (14 single + 13
+range). Locale FR par défaut (`DateFormatter('fr-FR', {day:'2-digit',
+month:'2-digit', year:'numeric'})` → format `15/04/2026`). ARIA strict
+`aria-haspopup="dialog"` + `aria-expanded` + `aria-controls` (Reka
+`useId`) + `role="application"` CalendarRoot + `aria-label="Calendrier,
+avril 2026"` dynamique (L24 §4quinquies). Keyboard WAI-ARIA Date Picker
+Dialog natif Reka (CalendarPrev/Next + click cell + Escape; nav
+ArrowLeft/Right/Up/Down/PageUp/Down délégués runtime). Dark mode
+≥ 10 variantes. Union discriminée
+`DatePickerSingleProps | DatePickerRangeProps` via prop `mode`.
+
+```vue
+<!-- 1. DatePicker single — admin deadline validation dossier Epic 19 -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { CalendarDate, today, getLocalTimeZone } from '@internationalized/date';
+import DatePicker from '~/components/ui/DatePicker.vue';
+
+const deadline = ref<CalendarDate | null>(new CalendarDate(2026, 5, 15));
+const tz = getLocalTimeZone();
+</script>
+<template>
+  <DatePicker
+    v-model="deadline"
+    label="Date deadline validation dossier"
+    required
+    :min-value="today(tz)"
+    show-clear
+  />
+</template>
+```
+
+```vue
+<!-- 2. DatePicker range — FA échéance bailleur Epic 9 deadline_at -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { CalendarDate } from '@internationalized/date';
+import DatePicker from '~/components/ui/DatePicker.vue';
+
+const periode = ref<{ start: CalendarDate | null; end: CalendarDate | null }>({
+  start: new CalendarDate(2026, 4, 1),
+  end: new CalendarDate(2026, 4, 30),
+});
+</script>
+<template>
+  <DatePicker
+    v-model="periode"
+    mode="range"
+    label="Période échéance bailleur (réception → décision)"
+  />
+</template>
+```
+
+```vue
+<!-- 3. DatePicker minMax — entreprise attestation 3 prochains mois Epic 10 -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { today, getLocalTimeZone } from '@internationalized/date';
+import DatePicker from '~/components/ui/DatePicker.vue';
+
+const tz = getLocalTimeZone();
+const attestation = ref(null);
+</script>
+<template>
+  <DatePicker
+    v-model="attestation"
+    label="Date attestation audit ESG"
+    :min-value="today(tz)"
+    :max-value="today(tz).add({ months: 3 })"
+  />
+</template>
+```
+
+```vue
+<!-- 4. DatePicker custom isDateDisabled — jours ouvrables uniquement -->
+<script setup lang="ts">
+import { ref } from 'vue';
+import { getLocalTimeZone, type DateValue } from '@internationalized/date';
+import DatePicker from '~/components/ui/DatePicker.vue';
+
+const tz = getLocalTimeZone();
+const rendezVous = ref(null);
+function isWeekend(date: DateValue): boolean {
+  const d = date.toDate(tz);
+  return d.getDay() === 0 || d.getDay() === 6;
+}
+</script>
+<template>
+  <DatePicker
+    v-model="rendezVous"
+    label="Jour ouvrable uniquement"
+    :is-date-disabled="isWeekend"
+    show-clear
+    clear-label="Réinitialiser"
+  />
+</template>
+```
+
+```ts
+// 5. TypeScript — modelValue doit être DateValue, pas string ISO (piège #43).
+// @ts-expect-error modelValue: string — CalendarDate requis @internationalized/date.
+const bad: DatePickerProps = { modelValue: '2026-04-15', label: 'Date' };
+```
+
+**Q1 Reka UI nu (pas vue-datepicker)** — cohérent décision 10.18 Drawer +
+10.19 Combobox/Tabs (UX Step 6 Q15). `vue-datepicker` opinionné 50KB non
+composable. Headless maison = 8-16h + risques a11y. Reka UI fournit
+`role="application"` + keyboard WAI-ARIA + `@internationalized/date`
+peer deps natifs.
+
+**Q2 prop `mode` unique** — union discriminée
+`DatePickerProps = DatePickerSingleProps | DatePickerRangeProps`, pas
+2 composants séparés. Pattern cohérent Combobox 10.19 `multiple`
+prop. Template `v-if="mode === 'single'"` sur `<CalendarRoot>` sinon
+`<RangeCalendarRoot>` — surface API unifiée consommateur.
+
+**Q3 locale `fr-FR` default** — CLAUDE.md §Contexte Métier UEMOA/CEDEAO.
+Format `d/M/yyyy` standard FR (pas `M/d/yyyy` US). Override
+`locale="en-US"` disponible cas mixtes docs anglophones bailleurs
+internationaux.
+
+**Q4 `@internationalized/date` (pas date-fns/dayjs)** — peer dependency
+Reka UI Calendar (installée transitivement via `reka-ui@2.9.6`). Types
+`DateValue` / `CalendarDate` natifs `CalendarCellTrigger :day` — pas de
+conversion wrapper. `Intl.DateTimeFormat` natif pour FR fiable.
+
+**Q5 bouton Effacer footer PopoverContent** — pattern WAI-ARIA Dialog
+(actions dans dialog, pas hors). Bouton inline trigger créerait
+ambiguïté clic (ouvre vs efface). Pattern cohérent `closeLabel` 10.18
+M-1 + `cancelLabel` 10.19 L-4.
+
+**Lifecycle reset mois courant (L23 §4quinquies)** — `watch(isOpen, ...)`
+reset `currentMonth.value = initialMonth()` au close sans sélection.
+`initialMonth()` ordre fallback : `modelValue` (single) / `modelValue.start`
+(range) → `defaultValue` → `today(getLocalTimeZone())`. Reka UI
+`:placeholder="currentMonth"` + `@update:placeholder` v-model tracking.
+Évite bug « utilisateur ouvre avril → nav PageDown 3× vers juillet →
+ferme sans sélectionner → réouvre et voit toujours juillet au lieu
+d'avril » (piège #41). Cross-ref [methodology.md §4quinquies L23](./methodology.md).
+
+**displayValue trigger (L22 §4quinquies)** — `computed` formate
+`modelValue` via `DateFormatter` FR, retourne `null` si vide pour
+afficher `placeholder`. Range complet : `${start} — ${end}` em-dash
+strict (U+2014, pas hyphen-minus U+002D). Range partial (start sans
+end) : `${start} — ${rangePartialLabel}` default `'Fin ?'`. Jamais de
+clé ISO brute `2026-04-15T00:00:00.000Z` ni `[object Object]`. Tests
+observables stricts `expect(trigger.textContent).toMatch(/15\/04\/2026/)`.
+
+**Migration brownfield `<input type="date">`** — `deadline` en BDD
+`Date | string ISO` → convertir au mount `parseDate(deadline)` +
+sérialiser au change `newValue.toString()` (format `2026-04-15`). Epic 9
+ticket-child migration mécanique ≤ 2 fichiers.
+
+**Cross-ref méthodologie** — [methodology.md §4sexies Leçons L22-L24](./methodology.md)
+détaille l'application proactive des 3 leçons §4quinquies 10.19 à 10.20.
+
 ## 4. Ajouter une 8ᵉ primitive UI
 
 1. **Créer le squelette Vue** — `app/components/ui/NewPrimitive.vue` avec
@@ -1116,6 +1283,76 @@ détaille les tests ARIA attribute-strict appliqués à `forceMount` piège #37.
     **Acceptance test** : round-trip `select → close → reopen` observe le label
     (pas la clé) dans l'input ET la liste complète des options (pas filtrée
     par la clé). Cross-ref [methodology.md §4quinquies Leçon 22](./methodology.md).
+
+42. **DatePicker lifecycle close reset mois courant (10.20 L23 appliquée)** —
+    Sans `watch(isOpen, reset)`, un utilisateur qui ouvre avril → navigue
+    `PageDown` × 3 vers juillet → ferme sans sélectionner voit à la
+    réouverture le DatePicker sur **juillet** au lieu d'avril = confusion UX.
+    **Solution** : `watch(isOpen, (open) => { if (!open) currentMonth.value =
+    initialMonth(); })` + `:placeholder="currentMonth"` v-model sur
+    `CalendarRoot`. `initialMonth()` ordre fallback : `modelValue` →
+    `defaultValue` → `today(getLocalTimeZone())`. Si l'utilisateur sélectionne
+    une date (même après nav), `handleSingleChange` met à jour `currentMonth`
+    à la valeur sélectionnée (pas de reset abusif).
+
+    **Test observable strict L21 §4quater** :
+
+    ```ts
+    // nav CalendarNext × 3 + Escape + reopen
+    await user.click(nextBtn); await user.click(nextBtn); await user.click(nextBtn);
+    expect(getHeading().textContent).toContain('juillet 2026');
+    await user.keyboard('{Escape}');
+    // reopen
+    await user.click(trigger);
+    expect(getHeading().textContent).toContain('avril 2026');
+    expect(getHeading().textContent).not.toContain('juillet 2026'); // strict
+    ```
+
+    Cross-ref [methodology.md §4quinquies L23](./methodology.md). Capitalise
+    le bug Combobox 10.19 `searchTerm` non cleared.
+
+43. **Registry `DATEPICKER_MODES` ordre canonique `single-first`** — Changer
+    l'ordre (`['range', 'single']`) = rupture API consommateurs puisque
+    `withDefaults(defineProps<DatePickerProps>(), { mode: 'single' })` est
+    aligné sur l'index 0. Cohérent 10.19 `COMBOBOX_MODES = ['single',
+    'multiple']` + `TABS_ORIENTATIONS = ['horizontal', 'vertical']` +
+    `TABS_ACTIVATION_MODES = ['automatic', 'manual']`. Tests registry :
+    `expect(DATEPICKER_MODES[0]).toBe('single')` **strict** pas
+    `.toContain('single')` laxiste.
+
+44. **`CalendarDate` vs `Date` native @internationalized/date** — Reka UI
+    `CalendarCellTrigger :date` et `CalendarRoot :model-value` acceptent
+    uniquement `DateValue` (alias `CalendarDate | CalendarDateTime |
+    ZonedDateTime`) depuis `@internationalized/date`. Passer `new Date()`
+    natif JS fait planter Reka (`date.day` undefined + erreur timezone
+    locale vs UTC → décalage 1 jour potentiel). TypeScript bloque via
+    `DatePicker.test-d.ts` case `@ts-expect-error minValue: new Date()`.
+    **API recommandée** :
+
+    ```ts
+    // OK
+    import { CalendarDate, parseDate, today, getLocalTimeZone } from '@internationalized/date';
+    const d1 = new CalendarDate(2026, 4, 15);          // année, mois 1-indexé, jour
+    const d2 = parseDate('2026-04-15');                // string ISO YYYY-MM-DD
+    const d3 = today(getLocalTimeZone());              // "maintenant" local user
+
+    // PAS OK
+    const bad1 = new Date('2026-04-15');               // Date native JS
+    const bad2 = '2026-04-15';                         // string ISO brute
+    ```
+
+    Conversion brownfield `<input type="date">` : `parseDate(deadlineStr)` +
+    sérialisation `newValue.toString()` format `YYYY-MM-DD`. Documenté §3.8
+    exemple migration.
+
+45. **Range `end < start` auto-swap Reka UI** — `RangeCalendarRoot` normalise
+    automatiquement si l'utilisateur clique `end` (ex. 5 avril) avant `start`
+    (ex. 20 avril) → swap transparent `{start: 5 avril, end: 20 avril}`.
+    Le consommateur NE doit **PAS** implémenter de validation côté form
+    parent (pattern Zod `.refine(r => r.end >= r.start)` redondant et
+    potentiellement buggy). La prop `modelValue: DateRange` reçue par le
+    consommateur est **toujours ordonnée** après un cycle select complet.
+    Documenté §3.8 cas Range AC2.
 
 ---
 

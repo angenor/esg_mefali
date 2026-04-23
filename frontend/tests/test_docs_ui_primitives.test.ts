@@ -125,4 +125,38 @@ describe('docs/CODEMAPS/ui-primitives.md (AC10 Story 10.15 + AC12 Story 10.16)',
     const indexContent = readFileSync(INDEX_PATH, 'utf8');
     expect(indexContent).toContain('ui-primitives.md');
   });
+
+  it('AC10 Story 10.20 : §3.8 DatePicker present avec wrapper Reka UI PopoverRoot+CalendarRoot', () => {
+    expect(content).toContain('### 3.8 `ui/DatePicker`');
+    const section38 = content.split('### 3.8')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section38).toMatch(/PopoverRoot/);
+    expect(section38).toMatch(/CalendarRoot|RangeCalendarRoot/);
+  });
+
+  it('AC10 Story 10.20 : §3.8 DatePicker contient >= 4 exemples Vue numerotes', () => {
+    const section38 = content.split('### 3.8')[1]?.split(/^##\s/m)[0] ?? '';
+    const numberedExamples = section38.match(/<!--\s*\d+\./g) ?? [];
+    expect(numberedExamples.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('AC10 Story 10.20 : §3.8 DatePicker mentionne @internationalized/date + locale FR + L22 displayValue + L23 lifecycle', () => {
+    const section38 = content.split('### 3.8')[1]?.split(/^##\s/m)[0] ?? '';
+    expect(section38).toMatch(/@internationalized\/date/);
+    expect(section38).toMatch(/locale|fr-FR/i);
+    expect(section38).toMatch(/L22|displayValue/);
+    expect(section38).toMatch(/L23|lifecycle|reset/i);
+  });
+
+  it('AC10 Story 10.20 : §5 pieges contient >= 45 entrees numerotees (+4 post-10.19)', () => {
+    const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
+    const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
+    const matches = body.match(/^\d+\.\s/gm) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(45);
+  });
+
+  it('AC10 Story 10.20 : §5 pieges documente piege #44 CalendarDate vs Date native', () => {
+    const piegesSection = content.split('## 5. Pièges documentés')[1] ?? '';
+    const body = piegesSection.split(/^##\s/m)[0] ?? piegesSection;
+    expect(body).toMatch(/CalendarDate.*Date native|piege.*43|piege.*44/is);
+  });
 });

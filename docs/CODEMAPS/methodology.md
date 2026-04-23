@@ -528,6 +528,145 @@ capitalisés ET appliqués proactivement. Si un 10ᵉ pattern émerge
 post-code-review 10.20+, créer `§4sexies`. Cumul 9 leçons couvrant
 wrappers Reka UI + tests observables + écarts spec.
 
+### 4sexies Application proactive Story 10.20 (ui/DatePicker) — 5 leçons cumulées L20-L24
+
+**Contexte** : Story 10.20 (4ᵉ wrapper Reka UI après Drawer 10.18 +
+Combobox/Tabs 10.19) a appliqué PROACTIVEMENT les 5 leçons §4quater +
+§4quinquies dès le premier drop de code — aucune découverte post-review,
+aucun round de patchs retouché. Capitalisation validée = pattern stable
+reproductible wrapper Reka UI.
+
+#### Pattern A user-event strict (capitalisé §4ter.bis post-10.18-10.19)
+
+**Appliqué 10.20** : 27 tests `test_datepicker_behavior.test.ts`
+utilisent exclusivement `screen.getByRole('button', {...})` +
+`user.click(...)` + `user.keyboard('{Escape}')` + helpers
+`getCellByDate(isoDate)` (data-value unique). **0 ligne** de
+`wrapper.vm.*` ni `input.setValue(...)`.
+
+**Extension 10.20 helper DOM portal-aware** : `document.body
+.querySelector<HTMLElement>('[role="button"][data-value="2026-04-15"]')`
+pour cibler une cell date spécifique dans un calendrier qui expose des
+outside-view dates (mars/mai visibles en grisé dans la grille avril) —
+cohérent piège #28 10.18 DialogPortal.
+
+**Contournement happy-dom + Reka keyboard PageDown** : les events
+keyboard PageDown/PageUp/Shift+PageDown n'atteignent pas toujours le
+handler Reka UI Calendar en happy-dom (focus bubbling partiel). Solution
+**Pattern A fallback strict** : utiliser `CalendarNext`/`CalendarPrev`
+button clicks (comportement équivalent, validé observable). Le keyboard
+complet est délégué runtime Storybook via commentaire inline
+`// DELEGATED TO Storybook DatePickerKeyboardNavigation` (Leçon 21
+§4quater).
+
+#### Pattern B comptage runtime Storybook (capitalisé §4ter.bis post-10.17-10.19)
+
+**Appliqué 10.20** : avant tout claim de complétude, 3 chiffres EXACTS
+runtime :
+
+```bash
+jq '.entries | keys | length' storybook-static/index.json
+# → 224 (baseline 211 → +13 post-10.20)
+
+jq '[.entries | to_entries[] | select(.value.id | startswith("ui-datepicker"))] | length' storybook-static/index.json
+# → 13 (cible AC10 ≥ 8)
+
+du -sh storybook-static
+# → 8.2M (budget ≤ 15 MB)
+```
+
+**Extension 10.20 coverage c8 runtime** : `npm run test --
+--coverage --run --coverage.include='app/components/ui/DatePicker.vue'`
+→ `99.69% stmts / 90.56% branches / 100% funcs / 99.69% lines`
+(AC10 plancher ≥ 85%). **Valeurs réelles pas fallback smoke**
+(Leçon 10.19 H-5 capitalisée).
+
+#### Leçon 20 §4quater (Écarts vs spec Completion Notes obligatoires)
+
+**Appliqué 10.20** : Task 7.4 de la story a imposé le recensement
+explicite des écarts. Consignés dans « Ajustements mineurs vs spec » :
+
+- Keyboard nav PageDown/ArrowKeys délégués runtime Storybook
+  (happy-dom limit) — 1 test observable strict fallback + 1 DELEGATED
+  inline.
+- Piège #41 Combobox existant déjà au count 41 → pièges 10.20
+  renumérotés 42-45 (4 nouveaux cumul 45 post-10.20).
+
+#### Leçon 21 §4quater (Tests observables ≠ smoke)
+
+**Appliqué 10.20** : 0 assertion `.toBeDefined()` ni `.not.toBeNull()`
+laxiste sur les props métier. Toutes les assertions displayValue,
+emission structure, lifecycle mois sont **strictes** :
+
+```ts
+// L21 strict AC6 displayValue
+expect(trigger.textContent).toMatch(/15\/04\/2026/);
+expect(trigger.textContent).not.toMatch(/2026-04-15T/);
+
+// L21 strict AC7 lifecycle close
+expect(getHeading().textContent?.toLowerCase()).not.toContain('juillet 2026');
+
+// L21 strict AC2 emission CalendarDate
+const last = events[events.length - 1]![0] as CalendarDate;
+expect(last.year).toBe(2026);
+expect(last.month).toBe(4);
+expect(last.day).toBe(20);
+```
+
+#### Leçon 22 §4quinquies (displayValue trigger obligatoire)
+
+**Appliqué 10.20 AC6** : `PopoverTrigger` affiche
+`DateFormatter('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})
+.format(modelValue.toDate(getLocalTimeZone()))` → label utilisateur
+`15/04/2026`, **jamais** clé ISO brute `2026-04-15T00:00:00.000Z` ni
+`[object Object]`. Range : em-dash strict U+2014 séparateur
+`01/04/2026 — 30/04/2026`. Range partial : `01/04/2026 — Fin ?` (via
+prop `rangePartialLabel` i18n default).
+
+#### Leçon 23 §4quinquies (lifecycle close reset intermediate state)
+
+**Appliqué 10.20 AC7** : équivalent DatePicker = mois courant affiché
+dans `CalendarHeading`. `watch(isOpen, (open) => { if (!open)
+currentMonth.value = initialMonth(); })` + binding Reka UI
+`:placeholder="currentMonth"` + `@update:placeholder` pour tracker la
+navigation utilisateur. `initialMonth()` fallback order : `modelValue`
+(single) / `modelValue.start` (range) → `defaultValue` →
+`today(getLocalTimeZone())`.
+
+**Test observable L21 strict appliqué** :
+
+```ts
+await user.click(nextBtn); await user.click(nextBtn); await user.click(nextBtn);
+expect(getHeading().textContent?.toLowerCase()).toContain('juillet 2026');
+await user.keyboard('{Escape}');
+await user.click(trigger);  // reopen
+expect(getHeading().textContent?.toLowerCase()).toContain('avril 2026');
+expect(getHeading().textContent?.toLowerCase()).not.toContain('juillet 2026');
+```
+
+Capitalise le bug Combobox 10.19 `searchTerm` non cleared.
+
+#### Leçon 24 §4quinquies (ARIA attribute-strict pas proxy)
+
+**Appliqué 10.20 AC4** : 7 tests `test_datepicker_a11y.test.ts`
+utilisent `.getAttribute(...)` strict + regex canonique, pas proxy
+role/presence :
+
+```ts
+expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');        // strict value
+expect(trigger.getAttribute('aria-expanded')).toBe('false');          // puis 'true' après click
+expect(trigger.getAttribute('aria-controls')).toMatch(/reka-popover-content-/);
+expect(calendarRoot.getAttribute('aria-label')).toMatch(/^Calendrier, avril 2026$/i);
+expect(cell15.getAttribute('aria-label')).toMatch(/^\S+ 15 avril 2026$/i); // format FR complet
+```
+
+**Mesure anti-récurrence** : les 5 patterns §4sexies sont désormais
+capitalisés ET appliqués proactivement. Si un 11ᵉ pattern émerge
+post-code-review 10.20+, créer `§4septies`. Cumul 14 leçons couvrant
+wrappers Reka UI + tests observables + écarts spec + coverage c8
+runtime + ARIA strict. **Pattern wrapper Reka UI considéré stabilisé
+byte-identique** (4ᵉ itération sans découverte de pattern nouveau).
+
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 
 **Pattern** : le scan `rg "VendorClass\("` pour enforce l'unicité
