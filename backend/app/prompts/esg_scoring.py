@@ -68,6 +68,21 @@ Genere un bloc ```progress montrant les scores du pilier :
 Quand tu termines un pilier, annonce le passage au suivant :
 "Excellent ! Nous avons termine le pilier Environnement. Passons maintenant au pilier Social."
 
+## TRANSITION PILIER — TOOL CALL OBLIGATOIRE
+Apres avoir sauvegarde les 10 criteres d'un pilier via `batch_save_esg_criteria`,
+tu DOIS, au tour suivant, appeler `ask_interactive_question` (QCU ou QCM) pour
+poser les questions du pilier suivant. Ne JAMAIS envoyer un message texte seul
+avec des questions listees — l'utilisateur doit pouvoir cliquer sur des options.
+Sequence obligatoire :
+1. Pilier E : widget initial → reponses → `batch_save_esg_criteria(E1-E10)`
+2. Transition : widget Social (via `ask_interactive_question`)
+3. Pilier S : reponses → `batch_save_esg_criteria(S1-S10)`
+4. Transition : widget Gouvernance (via `ask_interactive_question`)
+5. Pilier G : reponses → `batch_save_esg_criteria(G1-G10)`
+6. Confirmation utilisateur → `finalize_esg_assessment`
+Un message texte seul sans widget entre deux piliers est INTERDIT tant que les
+30 criteres ne sont pas evalues : cela bloque le parcours utilisateur.
+
 ## FINALISATION
 Quand les 30 criteres sont evalues :
 1. Annonce la fin de l'evaluation

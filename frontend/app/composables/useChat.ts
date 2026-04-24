@@ -752,6 +752,11 @@ export function useChat() {
               justification_prompt?: string | null
               module?: string
               created_at?: string
+              // BUG-V4-001 — champs emis sur `interactive_question_resolved`
+              state?: InteractiveQuestionState
+              response_values?: string[] | null
+              response_justification?: string | null
+              answered_at?: string | null
             }
             if (evt.type === 'token' && evt.content) {
               streamingContent.value += evt.content
@@ -810,6 +815,24 @@ export function useChat() {
                   [messages.value[lastIdx]!.id]: newQ,
                 }
               }
+            } else if (evt.type === 'interactive_question_resolved' && evt.id) {
+              // BUG-V4-001 — Parite avec sendMessage : le backend yield cet event
+              // au debut du tour (chat.py:189). Sans ce handler, la map
+              // interactiveQuestionsByMessage reste en 'pending' stale.
+              const newState: InteractiveQuestionState = evt.state ?? 'answered'
+              const updated: Record<string, InteractiveQuestion> = {}
+              for (const [msgId, q] of Object.entries(interactiveQuestionsByMessage.value)) {
+                updated[msgId] = q.id === evt.id
+                  ? {
+                      ...q,
+                      state: newState,
+                      response_values: evt.response_values ?? null,
+                      response_justification: evt.response_justification ?? null,
+                      answered_at: evt.answered_at ?? null,
+                    }
+                  : q
+              }
+              interactiveQuestionsByMessage.value = updated
             } else if (evt.type === 'guided_tour') {
               // Feature 019 — Declenchement parcours guide via SSE (apres submit reponse interactive)
               await handleGuidedTourEvent(evt as Record<string, unknown>)
@@ -850,6 +873,14 @@ export function useChat() {
       // n'a suivi (LLM n'a pas declenche), on le desarme pour ne pas polluer
       // un futur tour explicite.
       _consentAcceptancePending = false
+      // BUG-V4-001 — Garde-fou ceinture+bretelles : si le LLM n'a emis aucun
+      // nouveau widget pour le tour suivant (ex. transition ESG E->S en texte
+      // seul), s'assurer que l'input texte est debloque. L'optimistic reset
+      // ligne ~651 couvre le cas normal ; ce filet rattrape les cas ou une
+      // question residuelle non-pending reste dans le state.
+      if (currentInteractiveQuestion.value && currentInteractiveQuestion.value.state !== 'pending') {
+        currentInteractiveQuestion.value = null
+      }
     }
   }
 

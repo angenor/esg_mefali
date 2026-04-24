@@ -17,6 +17,11 @@ const emit = defineEmits<{
 
 const isEditing = ref(false)
 const editValue = ref<string>('')
+// BUG-V4-002 : lecture DOM directe au moment du confirm pour rattraper les
+// cas ou un event `input` a ete manque (agent-browser, interactions rapides).
+// v-model reste branche sur editValue (comportement normal), mais confirmEdit
+// privilegie inputEl.value.value comme source de verite si disponible.
+const inputEl = ref<HTMLInputElement | null>(null)
 
 const isFilled = computed(() => {
   if (props.value === null || props.value === undefined) return false
@@ -42,8 +47,13 @@ function startEdit() {
 }
 
 function confirmEdit() {
+  // BUG-V4-002 : lire la valeur DOM effective AVANT de masquer l'input
+  // (apres isEditing=false, v-if demonte l'element et inputEl devient null).
+  // Le DOM est la source de verite quand l'input est monte (cas text/number).
+  // Fallback sur editValue uniquement pour <select> qui n'a pas le ref.
+  const source = inputEl.value !== null ? (inputEl.value.value ?? '') : editValue.value
   isEditing.value = false
-  const trimmed = editValue.value.trim()
+  const trimmed = source.trim()
   if (!trimmed) {
     emit('update', props.field, null)
     return
@@ -120,6 +130,7 @@ function cancelEdit() {
         </select>
         <input
           v-else
+          ref="inputEl"
           v-model="editValue"
           :type="type === 'number' ? 'number' : 'text'"
           :placeholder="placeholder || label"

@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from BUG-V4-001/002 widget cycle + spinbutton (2026-04-24)
+
+- **DEF-BUG-V4-1 — Fenêtre fixe `+ 1200` chars dans `test_esg_scoring_transition.py`** — Les tests `test_esg_prompt_transition_mentions_ask_interactive_question` et `test_esg_prompt_transition_forbids_text_only` scannent une sous-chaîne de 1200 caractères après « TRANSITION PILIER ». Fragile si la section grossit au-delà. **Path** : remplacer par un découpage sur la prochaine section `##` ou sur la fin de la séquence numérotée. Coût estimé : 10 min.
+- **DEF-BUG-V4-2 — Couverture frontend du nouveau handler `interactive_question_resolved` dans `submitInteractiveAnswer` et du garde-fou `finally`** — Pas de test unitaire côté frontend (vitest/jest absent du harness actuel). **Path** : ajouter des tests vitest une fois le harness configuré ; ou test E2E Playwright couvrant la transition ESG E→S. Coût estimé : 1-2 h.
+
 ## Deferred from: BUG-011 fix — langue MiniMax (2026-04-23)
 
 - **DEF-BUG-011-1 — `LANGUAGE_INSTRUCTION` absente des 6 builders spécialistes** — `build_esg_prompt`, `build_carbon_prompt`, `build_financing_prompt`, `build_credit_prompt`, `build_application_prompt`, `build_action_plan_prompt` n'incluent pas `LANGUAGE_INSTRUCTION`. MiniMax peut toujours répondre en chinois dans les modules spécialistes. Fix : prepend `LANGUAGE_INSTRUCTION` dans chaque builder (ou via `build_prompt` du registre). Hors scope BUG-011 par contrainte utilisateur (ne pas modifier les autres nœuds). Coût estimé : 30 min.
@@ -913,3 +918,7 @@ Items tracés post code-review Story 10.16 `ui/{Input,Textarea,Select}`. Pour co
 - **LOW-BUG002-2 — Token JWT en `localStorage` (XSS surface)** — `frontend/app/stores/auth.ts:19` stocke les tokens en `localStorage` accessible à tout script injecté. Choix d'architecture connu pour les SPA sans SSR. **Path** : migration vers `httpOnly` cookies (requiert changement backend + nuxt.config runtimeConfig) — Story dédiée Epic 11+.
 
 - **LOW-BUG008-1 — `financingStore.error` partagé entre 3 fetches** — Le champ `error` dans le store financement est écrasé par le dernier fetch ayant échoué. Si `fetchFunds` et `fetchMatches` échouent simultanément, seule l'erreur de `fetchFunds` sera visible. **Path** : créer des champs d'erreur distincts par fetch (`matchesError`, `fundsError`, `intermediariesError`) dans le store financement — refactoring Story Epic 11.
+
+## Deferred from BUG-V2-001/002 chat regressions (2026-04-23)
+
+- **DEF-BUG-V2-001-1 — Rappel linguistique « RAPPEL FINAL » absent des 6 nœuds spécialistes** — ✅ **RÉSOLU 2026-04-23** (spec `spec-bug-v2-batch-regressions-ux.md`). Pattern `"\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION` appendé en queue de `full_prompt` dans les 6 nœuds `esg_scoring_node`, `carbon_node`, `financing_node`, `credit_node`, `application_node`, `action_plan_node` dans `backend/app/graph/nodes.py`. Tests d'invariant statique : `tests/test_graph/test_specialists_language_reminder.py` (8 tests verts).
