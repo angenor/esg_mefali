@@ -431,17 +431,32 @@ function handleQuickAction(action: string) {
 
 // --- Auto-scroll (Task 4) ---
 
+// BUG-V5-002 : flag distinguant scroll programmatique (smooth) vs scroll utilisateur réel.
+// Sans ce flag, les événements scroll émis pendant l'animation smooth font basculer
+// userScrolledUp à true (scrollHeight - scrollTop - clientHeight > 100 pendant l'anim),
+// ce qui désactive les scrolls suivants et bloque l'auto-scroll en streaming.
+const isProgrammaticScroll = ref(false)
+let _programmaticResetTimer: ReturnType<typeof setTimeout> | null = null
+
 function scrollToBottom() {
   // P7: ne pas scroller si le widget est cache
   if (!messagesContainer.value || !isVisible.value) return
+  isProgrammaticScroll.value = true
   messagesContainer.value.scrollTo({
     top: messagesContainer.value.scrollHeight,
     behavior: 'smooth',
   })
+  if (_programmaticResetTimer) clearTimeout(_programmaticResetTimer)
+  // 1200ms couvre les scrolls smooth longue distance (réouverture widget + 50 messages,
+  // ~700-1200ms observé sur Chrome/Safari). En dessous, des évènements scroll tardifs
+  // font basculer userScrolledUp à true après l'expiration du flag.
+  _programmaticResetTimer = setTimeout(() => {
+    isProgrammaticScroll.value = false
+  }, 1200)
 }
 
 function handleScroll() {
-  if (!messagesContainer.value) return
+  if (!messagesContainer.value || isProgrammaticScroll.value) return
   const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
   userScrolledUp.value = scrollHeight - scrollTop - clientHeight > 100 // P9: seuil aligne avec pages/chat.vue
 }
@@ -452,6 +467,7 @@ onBeforeUnmount(() => {
   notifyRetractComplete()
   window.removeEventListener('resize', onWindowResize)
   if (_resizeTimer) clearTimeout(_resizeTimer)
+  if (_programmaticResetTimer) clearTimeout(_programmaticResetTimer)
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointerup', onPointerUp)
   uiStore.destroyReducedMotion()

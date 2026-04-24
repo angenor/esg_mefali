@@ -680,14 +680,31 @@ async def esg_scoring_node(state: ConversationState) -> ConversationState:
         "5. Apres confirmation, appelle finalize_esg_assessment\n"
     )
 
-    # Injecter l'etat d'evaluation dans le prompt
+    # Injecter l'état d'évaluation dans le prompt
+    # BUG-V5-001 : exposer assessment_id pour que le LLM puisse appeler finalize_esg_assessment.
+    # Si l'ID vaut la sentinelle "pending" (aucune évaluation encore créée en BDD), on injecte
+    # une consigne explicite pour éviter que le LLM appelle finalize avec "pending" (UUID invalide).
+    _assessment_id = esg_assessment.get("assessment_id") or "pending"
+    if _assessment_id == "pending":
+        _assessment_id_line = (
+            "- Identifiant evaluation (assessment_id) : pending "
+            "(aucune evaluation en BDD — appelle d'abord `create_esg_assessment` "
+            "pour obtenir un UUID ; n'appelle JAMAIS `finalize_esg_assessment` avec \"pending\")"
+        )
+    else:
+        _assessment_id_line = f"- Identifiant evaluation (assessment_id) : {_assessment_id}"
     esg_state_context = (
         f"\n\nETAT DE L'EVALUATION EN COURS :\n"
+        f"{_assessment_id_line}\n"
         f"- Pilier actuel : {esg_assessment.get('current_pillar', 'environment')}\n"
         f"- Criteres evalues : {esg_assessment.get('evaluated_criteria', [])}\n"
         f"- Scores partiels : {esg_assessment.get('partial_scores', {})}\n"
     )
     full_prompt = system_prompt + tool_instructions + esg_state_context
+
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt (contre chinois MiniMax post-tool)
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
 
     # Envoyer au LLM avec les tools ESG
     chat_messages = [SystemMessage(content=full_prompt), *[
@@ -849,6 +866,10 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     )
     full_prompt = system_prompt + carbon_state_context
 
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
+
     # Les instructions tool calling sont maintenant dans le template prompt
 
     # Envoyer au LLM avec tools
@@ -970,6 +991,10 @@ async def financing_node(state: ConversationState) -> ConversationState:
     )
 
     full_prompt = system_prompt + tool_instructions
+
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
@@ -1135,6 +1160,10 @@ async def credit_node(state: ConversationState) -> ConversationState:
     # Les instructions tool calling sont dans le template prompt
     full_prompt = system_prompt
 
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
+
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
         m for m in messages if not isinstance(m, SystemMessage)
@@ -1195,17 +1224,24 @@ async def chat_node(state: ConversationState) -> ConversationState:
         "existants, puis genere le bloc visuel avec les VRAIS scores. Ne relance JAMAIS une nouvelle "
         "evaluation juste pour afficher un graphique.\n"
         "- LANGUE : Réponds TOUJOURS en français, même après avoir utilisé un outil. "
-        "Jamais de chinois, jamais d'anglais dans ta réponse finale."
+        "Jamais de chinois, jamais d'anglais dans ta réponse finale.\n"
+        "- Après avoir utilisé un outil (tool call), tu DOIS toujours générer une réponse "
+        "textuelle visible pour l'utilisateur. Ne laisse jamais ta réponse vide après un "
+        "tool call. Confirme l'action effectuée et pose la question suivante si pertinent."
     )
 
     # CCC-9 (patch HIGH-10.8-1) : WIDGET_INSTRUCTION est desormais injecte
     # par build_system_prompt via le registre (module="chat"). Plus de
     # concatenation manuelle ici.
-    from app.prompts.system import build_page_context_instruction
+    from app.prompts.system import LANGUAGE_INSTRUCTION, build_page_context_instruction
     full_prompt = system_prompt + tool_instructions
     page_context = build_page_context_instruction(state.get("current_page"))
     if page_context:
         full_prompt += "\n\n" + page_context
+
+    # BUG-V2-001 : rappel linguistique en fin de prompt — MiniMax respecte
+    # davantage la derniere consigne vue, surtout apres un ToolMessage.
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
 
     # Ajouter le prompt systeme en tete
     messages = state["messages"]
@@ -1306,6 +1342,10 @@ async def application_node(state: ConversationState) -> ConversationState:
 
     # Les instructions tool calling sont dans le template prompt
     full_prompt = system_prompt
+
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[
@@ -1498,6 +1538,10 @@ async def action_plan_node(state: ConversationState) -> ConversationState:
 
     # Les instructions tool calling sont dans le template prompt
     full_prompt = system_prompt
+
+    # DEF-BUG-V2-001-1 : rappel linguistique en queue de prompt
+    from app.prompts.system import LANGUAGE_INSTRUCTION
+    full_prompt += "\n\nRAPPEL FINAL — " + LANGUAGE_INSTRUCTION
 
     # Envoyer au LLM
     chat_messages = [SystemMessage(content=full_prompt), *[

@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from BUG-V5-001/002 ESG finalize + chat scroll (2026-04-24)
+
+- **DEF-BUG-V5-1 — Détection scroll utilisateur via `wheel`/`touchstart`/`pointerdown`** — Le flag `isProgrammaticScroll` (timer 1200ms) couvre la majorité des cas mais laisse une fenêtre où un scroll utilisateur authentique pendant l'animation smooth est ignoré. **Path** : ajouter listeners `wheel`/`touchstart`/`pointerdown` sur `messagesContainer` qui forcent `userScrolledUp=true` indépendamment du flag — distingue intent utilisateur réel vs scroll programmatique avec certitude. Coût estimé : 30 min. **Trigger** : feedback utilisateur sur perte de scroll user pendant streaming long. [frontend/app/components/copilot/FloatingChatWidget.vue]
+- **DEF-BUG-V5-2 — Test runtime LLM-mock pour `esg_scoring_node`** — Les 4 tests V5 sont statiques (inspection source). Un test runtime mockant le LLM pour inspecter `chat_messages[0].content` (`SystemMessage`) et vérifier la présence de l'UUID concret renforcerait la garantie AC #1/#2. Nécessite mock async DB session + LLM. Coût estimé : 1h. **Trigger** : si une régression future invalide la chaîne de propagation `esg_assessment.assessment_id → state → prompt`. [backend/tests/test_graph/]
+- **DEF-BUG-V5-3 — Listener `scrollend` event pour reset précis du flag** — Plus robuste que le timer 1200ms : `messagesContainer.addEventListener('scrollend', ...)` réinitialise `isProgrammaticScroll` exactement à la fin du scroll smooth. Support : Chrome 114+, Firefox 109+, Safari 17.6+ (à vérifier). Fallback timer toujours nécessaire pour vieux Safari. Coût estimé : 20 min. **Trigger** : compatibilité navigateurs cible confirmée stable sur `scrollend`. [frontend/app/components/copilot/FloatingChatWidget.vue]
+
 ## Deferred from BUG-V4-001/002 widget cycle + spinbutton (2026-04-24)
 
 - **DEF-BUG-V4-1 — Fenêtre fixe `+ 1200` chars dans `test_esg_scoring_transition.py`** — Les tests `test_esg_prompt_transition_mentions_ask_interactive_question` et `test_esg_prompt_transition_forbids_text_only` scannent une sous-chaîne de 1200 caractères après « TRANSITION PILIER ». Fragile si la section grossit au-delà. **Path** : remplacer par un découpage sur la prochaine section `##` ou sur la fin de la séquence numérotée. Coût estimé : 10 min.
