@@ -155,6 +155,48 @@ class TestUpdateProfile:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_update_profile_employee_count_string_coerced(
+        self, client: AsyncClient,
+    ) -> None:
+        """BUG-V3-002 : employee_count string numerique coerce en int."""
+        _, token = await create_authenticated_user(client)
+        await client.get("/api/company/profile", headers=auth_headers(token))
+
+        response = await client.patch(
+            "/api/company/profile",
+            json={"employee_count": "15"},
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["employee_count"] == 15
+        assert isinstance(body["employee_count"], int)
+
+        # F5 simulation : GET refrechit depuis la BDD.
+        get_response = await client.get(
+            "/api/company/profile", headers=auth_headers(token),
+        )
+        assert get_response.status_code == 200
+        assert get_response.json()["employee_count"] == 15
+
+    @pytest.mark.asyncio
+    async def test_update_profile_employee_count_string_invalid(
+        self, client: AsyncClient,
+    ) -> None:
+        """BUG-V3-002 : employee_count string non-numerique leve 422."""
+        _, token = await create_authenticated_user(client)
+        await client.get("/api/company/profile", headers=auth_headers(token))
+
+        response = await client.patch(
+            "/api/company/profile",
+            json={"employee_count": "quinze"},
+            headers=auth_headers(token),
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_update_profile_unauthenticated(self, client: AsyncClient) -> None:
         """PATCH sans token retourne 401."""
         response = await client.patch(

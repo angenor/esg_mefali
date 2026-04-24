@@ -49,8 +49,15 @@ function confirmEdit() {
     return
   }
   if (props.type === 'number') {
-    const num = parseInt(trimmed, 10)
-    emit('update', props.field, isNaN(num) ? null : num)
+    // BUG-V3-002 : defense en profondeur. parseInt renvoie deja un number
+    // mais Number() garantit l'absence de NaN silencieux et JSON.stringify
+    // serialise bien `15` (nombre) et non `"15"` (string).
+    const parsed = parseInt(trimmed, 10)
+    if (Number.isNaN(parsed)) {
+      emit('update', props.field, null)
+    } else {
+      emit('update', props.field, Number(parsed))
+    }
   } else {
     emit('update', props.field, trimmed)
   }
@@ -121,6 +128,8 @@ function cancelEdit() {
           @keyup.escape="cancelEdit"
         />
         <button
+          type="button"
+          :aria-label="'Valider ' + label"
           class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md"
           @click="confirmEdit"
         >
@@ -129,6 +138,8 @@ function cancelEdit() {
           </svg>
         </button>
         <button
+          type="button"
+          :aria-label="'Annuler la modification de ' + label"
           class="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-md"
           @click="cancelEdit"
         >
@@ -153,8 +164,10 @@ function cancelEdit() {
     <!-- Bouton éditer -->
     <button
       v-if="!isEditing"
+      type="button"
       class="ml-3 p-1.5 text-gray-400 hover:text-brand-green hover:bg-gray-50 dark:hover:bg-dark-hover rounded-md transition-colors flex-shrink-0"
       :title="'Modifier ' + label"
+      :aria-label="'Modifier ' + label"
       @click="startEdit"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

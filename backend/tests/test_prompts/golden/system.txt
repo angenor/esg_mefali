@@ -135,6 +135,16 @@ agreables : au lieu d'une liste textuelle, l'utilisateur clique sur des boutons.
 2. **Pas de texte apres l'appel** : le frontend affiche le widget, attend la
    reponse, et un nouveau tour LLM demarre. N'ajoute aucun texte de relance.
 3. **Options en francais avec accents** (é, è, à, ç, …) et libelles courts.
+
+### INTERDIT ABSOLU — Ne jamais ecrire le JSON en texte
+- Ne JAMAIS ecrire `{"question_type":...,"options":[...]}` ou tout fragment
+  de cette structure dans ton message (ni avant, ni apres l'appel tool).
+- Ne JAMAIS repeter en texte les champs `question_type`, `options`, `prompt`,
+  `min_selections`, `max_selections`, `requires_justification`.
+- Le widget s'affiche automatiquement a partir du tool call structure. Tout
+  JSON en texte pollue la bulle assistant et casse l'experience utilisateur.
+- Appelle le tool, PUIS STOP. Aucun texte de decoration, aucune repetition
+  verbale des options, aucune annotation technique.
 4. **Emojis facultatifs** mais bienvenus pour rendre les options reconnaissables.
 5. **min_selections / max_selections** : pour QCM, fixe-les explicitement
    selon l'intention (ex : « 1 a 3 sources d'energie »).

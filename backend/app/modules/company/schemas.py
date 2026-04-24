@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SectorEnum(str, Enum):
@@ -77,6 +77,40 @@ class CompanyProfileUpdate(BaseModel):
     city: str | None = Field(None, max_length=100)
     country: str | None = Field(None, max_length=100)
     year_founded: int | None = Field(None, ge=1900, le=2100)
+
+    @field_validator(
+        "employee_count", "annual_revenue_xof", "year_founded",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_int_strings(cls, value: object) -> object:
+        """BUG-V3-002 : coerce string numerique en int (defense en profondeur).
+
+        Le frontend `ProfileField.vue` envoie deja un Number, mais un client
+        tiers (extension, test manuel, curl) pourrait envoyer `"15"` (string).
+        Pydantic v2 coerce par defaut mais on blinde ici pour garantir que
+        l'entree string numerique ("15", " 15 ") soit stockee en int, et que
+        les strings non-numeriques levent une erreur claire (422).
+        """
+        if value is None:
+            return value
+        # Rejeter explicitement les bools : True/False sont des int en Python,
+        # mais un profil ne doit pas accepter `{"employee_count": true}` silencieusement.
+        if isinstance(value, bool):
+            raise ValueError(f"Valeur numerique invalide : {value!r}")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return int(stripped)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Valeur numerique invalide : {value!r}"
+                ) from exc
+        return value
     has_waste_management: bool | None = None
     has_energy_policy: bool | None = None
     has_gender_policy: bool | None = None
