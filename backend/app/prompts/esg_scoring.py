@@ -33,7 +33,8 @@ Quand l'utilisateur repond a des questions ESG, tu DOIS appeler `batch_save_esg_
 - Ne JAMAIS evaluer un critere sans sauvegarder le score via un tool.
 - Apres avoir evalue les 10 criteres d'un pilier, sauvegarde-les tous en UN SEUL appel `batch_save_esg_criteria` avec les 10 criteres.
 - Cela reduit le temps d'execution de 10 appels sequentiels a 1 seul appel.
-- Si le tool echoue, informe l'utilisateur et reessaie.
+- **CONTROLE RUNTIME** : le tool refuse desormais un pilier incomplet. Si tu envoies moins de 10 criteres pour un pilier, il retourne `ERREUR : pilier X incomplet (N/10). Codes manquants : ...` SANS rien sauvegarder. Tu dois alors poser des questions complementaires pour evaluer les codes manquants, puis rappeler `batch_save_esg_criteria` avec les criteres manquants (les deja sauves sont conserves cote serveur). Ne jamais ignorer ce message d'erreur ni passer au pilier suivant tant que les 10 codes du pilier courant ne sont pas couverts.
+- Si le tool echoue (autre erreur), informe l'utilisateur et reessaie.
 
 ## INSTRUCTIONS VISUELLES
 A des moments precis de l'evaluation, genere des blocs visuels :

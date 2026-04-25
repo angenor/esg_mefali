@@ -6,6 +6,71 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from app.graph.tools.common import get_db_and_user, with_retry
+from app.modules.esg.criteria import CRITERIA_BY_CODE, PILLAR_CRITERIA, PILLAR_LABELS
+
+# Codes attendus par lettre de pilier (E1-E10, S1-S10, G1-G10).
+_PILLAR_LETTER_TO_KEY = {"E": "environment", "S": "social", "G": "governance"}
+_EXPECTED_CODES_BY_LETTER: dict[str, frozenset[str]] = {
+    letter: frozenset(c.code for c in PILLAR_CRITERIA[key])
+    for letter, key in _PILLAR_LETTER_TO_KEY.items()
+}
+
+
+def _normalize_code(raw: object) -> str:
+    """Normaliser un code critere : trim + upper. Tolerant aux non-string."""
+    if not isinstance(raw, str):
+        return str(raw)
+    return raw.strip().upper()
+
+
+def _validate_pillar_completeness(
+    request_codes: list[str],
+    already_evaluated: list[str],
+) -> str | None:
+    """Valider que chaque pilier touche par la requete est complet via l'union.
+
+    Retourne None si valide, sinon une chaine d'erreur explicite a renvoyer au LLM.
+    Effets de bord : aucun. Idempotent.
+    Tolere une variation casse/whitespace dans les codes ('e1' -> 'E1').
+    """
+    # 1. Normaliser et detecter les codes inconnus avant tout regroupement.
+    normalized = [_normalize_code(c) for c in request_codes]
+    invalid = sorted({code for code in normalized if code not in CRITERIA_BY_CODE})
+    if invalid:
+        return (
+            f"ERREUR : codes invalides : {', '.join(invalid)}. "
+            f"Les codes valides sont E1-E10, S1-S10, G1-G10. "
+            f"Corrige les codes et rappelle batch_save_esg_criteria."
+        )
+
+    # 2. Identifier les piliers touches par la requete (par lettre prefixee).
+    request_dedup = set(normalized)
+    touched_letters = {code[0] for code in request_dedup}
+    persisted = {_normalize_code(c) for c in already_evaluated}
+
+    # 3. Pour chaque pilier touche, verifier la completude via l'union.
+    errors: list[str] = []
+    for letter in sorted(touched_letters):
+        expected = _EXPECTED_CODES_BY_LETTER[letter]
+        request_for_pillar = {c for c in request_dedup if c.startswith(letter)}
+        persisted_for_pillar = {c for c in persisted if c.startswith(letter)}
+        union_for_pillar = request_for_pillar | persisted_for_pillar
+        missing = expected - union_for_pillar
+        if missing:
+            pillar_label = PILLAR_LABELS[_PILLAR_LETTER_TO_KEY[letter]]
+            count = 10 - len(missing)
+            errors.append(
+                f"ERREUR : pilier {letter} ({pillar_label}) incomplet ({count}/10). "
+                f"Codes manquants : {', '.join(sorted(missing))}. "
+                f"Tu DOIS evaluer les 10 criteres {letter}1-{letter}10 avant de passer "
+                f"au pilier suivant. Pose des questions complementaires couvrant ces "
+                f"criteres puis rappelle batch_save_esg_criteria avec les criteres "
+                f"manquants (les deja sauves sont conserves)."
+            )
+
+    if errors:
+        return "\n\n".join(errors)
+    return None
 
 
 @tool
@@ -280,13 +345,23 @@ async def batch_save_esg_criteria(
     if not criteria:
         return "Erreur : la liste de criteres est vide."
 
+    # Validation runtime de la completude des piliers (BUG-V5-003).
+    # On deduplique les codes ; en cas de doublon, la derniere occurrence est
+    # celle qui sera persistee plus bas (politique "last write wins").
+    request_codes = [c["criterion_code"] for c in criteria]
+    already_evaluated = list(assessment.evaluated_criteria or [])
+    validation_error = _validate_pillar_completeness(request_codes, already_evaluated)
+    if validation_error is not None:
+        # Aucune ecriture en BDD : idempotence garantie.
+        return validation_error
+
     # Copie immutable des scores et criteres evalues
     criteria_scores = dict((assessment.assessment_data or {}).get("criteria_scores", {}))
     evaluated_criteria = list(assessment.evaluated_criteria or [])
 
-    # Appliquer chaque critere
+    # Appliquer chaque critere (codes normalises, doublons ecrases : last write wins)
     for criterion in criteria:
-        code = criterion["criterion_code"]
+        code = _normalize_code(criterion["criterion_code"])
         criteria_scores[code] = {
             "score": criterion["score"],
             "justification": criterion["justification"],
@@ -295,7 +370,7 @@ async def batch_save_esg_criteria(
             evaluated_criteria.append(code)
 
     # Determiner le pilier courant a partir du dernier critere
-    last_code = criteria[-1]["criterion_code"]
+    last_code = _normalize_code(criteria[-1]["criterion_code"])
     current_pillar = assessment.current_pillar
     if last_code.startswith("E"):
         current_pillar = "environment"
@@ -321,7 +396,7 @@ async def batch_save_esg_criteria(
     progress = compute_progress_percent(evaluated_criteria)
     scores = compute_overall_score(criteria_scores, assessment.sector)
 
-    saved_codes = [c["criterion_code"] for c in criteria]
+    saved_codes = [_normalize_code(c["criterion_code"]) for c in criteria]
     return (
         f"{len(criteria)} criteres enregistres : {', '.join(saved_codes)}.\n"
         f"- Criteres evalues : {len(evaluated_criteria)}/30\n"
