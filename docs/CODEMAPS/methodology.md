@@ -1114,10 +1114,85 @@ qui passe un attr ARIA conflictuel et asserter le non-conflit.
 
 ---
 
-**Cumul 35 leçons** cross-patterns (§4ter.bis → §4octies). **Mesure
+**Cumul 36 leçons** cross-patterns (§4ter.bis → §4nonies). **Mesure
 anti-récurrence cumulée** : Epic 11 Phase 1 MVP Cluster A (11.1-11.8) doit
-commencer par une checklist de pré-scan sur les 35 leçons, et tout 36ᵉ
-pattern émergeant créerait `§4nonies`.
+commencer par une checklist de pré-scan sur les 36 leçons, et tout 37ᵉ
+pattern émergeant créerait `§4decies`.
+
+### 4nonies. Validation runtime systémique sur tools de persistance
+
+**Pattern** : sur 6 vagues de tests bug régression (V1 → V6), le LLM
+MiniMax ne respecte pas systématiquement les instructions tool calling
+inscrites dans les prompts. Variantes observées :
+
+- **Réponse textuelle** : produit un score ou un plan en texte sans
+  appeler le tool de persistance (BUG-V6-005 : 15 actions affichées,
+  0 ligne BDD).
+- **Doublon d'appel** : appelle 2× le même tool avec la même cible
+  (BUG-V6-002 : `save_emission_entry` 2× sur (transport, carburant) →
+  171 vs 87 tCO2e affichés).
+- **Cible manquante** : appelle le tool sans le champ critique
+  (BUG-V6-011 : `update_company_profile` sans `company_name` réel →
+  AgriVert mentionné chat mais pas créé en BDD).
+- **Évaluation partielle** : appelle le tool avec moins de champs que
+  le minimum métier (BUG-V5-003 : 3 critères ESG par pilier au lieu de
+  10 → score faux, rapport mensonger).
+- **Source de vérité divergente** : recompute textuellement une valeur
+  déjà persistée (BUG-V6-009 : credit dashboard 26 vs chat 58).
+
+**Constat** : les consignes de prompt sont **insuffisantes** comme
+contrôle. Le respect du tool calling doit être transformé en
+**contrainte d'API** côté tool — impossible à ignorer pour le LLM.
+
+**Solution généralisée — chaque tool LangChain qui écrit en BDD DOIT
+inclure** :
+
+1. **Validation des champs requis** : rejet 422-like avec liste des
+   champs manquants, exploitable par le LLM pour retry intelligent.
+2. **Validation idempotence** : UPDATE si la cible existe (clé métier
+   naturelle : `(assessment_id, category, subcategory)` pour carbon ;
+   `user_id + 30 jours` pour credit ; profil unique par user pour
+   profile), pas duplicate INSERT.
+3. **Validation cohérence métier** : seuils planchers (10 critères/pilier
+   ESG, ≥10 actions plan), filtrage whitespace-only, listes non vides.
+4. **Message d'erreur exploitable** par le LLM : retour `str` (jamais
+   exception — `with_retry` la masquerait), contenant le diagnostic +
+   l'action suivante recommandée (ex : « appelle `get_credit_score` au
+   lieu de regénérer »).
+5. **No-op BDD si validation échoue** : aucune écriture partielle ;
+   l'invariant central est l'idempotence, comme V5-003.
+
+**Implémentations référence** :
+
+- `backend/app/graph/tools/esg_tools.py:batch_save_esg_criteria` —
+  garde 10 critères/pilier (V5-003).
+- `backend/app/graph/tools/carbon_tools.py:save_emission_entry` —
+  dedup `(assessment_id, category, subcategory)` (V6-002).
+- `backend/app/graph/tools/credit_tools.py:generate_credit_score` —
+  idempotence mensuelle (V6-004 / V6-009).
+- `backend/app/graph/tools/action_plan_tools.py:generate_action_plan` —
+  validation post-appel ≥10 items + champs requis (V6-005).
+- `backend/app/graph/tools/profiling_tools.py:update_company_profile` —
+  rejet whitespace-only (V6-011).
+
+**Anti-récurrence** : avant tout merge d'un nouveau tool LangChain qui
+persiste, checklist obligatoire :
+
+- [ ] Tests `test_<tool>_rejects_incomplete_payload` présent.
+- [ ] Tests `test_<tool>_idempotent_no_duplicate` présent.
+- [ ] Tests `test_<tool>_succeeds_with_complete_payload` présent.
+- [ ] Section `## PERSISTANCE — TOOL CALL OBLIGATOIRE` dans le prompt
+      spécialiste correspondant, avec mention explicite du contrôle
+      runtime et de la conduite à tenir face à un message d'erreur.
+- [ ] Aucune exception levée par la garde — uniquement des chaînes
+      retour exploitables par le LLM.
+
+**Source** : Story batch BUG-V6-002/004/005/009/011 généralisation
+BUG-V5-003 (`spec-bug-v6-runtime-guards-persistence-tools.md`).
+Capitalisation §4nonies retenue : la validation runtime systémique
+n'est pas un correctif ponctuel, c'est une discipline d'architecture
+des tools — toute future feature Epic 11+ doit l'appliquer dès le
+premier commit, pas en post-incident.
 
 **Retrospective Epic 10 formelle** : à exécuter immédiatement après clôture
 des 3 commits de patch 10.21 via `bmad-retrospective` skill. Synthèse
