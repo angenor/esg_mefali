@@ -27,19 +27,39 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_json_array(text: str) -> list:
-    """Extraire un tableau JSON depuis une réponse LLM (supporte markdown)."""
+    """Extraire un tableau JSON depuis une réponse LLM (supporte markdown).
+
+    Pattern §4decies (Lecon 40) : si le parsing echoue, on tente une
+    reparation tolerante via `app.services.json_repair.repair_json`
+    avant de lever l'erreur. Cela evite d'inutiles retries quand le
+    LLM produit du JSON quasi-valide (trailing comma, single quotes,
+    cles non quotees).
+    """
+    from app.services.json_repair import repair_json
+
+    def _parse_with_repair(payload: str) -> list | None:
+        """Tenter parse direct puis reparation. Retourne list ou None."""
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            parsed = repair_json(payload)
+        if isinstance(parsed, list):
+            return parsed
+        return None
+
     # Tenter extraction depuis bloc markdown ```json ... ```
     md_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.DOTALL)
     if md_match:
-        return json.loads(md_match.group(1))
+        result = _parse_with_repair(md_match.group(1))
+        if result is not None:
+            return result
 
     # Tenter extraction du premier tableau JSON brut (non-greedy)
     bracket_match = re.search(r"\[.*?\]", text, re.DOTALL)
     if bracket_match:
-        try:
-            return json.loads(bracket_match.group(0))
-        except json.JSONDecodeError:
-            pass
+        result = _parse_with_repair(bracket_match.group(0))
+        if result is not None:
+            return result
 
     # Fallback: trouver le début du tableau et parser progressivement
     start = text.find("[")
@@ -51,10 +71,9 @@ def _extract_json_array(text: str) -> list:
             elif ch == "]":
                 depth -= 1
                 if depth == 0:
-                    try:
-                        return json.loads(text[start : i + 1])
-                    except json.JSONDecodeError:
-                        pass
+                    result = _parse_with_repair(text[start : i + 1])
+                    if result is not None:
+                        return result
                     break
 
     raise ValueError(f"Aucun tableau JSON valide trouvé dans la réponse LLM : {text[:200]}")

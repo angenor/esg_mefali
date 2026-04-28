@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "description": "Template fallback Plan d'action ESG/Carbone/Financement (10 actions). Placeholders : {{sector}}, {{employee_count}}, {{country}}.",
+  "actions": [
+    {
+      "title": "Audit consommation energetique secteur {{sector}}",
+      "description": "Realiser un audit energetique des installations principales pour identifier les gisements d'economies (eclairage, climatisation, equipements industriels). Mesurer la consommation actuelle en kWh, comparer aux benchmarks sectoriels {{sector}} et identifier 3 actions prioritaires de reduction.",
+      "category": "environment",
+      "priority": "high",
+      "due_date_offset_months": 2,
+      "estimated_cost_xof": 500000,
+      "estimated_benefit": "Reduction 15-25% des couts energetiques annuels"
+    },
+    {
+      "title": "Mettre en place un tri selectif des dechets",
+      "description": "Installer des points de collecte differencies (papier, plastique, organique, dangereux), former le personnel aux gestes de tri et contractualiser avec une filiere de recyclage agreee dans la zone {{country}}.",
+      "category": "environment",
+      "priority": "medium",
+      "due_date_offset_months": 4,
+      "estimated_cost_xof": 250000,
+      "estimated_benefit": "Conformite reglementaire UEMOA + reduction empreinte"
+    },
+    {
+      "title": "Optimiser la consommation d'eau",
+      "description": "Installer des compteurs divisionnaires sur les principaux postes consommateurs, identifier les fuites, mettre en place des systemes economiseurs (mousseurs, recuperation eaux pluviales) adaptes au contexte hydrique {{country}}.",
+      "category": "environment",
+      "priority": "medium",
+      "due_date_offset_months": 6,
+      "estimated_cost_xof": 350000,
+      "estimated_benefit": "Reduction 20% consommation eau, baisse facture"
+    },
+    {
+      "title": "Plan de formation ESG pour {{employee_count}} collaborateurs",
+      "description": "Concevoir et deployer un programme de formation ESG (sensibilisation environnement, sante-securite au travail, ethique) sur 6 a 12 mois. Couverture cible : 100% des collaborateurs avec attestations de presence.",
+      "category": "social",
+      "priority": "high",
+      "due_date_offset_months": 5,
+      "estimated_cost_xof": 600000,
+      "estimated_benefit": "Engagement equipe + conformite ODD 8"
+    },
+    {
+      "title": "Renforcer la sante et la securite au travail",
+      "description": "Realiser une evaluation des risques professionnels, equiper les postes critiques en EPI conformes, etablir un registre des incidents et former un referent securite. Adapte aux specificites secteur {{sector}}.",
+      "category": "social",
+      "priority": "high",
+      "due_date_offset_months": 3,
+      "estimated_cost_xof": 400000,
+      "estimated_benefit": "Reduction accidents du travail, conformite OIT"
+    },
+    {
+      "title": "Publier une charte de transparence et d'ethique",
+      "description": "Rediger et diffuser publiquement une charte couvrant gouvernance, prevention de la corruption, traitement des plaintes et engagements ESG. Integration sur site web et documents commerciaux.",
+      "category": "governance",
+      "priority": "medium",
+      "due_date_offset_months": 4,
+      "estimated_cost_xof": 150000,
+      "estimated_benefit": "Renforcement credibilite vis-a-vis financeurs verts"
+    },
+    {
+      "title": "Mettre en place un dispositif anti-corruption",
+      "description": "Adopter une procedure de declaration de conflits d'interets, un canal d'alerte interne, et former la direction sur les regles UEMOA/CEDEAO en matiere de lutte anti-corruption.",
+      "category": "governance",
+      "priority": "medium",
+      "due_date_offset_months": 7,
+      "estimated_cost_xof": 200000,
+      "estimated_benefit": "Eligibilite financements internationaux"
+    },
+    {
+      "title": "Preparer un dossier type de demande de financement vert",
+      "description": "Constituer un dossier reutilisable (presentation entreprise, business plan, indicateurs ESG, etudes d'impact) compatible avec les exigences GCF/FEM/BOAD. Adapter les volumes au contexte {{employee_count}} salaries / secteur {{sector}}.",
+      "category": "financing",
+      "priority": "high",
+      "due_date_offset_months": 6,
+      "estimated_cost_xof": 800000,
+      "estimated_benefit": "Reduction time-to-submit dossiers futurs de 60%"
+    },
+    {
+      "title": "Prendre contact avec un intermediaire financier accredite",
+      "description": "Identifier 2 a 3 intermediaires accredites pertinents pour le secteur {{sector}} en zone {{country}} (banques vertes, IMF, fonds nationaux), prendre rendez-vous et presenter le projet avec les premiers livrables ESG.",
+      "category": "financing",
+      "priority": "high",
+      "due_date_offset_months": 8,
+      "estimated_cost_xof": 100000,
+      "estimated_benefit": "Acces conseil + pre-qualification financements"
+    },
+    {
+      "title": "Realiser un bilan carbone annuel",
+      "description": "Calculer l'empreinte carbone scope 1 + 2 (et scope 3 simplifie) selon les facteurs d'emission Afrique de l'Ouest. Publier les resultats dans le rapport ESG annuel et definir une trajectoire de reduction.",
+      "category": "carbon",
+      "priority": "medium",
+      "due_date_offset_months": 10,
+      "estimated_cost_xof": 700000,
+      "estimated_benefit": "Eligibilite mecanismes carbone + reporting reglementaire"
+    }
+  ]
+}

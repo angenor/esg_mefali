@@ -179,20 +179,31 @@ class TestGetActionPlan:
 
 
 class TestGenerateActionPlanRuntimeGuard:
-    """BUG-V6-005 : garde runtime exige >= 10 actions et champs requis."""
+    """BUG-V6-005 : garde runtime exige >= 5 actions (mode batch §4decies) et champs requis."""
 
     @pytest.mark.asyncio
     @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)
-    async def test_rejects_below_minimum_items(self, mock_generate, mock_config):
-        """Plan service avec 5 actions -> ERREUR explicite, pas de message succes."""
-        plan = _make_action_plan(items=[_make_action_item() for _ in range(5)])
+    async def test_accepts_partial_batch_with_incremental_message(
+        self, mock_generate, mock_config
+    ):
+        """V8-AXE2 §4decies : plan service avec 5 actions -> succes mode batch incremental.
+
+        Remplace l'ancien comportement strict (ERREUR < 10) par l'acceptation
+        d'un plan partiel >= 5 actions avec message invitant le LLM a
+        completer via un nouvel appel.
+        """
+        plan = _make_action_plan(
+            items=[_make_action_item() for _ in range(5)],
+            total_actions=5,
+        )
         mock_generate.return_value = plan
 
         result = await generate_action_plan.ainvoke({"timeframe": 12}, config=mock_config)
 
-        assert "ERREUR" in result
+        assert "ERREUR" not in result
         assert "5/10" in result
-        assert "incomplet" in result.lower()
+        assert "incremental" in result.lower() or "incrémental" in result.lower()
+        assert "manque 5" in result.lower()
 
     @pytest.mark.asyncio
     @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)

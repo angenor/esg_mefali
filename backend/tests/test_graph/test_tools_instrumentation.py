@@ -966,11 +966,19 @@ class TestActionPlanProdInstrumentation:
         tool = ACTION_PLAN_TOOLS[0]
 
         counter = {"n": 0}
+        # V8-AXE2 §4decies : le tool accepte >=5 actions (mode batch).
+        # Pour ce test d'instrumentation centre sur le retry, on fournit
+        # 10 actions valides au 2eme appel afin d'eviter le declenchement
+        # du fallback template (qui necessite un profil entreprise reel).
+        item = MagicMock()
+        item.title = "Action test"
+        item.category = "environment"
+        item.status = MagicMock(value="todo")
         mock_plan = MagicMock()
         mock_plan.title = "Plan"
         mock_plan.timeframe = 12
-        mock_plan.total_actions = 5
-        mock_plan.items = []
+        mock_plan.total_actions = 10
+        mock_plan.items = [item for _ in range(10)]
 
         async def flaky_gen(*_a, **_kw):
             counter["n"] += 1

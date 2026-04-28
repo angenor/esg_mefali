@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from V8-AXE2 review (2026-04-28)
+
+Issus des 3 sub-agents review (Blind hunter, Edge case hunter, Acceptance auditor) sur la spec V8-AXE2 (validation runtime relâchée + fallback template).
+
+- **DEF-V8-AXE2-1 — Race concurrente sur `persist_fallback_plan`** — Le partial unique index `uq_active_plan_per_user` (`status='active'`) peut lever `IntegrityError` si deux coroutines pour le même user arrivent en même temps (double-clic, retry frontend) : les deux peuvent passer l'archive UPDATE et tenter d'INSERT un nouveau plan `active`. Patch V8-AXE2 a déjà fusionné les commits archive+insert en un seul (finding #1 review), ce qui réduit la fenêtre mais ne ferme pas la race entre coroutines simultanées. Pré-existant au pattern (le service LLM original avait la même limitation). **Path** : `SELECT ... FOR UPDATE` sur les plans actifs avant l'archive, ou retry sur `IntegrityError` avec rechargement du plan venant de gagner la course. Coût : 1 h. **Trigger** : pic d'incidents `IntegrityError` sur `action_plans` ou doubles plans actifs en BDD. [backend/app/services/action_plan_fallback.py + backend/app/modules/action_plan/service.py]
+
 ## Deferred from V8-AXE3 review (2026-04-28)
 
 Issus des 3 sub-agents review (Blind hunter, Edge case hunter, Acceptance auditor) sur la spec V8-AXE3. Findings classés `defer` (pas du chemin critique, hors scope de la spec, ou déjà traités par défense en profondeur).

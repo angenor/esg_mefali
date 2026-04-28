@@ -1114,10 +1114,10 @@ qui passe un attr ARIA conflictuel et asserter le non-conflit.
 
 ---
 
-**Cumul 36 leçons** cross-patterns (§4ter.bis → §4nonies). **Mesure
+**Cumul 37 leçons** cross-patterns (§4ter.bis → §4decies). **Mesure
 anti-récurrence cumulée** : Epic 11 Phase 1 MVP Cluster A (11.1-11.8) doit
-commencer par une checklist de pré-scan sur les 36 leçons, et tout 37ᵉ
-pattern émergeant créerait `§4decies`.
+commencer par une checklist de pré-scan sur les 37 leçons, et tout 38ᵉ
+pattern émergeant créerait `§4undecies`.
 
 ### 4nonies. Validation runtime systémique sur tools de persistance
 
@@ -1199,6 +1199,85 @@ des 3 commits de patch 10.21 via `bmad-retrospective` skill. Synthèse
 attendue : vélocité 60-75 % L + 20-50 % M confirmée, économie 12 semaines
 sprint v1 → v2, 35 leçons cumulées cross-patterns, transition Epic 11
 déclenchée.
+
+### 4decies. Validation runtime adaptative + fallback déterministe (Leçon 40)
+
+**Pattern** : sur les **tools de génération créative** (plan d'action,
+recommandations, contenus structurés ouverts), la validation runtime
+stricte instaurée par §4nonies (BUG-V5-003 : ≥10 critères, ≥10 actions,
+etc.) bloque même les meilleurs LLM lorsque la complexité du prompt et la
+longueur du JSON dépassent leur fenêtre de fiabilité. Observation
+empirique sur 3 vagues V6/V7/V7.1 :
+
+- **V6-005** (MiniMax) : tool `generate_action_plan` jamais appelé — le
+  LLM répond textuellement sans persister.
+- **V7-007** (MiniMax) : `json_parse_failed` × 2 retries — le LLM
+  produit du JSON quasi-valide (trailing comma, single quotes) que le
+  parser strict rejette.
+- **V7.1-009** (Claude) : guard LLM échoue 9× (3 cycles × 3 retries) —
+  même le meilleur provider sature sur le seuil ≥10 actions.
+
+**Constat** : la validation stricte de §4nonies est nécessaire pour les
+**tools de persistance déterministe** (idempotence, dedup, whitespace,
+champs requis), mais **insuffisante** pour les tools de génération
+créative ouverte. Sans filet de sécurité, l'utilisateur reste sans plan.
+
+**Solution généralisée — pattern adaptatif en 3 paliers** :
+
+1. **Validation stricte 1ère tentative** (≥10 actions, schéma complet) —
+   qualité optimale quand le LLM réussit.
+2. **Acceptation incrémentale ≥5 actions** — mode batch, message tool
+   « X/10 sauvegardées, manque Y, continue avec batch suivant ». Le
+   LLM peut compléter via un nouvel appel.
+3. **Fallback template déterministe** — dernier recours après échec
+   total des retries internes du service (`LLMGuardError`). Charge un
+   template JSON statique avec placeholders `{{sector}}`,
+   `{{employee_count}}`, `{{country}}`, persiste un plan complet.
+   Garantit la disponibilité du feature même quand le provider LLM
+   est indisponible.
+
+**Différence vs §4nonies** : §4nonies protège contre le **non-respect
+du tool calling** (le LLM ne persiste pas) ; §4decies protège contre
+la **défaillance qualité** du LLM même quand il appelle bien le tool.
+Les deux cohabitent : la validation reste activée, le fallback est un
+filet de sécurité ultime.
+
+**Helper transverse `app/services/json_repair.py`** : passes ordonnées
+(trailing comma → unquoted keys → single quotes), `try json.loads`
+après chaque, retour `None` si irréparable. Réutilisable par tout
+extracteur JSON tolérant.
+
+**Implémentations référence** :
+
+- `backend/app/services/action_plan_fallback.py` — template substituant
+  + persistance déterministe (V8-AXE2).
+- `backend/app/services/json_repair.py` — réparation tolérante JSON
+  (V8-AXE2).
+- `backend/app/templates/action_plan_default.json` — 10 actions
+  génériques (3 environment, 2 social, 2 governance, 2 financing,
+  1 carbon).
+- `backend/app/graph/tools/action_plan_tools.py:generate_action_plan` —
+  orchestration adaptative (try LLM → mode incrémental ≥5 → fallback
+  sur `LLMGuardError`).
+
+**Anti-récurrence** : avant tout merge d'un nouveau tool LangChain de
+**génération créative ouverte**, checklist obligatoire :
+
+- [ ] Mode batch incrémental documenté (seuil minimum acceptable < cible
+      métier).
+- [ ] Fallback template déterministe disponible et testé.
+- [ ] Log structuré `fallback_triggered user_id=… reason=… final_count=…`.
+- [ ] Tests `test_<tool>_fallback_template_after_3_retries` présent.
+- [ ] Tests `test_<tool>_validation_relaxed_<N>_actions_succeeds` présent.
+- [ ] Tests `test_<tool>_fallback_persists_<N>_actions` présent.
+
+**Source** : V8-AXE2 BUG-V6-005 / V7-007 / V7.1-009
+(`spec-v8-axe2-action-plan-fallback.md`).
+
+**Cumul mis à jour** : **37 leçons** cross-patterns
+(§4ter.bis → §4decies), capitalisation continue. Toute future feature
+Epic 11+ qui implémente un tool de génération créative doit appliquer
+le pattern adaptatif §4decies dès le premier commit.
 
 ## 5. Règle 10.5 no-duplication : scan AST-aware
 

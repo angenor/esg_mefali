@@ -6,6 +6,7 @@ Trois tools exposes au LLM :
 - get_action_plan : consulter le plan d'action actif
 """
 
+import logging
 import uuid
 
 from langchain_core.runnables import RunnableConfig
@@ -13,9 +14,15 @@ from langchain_core.tools import tool
 
 from app.graph.tools.common import get_db_and_user, with_retry
 
+logger = logging.getLogger(__name__)
 
-# Nombre minimum d'actions exigees pour un plan complet (BUG-V6-005).
-_ACTION_PLAN_MIN_ITEMS = 10
+
+# Cible metier d'un plan complet (BUG-V6-005). Le tool accepte des plans
+# partiels en mode batch incremental tant que `_ACTION_PLAN_ACCEPT_MIN`
+# est respecte. En cas d'echec total du LLM (LLMGuardError), le fallback
+# template deterministe garantit toujours `_ACTION_PLAN_TARGET_ITEMS`.
+_ACTION_PLAN_TARGET_ITEMS = 10
+_ACTION_PLAN_ACCEPT_MIN = 5
 
 
 @tool
@@ -29,23 +36,59 @@ async def generate_action_plan(timeframe: int, config: RunnableConfig) -> str:
     Args:
         timeframe: Horizon du plan en mois (6, 12 ou 24).
     """
+    from fastapi import HTTPException
+
+    from app.core.llm_guards import LLMGuardError
     from app.modules.action_plan.service import generate_action_plan as gen_plan
+    from app.services.action_plan_fallback import (
+        FallbackTemplateError,
+        persist_fallback_plan,
+    )
 
     db, user_id = get_db_and_user(config)
 
-    plan = await gen_plan(db=db, user_id=user_id, timeframe=timeframe)
+    fallback_used = False
+    plan = None
 
-    # CONTROLE RUNTIME : valider la coherence metier du plan retourne par le
-    # service. BUG-V6-005 : plan affiche dans le chat mais 0 actions BDD.
+    async def _trigger_fallback(reason: str) -> "ActionPlan":  # type: ignore[name-defined]
+        """Wrapper qui convertit FallbackTemplateError en exception remontee
+        au with_retry (genere "Erreur : ..." au LLM)."""
+        try:
+            return await persist_fallback_plan(
+                db=db, user_id=user_id, timeframe=timeframe, reason=reason
+            )
+        except FallbackTemplateError as exc:
+            # Pas de re-fallback possible : on remonte une RuntimeError que
+            # with_retry transformera en str retournable au LLM.
+            raise RuntimeError(
+                f"Plan d'action impossible : template fallback indisponible ({exc})."
+            ) from exc
+
+    # 1. Tenter la voie LLM (le service applique deja ses retries internes
+    # via run_guarded_llm_call). En cas d'echec total -> fallback template.
+    try:
+        plan = await gen_plan(db=db, user_id=user_id, timeframe=timeframe)
+    except HTTPException:
+        # Profil manquant (428) ou erreur metier remontee : pas de fallback.
+        raise
+    except LLMGuardError as exc:
+        logger.warning(
+            "action_plan LLMGuardError -> fallback user_id=%s reason=%s",
+            user_id,
+            getattr(exc, "code", "unknown"),
+            extra={
+                "metric": "action_plan_fallback",
+                "user_id": str(user_id),
+                "reason": "llm_guard_error",
+            },
+        )
+        plan = await _trigger_fallback(reason="llm_guard_error")
+        fallback_used = True
+
     items = list(plan.items or [])
     item_count = len(items)
-    if item_count < _ACTION_PLAN_MIN_ITEMS:
-        return (
-            f"ERREUR : plan d'action incomplet ({item_count}/"
-            f"{_ACTION_PLAN_MIN_ITEMS} actions minimum). Le service a genere "
-            f"trop peu d'actions. Relance generate_action_plan ou complete "
-            f"manuellement via update_action_item."
-        )
+
+    # 2. Validation des champs (defense en profondeur post-persistance).
     invalid: list[str] = []
     for idx, item in enumerate(items, start=1):
         missing = []
@@ -58,19 +101,55 @@ async def generate_action_plan(timeframe: int, config: RunnableConfig) -> str:
     if invalid:
         return f"ERREUR : actions invalides — {'; '.join(invalid)}."
 
+    # 3. Plan inferieur au minimum acceptable -> fallback de derniere chance.
+    if item_count < _ACTION_PLAN_ACCEPT_MIN and not fallback_used:
+        logger.warning(
+            "action_plan count=%d < %d -> fallback user_id=%s",
+            item_count,
+            _ACTION_PLAN_ACCEPT_MIN,
+            user_id,
+            extra={
+                "metric": "action_plan_fallback",
+                "user_id": str(user_id),
+                "reason": "count_below_min",
+                "final_count": item_count,
+            },
+        )
+        plan = await _trigger_fallback(reason="count_below_min")
+        items = list(plan.items or [])
+        item_count = len(items)
+        fallback_used = True
+
     items_preview = []
     for item in items[:5]:
         status = item.status.value if hasattr(item.status, "value") else item.status
         items_preview.append(f"  - {item.title} ({item.category}, {status})")
     items_text = "\n".join(items_preview) if items_preview else "  Aucune action generee."
 
+    # 4. Construire le message retourne au LLM.
+    header = (
+        "Plan d'action genere via fallback template (LLM indisponible) !"
+        if fallback_used
+        else "Plan d'action genere avec succes !"
+    )
+
+    incremental_note = ""
+    if not fallback_used and item_count < _ACTION_PLAN_TARGET_ITEMS:
+        missing = _ACTION_PLAN_TARGET_ITEMS - item_count
+        incremental_note = (
+            f"\n\nMode batch incremental : {item_count}/{_ACTION_PLAN_TARGET_ITEMS} "
+            f"actions sauvegardees, manque {missing} pour atteindre la cible. "
+            f"Continue avec le batch suivant via un nouvel appel a generate_action_plan."
+        )
+
     return (
-        f"Plan d'action genere avec succes !\n"
+        f"{header}\n"
         f"- Titre : {plan.title}\n"
         f"- Horizon : {plan.timeframe} mois\n"
         f"- Nombre d'actions : {plan.total_actions}\n"
         f"- Premieres actions :\n{items_text}\n\n"
         f"Le plan complet est visible sur la page /action-plan."
+        f"{incremental_note}"
     )
 
 
