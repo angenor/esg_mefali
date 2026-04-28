@@ -251,13 +251,14 @@ agent-browser --headed
 
 | ID bug | Test source | Sévérité | Description | Fichier(s) | Status |
 |--------|-------------|----------|-------------|------------|--------|
-| BUG-V2-001 | T-CHAT-02 | HIGH | Caractères chinois "基本信息" dans réponse chat_node (régression BUG-011) | backend/app/graph/nodes.py : chat_node | OPEN |
-| BUG-V2-002 | T-CHAT-04/08 | HIGH | IA envoie message vide après soumission widget — tool call s'exécute mais aucun texte de suivi n'est généré | backend/app/graph/nodes.py, frontend/useChat.ts | OPEN |
-| BUG-V2-003 | T-CHAT-02→08 | MEDIUM | Chat ne scroll pas automatiquement vers le bas après chaque nouvelle réponse | frontend/app/components/Chat*.vue | OPEN |
-| BUG-V2-004 | T-PROFILE-01 | LOW | Texte italic profil sans accents "Completez...personnalises" | frontend/app/pages/profile.vue | OPEN |
-| BUG-V2-005 | T-ESG-12, T-FIN-01, T-CREDIT-01, T-REPORT-01 | MEDIUM | Accents manquants sur multiples pages : "Evaluation" → "Évaluation", "Demarrez" → "Démarrez", "criteres" → "critères", "genere" → "généré", "solvabilite" → "solvabilité", "Realiser" → "Réaliser" | frontend/app/pages/esg.vue, financing.vue, credit-score.vue, reports.vue, carbon.vue | OPEN |
-| BUG-V2-006 | T-FIN-01/07 | CRITICAL | ESG gate régression — onglets "Tous les fonds" et "Intermédiaires" bloqués par gate ESG (BUG-008 non appliqué) | frontend/app/pages/financing.vue | OPEN |
-| BUG-V2-007 | T-PROFILE-02 | HIGH | Profil inline edit ne sauvegarde pas — bouton ✓ n'appelle pas le PATCH API correctement (spinbutton) | frontend/app/pages/profile.vue | OPEN |
+| BUG-V2-001 | T-CHAT-02 | HIGH | Caractères chinois "基本信息" dans réponse chat_node (régression BUG-011) | backend/app/graph/nodes.py : chat_node | FIXED — spec-bug-v2-001-002-chat-regressions.md (LANGUAGE_INSTRUCTION appendue en fin de prompt) |
+| BUG-V2-002 | T-CHAT-04/08 | HIGH | IA envoie message vide après soumission widget — tool call s'exécute mais aucun texte de suivi n'est généré | backend/app/graph/nodes.py, frontend/useChat.ts | FIXED — spec-bug-v2-001-002-chat-regressions.md (puce « jamais de réponse vide après tool call » ajoutée à tool_instructions) |
+| BUG-V2-003 | T-CHAT-02→08 | MEDIUM | Chat ne scroll pas automatiquement vers le bas après chaque nouvelle réponse | frontend/app/components/Chat*.vue | OPEN — non reproduit en inspection code : logique scroll en place (FloatingChatWidget lignes 434-475, watchers `messages.length` + `streamingContent`). A re-tester côté QA ; si reproduit, DEFERRED vers investigation ciblée (peut-être spécifique à un événement post-widget) |
+| BUG-V2-004 | T-PROFILE-01 | LOW | Texte italic profil sans accents "Completez...personnalises" | frontend/app/pages/profile.vue | FIXED — déjà corrigé en amont (ligne 35 : « Complétez votre profil pour recevoir des conseils ESG personnalisés. ») |
+| BUG-V2-005 | T-ESG-12, T-FIN-01, T-CREDIT-01, T-REPORT-01 | MEDIUM | Accents manquants sur multiples pages : "Evaluation" → "Évaluation", "Demarrez" → "Démarrez", "criteres" → "critères", "genere" → "généré", "solvabilite" → "solvabilité", "Realiser" → "Réaliser" | frontend/app/pages/esg/{index,results}.vue, financing/index.vue, credit-score/index.vue, reports/index.vue, carbon/{index,results}.vue | FIXED — spec-bug-v2-batch-regressions-ux.md (batch accents 7 pages) |
+| BUG-V2-006 | T-FIN-01/07 | CRITICAL | ESG gate régression — onglets "Tous les fonds" et "Intermédiaires" bloqués par gate ESG (BUG-008 non appliqué) | frontend/app/pages/financing/index.vue | FIXED — spec-bug-v2-batch-regressions-ux.md (scope des 3 templates erreurs à `activeTab === 'recommendations'`) |
+| BUG-V2-007 | T-PROFILE-02 | HIGH | Profil inline edit ne sauvegarde pas — bouton ✓ n'appelle pas le PATCH API correctement (spinbutton) | frontend/app/components/profile/ProfileField.vue | FIXED — spec-bug-v2-batch-regressions-ux.md (ajout `type="button"` explicite sur les 3 boutons ✎/✓/✕ + `aria-label` ; évite tout submit implicite d'un form ancêtre) |
+| DEF-BUG-V2-001-1 | T-ESG/CARBON/FIN/APP/CREDIT/PLAN-xx | HIGH | Rappel linguistique « RAPPEL FINAL » absent des 6 nœuds spécialistes (extension de BUG-V2-001) | backend/app/graph/nodes.py : esg/carbon/financing/credit/application/action_plan_node | FIXED — spec-bug-v2-batch-regressions-ux.md (pattern appliqué aux 6 nœuds + 8 tests statiques verts) |
 
 ## Historique exécution
 

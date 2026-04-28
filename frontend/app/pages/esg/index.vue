@@ -27,7 +27,7 @@ function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     draft: 'Brouillon',
     in_progress: 'En cours',
-    completed: 'Terminee',
+    completed: 'Terminée',
   }
   return labels[status] ?? status
 }
@@ -55,10 +55,10 @@ function scoreColor(score: number | null): string {
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
       <div>
         <h1 class="text-xl font-bold text-surface-text dark:text-surface-dark-text">
-          Evaluation ESG
+          Évaluation ESG
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Evaluez et suivez les performances ESG de votre entreprise
+          Évaluez et suivez les performances ESG de votre entreprise
         </p>
       </div>
       <button
@@ -69,7 +69,7 @@ function scoreColor(score: number | null): string {
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
         </svg>
-        Nouvelle evaluation
+        Nouvelle évaluation
       </button>
     </div>
 
@@ -87,7 +87,7 @@ function scoreColor(score: number | null): string {
         {{ error }}
       </div>
 
-      <!-- Aucune evaluation -->
+      <!-- Aucune évaluation -->
       <div
         v-else-if="!esgStore.hasAssessments"
         class="flex flex-col items-center justify-center py-16 text-center"
@@ -99,21 +99,21 @@ function scoreColor(score: number | null): string {
           </svg>
         </div>
         <h3 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-2">
-          Aucune evaluation ESG
+          Aucune évaluation ESG
         </h3>
         <p class="text-gray-500 dark:text-gray-400 max-w-md mb-6">
-          Demarrez votre premiere evaluation ESG dans le chat. Notre assistant vous guidera a travers les 30 criteres environnementaux, sociaux et de gouvernance.
+          Démarrez votre première évaluation ESG dans le chat. Notre assistant vous guidera à travers les 30 critères environnementaux, sociaux et de gouvernance.
         </p>
         <button
           type="button"
           class="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
           @click="uiStore.openChatWidget()"
         >
-          Demarrer dans le chat
+          Démarrer dans le chat
         </button>
       </div>
 
-      <!-- Liste des evaluations -->
+      <!-- Liste des évaluations -->
       <div v-else class="space-y-4">
         <div
           v-for="assessment in esgStore.assessments"
@@ -136,7 +136,7 @@ function scoreColor(score: number | null): string {
               <div>
                 <div class="flex items-center gap-2">
                   <span class="font-semibold text-surface-text dark:text-surface-dark-text">
-                    Evaluation v{{ assessment.version }}
+                    Évaluation v{{ assessment.version }}
                   </span>
                   <span
                     class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
@@ -155,7 +155,7 @@ function scoreColor(score: number | null): string {
               :to="`/esg/results?id=${assessment.id}`"
               class="inline-flex items-center gap-1 text-sm text-brand-green hover:underline"
             >
-              Voir les resultats
+              Voir les résultats
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>

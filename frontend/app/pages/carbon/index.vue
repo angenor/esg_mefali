@@ -108,14 +108,14 @@ const categoryColors: Record<string, string> = {
           Aucun bilan carbone
         </h3>
         <p class="text-gray-500 dark:text-gray-400 max-w-md mb-6">
-          Demarrez votre premier bilan carbone dans le chat. Notre assistant vous guidera a travers les categories d'emissions pour calculer votre empreinte.
+          Démarrez votre premier bilan carbone dans le chat. Notre assistant vous guidera à travers les catégories d'émissions pour calculer votre empreinte.
         </p>
         <button
           type="button"
           class="inline-flex items-center gap-2 px-6 py-3 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
           @click="uiStore.openChatWidget()"
         >
-          Demarrer dans le chat
+          Démarrer dans le chat
         </button>
       </div>
 

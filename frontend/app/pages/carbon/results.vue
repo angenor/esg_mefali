@@ -178,17 +178,17 @@ function positionColor(position: string): string {
         {{ error }}
       </div>
 
-      <!-- Pas de donnees -->
+      <!-- Pas de données -->
       <div v-else-if="!summary" class="text-center py-12">
         <p class="text-gray-500 dark:text-gray-400">
-          Aucun bilan carbone termine. Demarrez un bilan dans le chat.
+          Aucun bilan carbone terminé. Démarrez un bilan dans le chat.
         </p>
         <button
           type="button"
           class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors"
           @click="uiStore.openChatWidget()"
         >
-          Demarrer un bilan
+          Démarrer un bilan
         </button>
       </div>
 

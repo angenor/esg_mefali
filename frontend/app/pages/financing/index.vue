@@ -22,8 +22,8 @@ onMounted(() => {
 
 function accessBadge(accessType: AccessType): { label: string; color: string } {
   const badges: Record<AccessType, { label: string; color: string }> = {
-    direct: { label: 'Acces direct', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
-    intermediary_required: { label: 'Via intermediaire', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+    direct: { label: 'Accès direct', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+    intermediary_required: { label: 'Via intermédiaire', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
     mixed: { label: 'Mixte', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
   }
   return badges[accessType] ?? { label: accessType, color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
@@ -52,13 +52,13 @@ function formatAmount(amount: number | null): string {
 
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
-    suggested: 'Suggere',
-    interested: 'Interesse',
+    suggested: 'Suggéré',
+    interested: 'Intéressé',
     contacting_intermediary: 'Contact inter.',
     applying: 'En candidature',
     submitted: 'Soumis',
-    accepted: 'Accepte',
-    rejected: 'Rejete',
+    accepted: 'Accepté',
+    rejected: 'Rejeté',
   }
   return labels[status] ?? status
 }
@@ -66,9 +66,9 @@ function statusLabel(status: string): string {
 function fundTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     international: 'International',
-    regional: 'Regional',
+    regional: 'Régional',
     national: 'National',
-    carbon_market: 'Marche carbone',
+    carbon_market: 'Marché carbone',
     local_bank_green_line: 'Ligne verte bancaire',
   }
   return labels[type] ?? type
@@ -140,7 +140,7 @@ const filteredIntermediaries = computed(() => {
 const tabs = [
   { key: 'recommendations', label: 'Recommandations' },
   { key: 'funds', label: 'Tous les fonds' },
-  { key: 'intermediaries', label: 'Intermediaires' },
+  { key: 'intermediaries', label: 'Intermédiaires' },
 ] as const
 </script>
 
@@ -150,7 +150,7 @@ const tabs = [
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
       <div>
         <h1 class="text-xl font-bold text-surface-text dark:text-surface-dark-text">Financement Vert</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">Fonds verts, matching et parcours d'acces</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Fonds verts, matching et parcours d'accès</p>
       </div>
       <button
         type="button"
@@ -197,29 +197,29 @@ const tabs = [
             <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
           </svg>
         </div>
-        <h3 class="text-lg font-medium text-surface-text dark:text-surface-dark-text mb-2">Evaluation ESG requise</h3>
-        <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">Pour recevoir des recommandations de financement, vous devez d'abord completer votre evaluation ESG.</p>
+        <h3 class="text-lg font-medium text-surface-text dark:text-surface-dark-text mb-2">Évaluation ESG requise</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">Pour recevoir des recommandations de financement, vous devez d'abord compléter votre évaluation ESG.</p>
         <NuxtLink to="/esg" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium">
-          Realiser mon evaluation ESG
+          Réaliser mon évaluation ESG
         </NuxtLink>
       </div>
 
-      <!-- Error: profil incomplet -->
-      <div v-else-if="financingStore.error && String(financingStore.error).toLowerCase().includes('profil')" class="text-center py-12">
+      <!-- Error: profil incomplet (uniquement sur l'onglet recommandations) -->
+      <div v-else-if="financingStore.error && String(financingStore.error).toLowerCase().includes('profil') && financingStore.activeTab === 'recommendations'" class="text-center py-12">
         <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-blue-600 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
           </svg>
         </div>
         <h3 class="text-lg font-medium text-surface-text dark:text-surface-dark-text mb-2">Profil incomplet</h3>
-        <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">Completez votre profil entreprise pour que nous puissions identifier les financements adaptes.</p>
+        <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">Complétez votre profil entreprise pour que nous puissions identifier les financements adaptés.</p>
         <NuxtLink to="/profile" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium">
-          Completer mon profil
+          Compléter mon profil
         </NuxtLink>
       </div>
 
-      <!-- Error: generique -->
-      <div v-else-if="financingStore.error" class="text-center py-12">
+      <!-- Error: generique (uniquement sur l'onglet recommandations ; les onglets fonds/intermediaires rendent leur propre contenu) -->
+      <div v-else-if="financingStore.error && financingStore.activeTab === 'recommendations'" class="text-center py-12">
         <div class="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -228,7 +228,7 @@ const tabs = [
         <h3 class="text-lg font-medium text-surface-text dark:text-surface-dark-text mb-2">Erreur de chargement</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">{{ financingStore.error }}</p>
         <button class="inline-flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium" @click="fetchMatches(); fetchFunds(); fetchIntermediaries()">
-          Reessayer
+          Réessayer
         </button>
       </div>
 
@@ -242,13 +242,13 @@ const tabs = [
             </svg>
           </div>
           <h3 class="text-lg font-medium text-surface-text dark:text-surface-dark-text mb-2">Aucune recommandation</h3>
-          <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md">Completez votre profil et evaluation ESG pour recevoir des recommandations de financements verts.</p>
+          <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-md">Complétez votre profil et évaluation ESG pour recevoir des recommandations de financements verts.</p>
           <div class="flex flex-wrap items-center justify-center gap-3">
             <NuxtLink to="/profile" class="inline-flex items-center gap-2 px-4 py-2 border border-brand-green text-brand-green rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-sm font-medium">
-              Completer mon profil
+              Compléter mon profil
             </NuxtLink>
             <NuxtLink to="/esg" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium">
-              Evaluation ESG
+              Évaluation ESG
             </NuxtLink>
           </div>
         </div>
@@ -297,15 +297,15 @@ const tabs = [
           <select v-model="fundTypeFilter" class="text-sm border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-input text-surface-text dark:text-surface-dark-text">
             <option value="">Tous les types</option>
             <option value="international">International</option>
-            <option value="regional">Regional</option>
+            <option value="regional">Régional</option>
             <option value="national">National</option>
-            <option value="carbon_market">Marche carbone</option>
+            <option value="carbon_market">Marché carbone</option>
             <option value="local_bank_green_line">Ligne verte bancaire</option>
           </select>
           <select v-model="accessTypeFilter" class="text-sm border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-input text-surface-text dark:text-surface-dark-text">
-            <option value="">Tous les acces</option>
-            <option value="direct">Acces direct</option>
-            <option value="intermediary_required">Via intermediaire</option>
+            <option value="">Tous les accès</option>
+            <option value="direct">Accès direct</option>
+            <option value="intermediary_required">Via intermédiaire</option>
             <option value="mixed">Mixte</option>
           </select>
           <select v-model="sectorFilter" class="text-sm border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-input text-surface-text dark:text-surface-dark-text">
@@ -316,7 +316,7 @@ const tabs = [
             <option value="">Tous les statuts</option>
             <option value="active">Actif</option>
             <option value="closed">Clos</option>
-            <option value="upcoming">A venir</option>
+            <option value="upcoming">À venir</option>
           </select>
           <input
             v-model.number="minAmountFilter"
@@ -355,7 +355,7 @@ const tabs = [
                 {{ fundTypeLabel(fund.fund_type) }}
               </span>
               <span v-if="fund.status !== 'active'" class="text-xs px-2 py-0.5 rounded-full" :class="fund.status === 'upcoming' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'">
-                {{ fund.status === 'upcoming' ? 'A venir' : 'Clos' }}
+                {{ fund.status === 'upcoming' ? 'À venir' : 'Clos' }}
               </span>
             </div>
             <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -373,12 +373,12 @@ const tabs = [
           <select v-model="orgTypeFilter" class="text-sm border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-input text-surface-text dark:text-surface-dark-text">
             <option value="">Tous les types</option>
             <option value="bank">Banque</option>
-            <option value="development_bank">Banque de developpement</option>
+            <option value="development_bank">Banque de développement</option>
             <option value="un_agency">Agence ONU</option>
             <option value="ngo">ONG</option>
             <option value="government_agency">Agence gouvernementale</option>
             <option value="consulting_firm">Cabinet conseil</option>
-            <option value="carbon_developer">Developpeur carbone</option>
+            <option value="carbon_developer">Développeur carbone</option>
           </select>
           <select v-model="countryFilter" class="text-sm border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-input text-surface-text dark:text-surface-dark-text">
             <option value="">Tous les pays</option>
@@ -387,7 +387,7 @@ const tabs = [
         </div>
 
         <div v-if="!filteredIntermediaries.length" class="text-center py-12 text-gray-500 dark:text-gray-400">
-          Aucun intermediaire ne correspond aux filtres.
+          Aucun intermédiaire ne correspond aux filtres.
         </div>
 
         <div v-else class="grid gap-4 md:grid-cols-2">

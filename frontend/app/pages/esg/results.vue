@@ -112,14 +112,14 @@ const pillarLabels: Record<string, string> = {
         class="text-center py-12"
       >
         <p class="text-gray-500 dark:text-gray-400">
-          Aucune evaluation terminee. Demarrez une evaluation dans le chat.
+          Aucune évaluation terminée. Démarrez une évaluation dans le chat.
         </p>
         <button
           type="button"
           class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors"
           @click="uiStore.openChatWidget()"
         >
-          Demarrer une evaluation
+          Démarrer une évaluation
         </button>
       </div>
 
@@ -164,10 +164,10 @@ const pillarLabels: Record<string, string> = {
           </div>
         </div>
 
-        <!-- Criteres detailles -->
+        <!-- Critères détaillés -->
         <div class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6">
           <h2 class="text-lg font-semibold text-surface-text dark:text-surface-dark-text mb-4">
-            Detail des criteres
+            Détail des critères
           </h2>
           <EsgCriteriaProgress :pillars="esgStore.currentScore.pillars" />
         </div>

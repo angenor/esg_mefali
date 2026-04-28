@@ -46,9 +46,9 @@ onMounted(async () => {
     <div class="border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-6 py-4">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-xl font-bold text-gray-900 dark:text-white">Score de Credit Vert</h1>
+          <h1 class="text-xl font-bold text-gray-900 dark:text-white">Score de Crédit Vert</h1>
           <p class="text-sm text-gray-500 dark:text-gray-400">
-            Score hybride combinant solvabilite et impact vert
+            Score hybride combinant solvabilité et impact vert
           </p>
         </div>
         <button
@@ -61,9 +61,9 @@ onMounted(async () => {
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Generation...
+            Génération...
           </span>
-          <span v-else>{{ store.hasScore ? 'Regenerer le score' : 'Generer mon score' }}</span>
+          <span v-else>{{ store.hasScore ? 'Régénérer le score' : 'Générer mon score' }}</span>
         </button>
       </div>
     </div>
@@ -86,7 +86,7 @@ onMounted(async () => {
             class="mt-4 px-4 py-2 text-sm bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-700"
             @click="fetchScore()"
           >
-            Reessayer
+            Réessayer
           </button>
         </div>
       </div>
@@ -101,15 +101,15 @@ onMounted(async () => {
             Pas encore de score
           </h2>
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Generez votre premier score de credit vert pour decouvrir votre profil
-            de solvabilite et d'impact environnemental.
+            Générez votre premier score de crédit vert pour découvrir votre profil
+            de solvabilité et d'impact environnemental.
           </p>
           <button
             class="px-6 py-2.5 bg-brand-green text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
             :disabled="generating"
             @click="handleGenerate"
           >
-            Generer mon score
+            Générer mon score
           </button>
         </div>
       </div>
@@ -120,21 +120,21 @@ onMounted(async () => {
         <div v-if="store.isExpired" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3">
           <span class="text-amber-500 text-xl">⚠️</span>
           <div class="flex-1">
-            <p class="text-sm font-medium text-amber-800 dark:text-amber-300">Score expire</p>
-            <p class="text-xs text-amber-600 dark:text-amber-400">Regenerez votre score pour obtenir une evaluation a jour.</p>
+            <p class="text-sm font-medium text-amber-800 dark:text-amber-300">Score expiré</p>
+            <p class="text-xs text-amber-600 dark:text-amber-400">Régénérez votre score pour obtenir une évaluation à jour.</p>
           </div>
           <button
             class="px-3 py-1.5 text-xs bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded-lg hover:bg-amber-200"
             @click="handleGenerate"
           >
-            Regenerer
+            Régénérer
           </button>
         </div>
 
         <!-- Score global -->
         <div class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6" data-guide-target="credit-score-gauge">
           <div class="text-center">
-            <ScoreGauge :score="store.score!.combined_score" label="Score Credit Vert Combine" />
+            <ScoreGauge :score="store.score!.combined_score" label="Score Crédit Vert Combiné" />
           </div>
 
           <!-- Confiance -->
@@ -151,11 +151,11 @@ onMounted(async () => {
             </span>
           </div>
 
-          <!-- Version et validite -->
+          <!-- Version et validité -->
           <div class="mt-3 flex items-center justify-center gap-4 text-xs text-gray-400 dark:text-gray-500">
             <span>Version {{ store.score!.version }}</span>
             <span>|</span>
-            <span>Genere le {{ new Date(store.score!.generated_at).toLocaleDateString('fr-FR') }}</span>
+            <span>Généré le {{ new Date(store.score!.generated_at).toLocaleDateString('fr-FR') }}</span>
             <span>|</span>
             <span>Valide jusqu'au {{ new Date(store.score!.valid_until).toLocaleDateString('fr-FR') }}</span>
           </div>
@@ -173,7 +173,7 @@ onMounted(async () => {
         <!-- Radars -->
         <div v-if="store.breakdown" class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Facteurs de solvabilite</h3>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Facteurs de solvabilité</h3>
             <FactorsRadar
               :factors="store.breakdown.score_breakdown.solvability.factors"
               axis="solvability"
@@ -206,7 +206,7 @@ onMounted(async () => {
         <!-- Historique -->
         <div v-if="store.hasHistory" class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-4">
-            Evolution du score
+            Évolution du score
             <span class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">
               {{ store.historyTotal }} version(s)
             </span>
@@ -216,7 +216,7 @@ onMounted(async () => {
         <div v-else-if="store.hasScore" class="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl p-6">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Historique des scores</h2>
           <p class="text-sm text-gray-500 dark:text-gray-400">
-            Un seul score disponible. Regenerez votre score pour suivre son evolution.
+            Un seul score disponible. Régénérez votre score pour suivre son évolution.
           </p>
         </div>
 
