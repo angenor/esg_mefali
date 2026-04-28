@@ -1,6 +1,7 @@
 """Tests unitaires pour les tools credit vert."""
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -57,6 +58,108 @@ class TestGenerateCreditScore:
         result = await generate_credit_score.ainvoke({}, config=mock_config)
 
         assert "Erreur" in result
+
+
+class TestGenerateCreditScoreIdempotenceMonthly:
+    """BUG-V6-004 / V6-009 : garde runtime idempotence mensuelle."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_recent_duplicate(self, mock_config):
+        """Score genere il y a 5 jours -> ERREUR, pas de nouvelle generation."""
+        recent = _make_credit_score(version=1, combined_score=65)
+        recent.generated_at = datetime.now(timezone.utc) - timedelta(days=5)
+
+        with (
+            patch(
+                "app.modules.credit.service.get_latest_score",
+                new_callable=AsyncMock,
+                return_value=recent,
+            ),
+            patch(
+                "app.modules.credit.service.generate_credit_score",
+                new_callable=AsyncMock,
+            ) as mock_gen,
+        ):
+            result = await generate_credit_score.ainvoke({}, config=mock_config)
+
+        assert "ERREUR" in result
+        assert "version 1" in result
+        assert "65" in result
+        assert "get_credit_score" in result
+        # Critique : aucune regeneration BDD.
+        mock_gen.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_succeeds_after_30_days(self, mock_config):
+        """Score genere il y a 60 jours -> nouvelle generation autorisee."""
+        old = _make_credit_score(version=1, combined_score=50)
+        old.generated_at = datetime.now(timezone.utc) - timedelta(days=60)
+
+        new_score = _make_credit_score(version=2, combined_score=72)
+
+        with (
+            patch(
+                "app.modules.credit.service.get_latest_score",
+                new_callable=AsyncMock,
+                return_value=old,
+            ),
+            patch(
+                "app.modules.credit.service.generate_credit_score",
+                new_callable=AsyncMock,
+                return_value=new_score,
+            ) as mock_gen,
+        ):
+            result = await generate_credit_score.ainvoke({}, config=mock_config)
+
+        assert "ERREUR" not in result
+        assert "72" in result
+        mock_gen.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_proceeds_when_no_previous_score(self, mock_config):
+        """Aucun score anterieur -> generation autorisee (1ere fois)."""
+        new_score = _make_credit_score(version=1, combined_score=58)
+
+        with (
+            patch(
+                "app.modules.credit.service.get_latest_score",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.modules.credit.service.generate_credit_score",
+                new_callable=AsyncMock,
+                return_value=new_score,
+            ) as mock_gen,
+        ):
+            result = await generate_credit_score.ainvoke({}, config=mock_config)
+
+        assert "ERREUR" not in result
+        assert "58" in result
+        mock_gen.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_error_message_invites_get_credit_score(self, mock_config):
+        """Le message d'erreur DOIT mentionner get_credit_score (LLM doit savoir lire)."""
+        recent = _make_credit_score(version=3, combined_score=80)
+        recent.generated_at = datetime.now(timezone.utc) - timedelta(days=1)
+
+        with (
+            patch(
+                "app.modules.credit.service.get_latest_score",
+                new_callable=AsyncMock,
+                return_value=recent,
+            ),
+            patch(
+                "app.modules.credit.service.generate_credit_score",
+                new_callable=AsyncMock,
+            ),
+        ):
+            result = await generate_credit_score.ainvoke({}, config=mock_config)
+
+        # Message exploitable par le LLM : il doit savoir quoi faire ensuite.
+        assert "get_credit_score" in result
+        assert "30" in result  # Mention du delai de regeneration.
 
 
 class TestGetCreditScore:
