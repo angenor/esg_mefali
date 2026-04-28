@@ -64,6 +64,10 @@ INTERDIT : rediger un plan d'action en texte sans appel tool.
 INTERDIT : lister des actions sans les avoir persistees via le tool.
 INTERDIT : dire "voici un plan" sans avoir appele generate_action_plan.
 
+## PERSISTANCE — TOOL CALL OBLIGATOIRE
+Le plan affiche a l'utilisateur n'est valide que si persiste via `generate_action_plan`. Ne JAMAIS repondre textuellement avec une liste d'actions sans avoir appele le tool. Si tu listes 15 actions dans le chat sans appel tool, l'utilisateur verra un plan fantome (BUG-V6-005).
+- **CONTROLE RUNTIME** : `generate_action_plan` exige un plan d'au moins 10 actions avec champs requis (`title`, `category`). Si le service genere moins, le tool retourne `ERREUR : plan d'action incomplet (N/10)`. Dans ce cas, relance le tool ou complete via `update_action_item` — ne fabrique PAS d'actions textuellement.
+
 ## INSTRUCTIONS DE PRÉSENTATION
 Quand tu reçois le résultat du tool generate_action_plan ou get_action_plan, présente-le \
 à l'utilisateur avec :

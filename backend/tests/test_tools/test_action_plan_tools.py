@@ -32,7 +32,12 @@ def _make_action_item(**overrides):
 
 
 def _make_action_plan(**overrides):
-    """Creer un mock d'ActionPlan."""
+    """Creer un mock d'ActionPlan.
+
+    Defaut a 10 items pour respecter la garde runtime BUG-V6-005
+    (`generate_action_plan` exige >= 10 actions). Les tests qui veulent
+    un plan plus court doivent override `items` explicitement.
+    """
     plan = MagicMock()
     defaults = {
         "id": uuid.uuid4(),
@@ -40,7 +45,7 @@ def _make_action_plan(**overrides):
         "timeframe": 12,
         "total_actions": 10,
         "completed_actions": 2,
-        "items": [_make_action_item(), _make_action_item()],
+        "items": [_make_action_item() for _ in range(10)],
     }
     defaults.update(overrides)
     for key, value in defaults.items():
@@ -171,6 +176,65 @@ class TestGetActionPlan:
         result = await get_action_plan.ainvoke({}, config=mock_config)
 
         assert "Erreur" in result
+
+
+class TestGenerateActionPlanRuntimeGuard:
+    """BUG-V6-005 : garde runtime exige >= 10 actions et champs requis."""
+
+    @pytest.mark.asyncio
+    @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)
+    async def test_rejects_below_minimum_items(self, mock_generate, mock_config):
+        """Plan service avec 5 actions -> ERREUR explicite, pas de message succes."""
+        plan = _make_action_plan(items=[_make_action_item() for _ in range(5)])
+        mock_generate.return_value = plan
+
+        result = await generate_action_plan.ainvoke({"timeframe": 12}, config=mock_config)
+
+        assert "ERREUR" in result
+        assert "5/10" in result
+        assert "incomplet" in result.lower()
+
+    @pytest.mark.asyncio
+    @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)
+    async def test_rejects_action_missing_required_fields(self, mock_generate, mock_config):
+        """Action sans title -> ERREUR listant le champ manquant."""
+        items = [_make_action_item() for _ in range(10)]
+        items[3] = _make_action_item(title="", category=None)
+        plan = _make_action_plan(items=items)
+        mock_generate.return_value = plan
+
+        result = await generate_action_plan.ainvoke({"timeframe": 12}, config=mock_config)
+
+        assert "ERREUR" in result
+        assert "action #4" in result
+        assert "title" in result
+        assert "category" in result
+
+    @pytest.mark.asyncio
+    @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)
+    async def test_succeeds_with_complete_plan(self, mock_generate, mock_config):
+        """Plan avec 10 actions valides -> succes (pas d'ERREUR)."""
+        plan = _make_action_plan()  # 10 items par defaut
+        mock_generate.return_value = plan
+
+        result = await generate_action_plan.ainvoke({"timeframe": 12}, config=mock_config)
+
+        assert "ERREUR" not in result
+        assert "succes" in result.lower()
+
+    @pytest.mark.asyncio
+    @patch("app.modules.action_plan.service.generate_action_plan", new_callable=AsyncMock)
+    async def test_rejects_whitespace_only_title(self, mock_generate, mock_config):
+        """Action avec title whitespace-only -> ERREUR (defense en profondeur)."""
+        items = [_make_action_item() for _ in range(10)]
+        items[7].title = "   "
+        plan = _make_action_plan(items=items)
+        mock_generate.return_value = plan
+
+        result = await generate_action_plan.ainvoke({"timeframe": 12}, config=mock_config)
+
+        assert "ERREUR" in result
+        assert "action #8" in result
 
 
 class TestActionPlanToolsExport:

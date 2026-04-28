@@ -932,7 +932,15 @@ class TestActionPlanProdInstrumentation:
         mock_plan.title = "Plan ESG 12 mois"
         mock_plan.timeframe = 12
         mock_plan.total_actions = 10
-        mock_plan.items = []
+        # BUG-V6-005 : la garde runtime exige >= 10 actions valides.
+        mock_plan.items = [
+            MagicMock(
+                title=f"Action {i}",
+                category="environment",
+                status=MagicMock(value="todo"),
+            )
+            for i in range(10)
+        ]
 
         monkeypatch.setattr(
             "app.modules.action_plan.service.generate_action_plan",

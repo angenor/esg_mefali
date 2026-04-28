@@ -14,6 +14,10 @@ from langchain_core.tools import tool
 from app.graph.tools.common import get_db_and_user, with_retry
 
 
+# Nombre minimum d'actions exigees pour un plan complet (BUG-V6-005).
+_ACTION_PLAN_MIN_ITEMS = 10
+
+
 @tool
 async def generate_action_plan(timeframe: int, config: RunnableConfig) -> str:
     """Generer un plan d'action ESG personnalise pour l'entreprise.
@@ -31,8 +35,31 @@ async def generate_action_plan(timeframe: int, config: RunnableConfig) -> str:
 
     plan = await gen_plan(db=db, user_id=user_id, timeframe=timeframe)
 
+    # CONTROLE RUNTIME : valider la coherence metier du plan retourne par le
+    # service. BUG-V6-005 : plan affiche dans le chat mais 0 actions BDD.
+    items = list(plan.items or [])
+    item_count = len(items)
+    if item_count < _ACTION_PLAN_MIN_ITEMS:
+        return (
+            f"ERREUR : plan d'action incomplet ({item_count}/"
+            f"{_ACTION_PLAN_MIN_ITEMS} actions minimum). Le service a genere "
+            f"trop peu d'actions. Relance generate_action_plan ou complete "
+            f"manuellement via update_action_item."
+        )
+    invalid: list[str] = []
+    for idx, item in enumerate(items, start=1):
+        missing = []
+        if not getattr(item, "title", None) or not str(item.title).strip():
+            missing.append("title")
+        if not getattr(item, "category", None):
+            missing.append("category")
+        if missing:
+            invalid.append(f"action #{idx} (champs manquants : {', '.join(missing)})")
+    if invalid:
+        return f"ERREUR : actions invalides — {'; '.join(invalid)}."
+
     items_preview = []
-    for item in (plan.items or [])[:5]:
+    for item in items[:5]:
         status = item.status.value if hasattr(item.status, "value") else item.status
         items_preview.append(f"  - {item.title} ({item.category}, {status})")
     items_text = "\n".join(items_preview) if items_preview else "  Aucune action generee."
