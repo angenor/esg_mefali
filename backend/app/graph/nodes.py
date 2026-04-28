@@ -162,6 +162,127 @@ _FINANCING_KEYWORDS = [
 _FINANCING_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _FINANCING_KEYWORDS]
 
 
+# === V8-AXE3 : forçage déterministe d'invocation de tool ===
+#
+# Régressions BUG-V7-006, BUG-V7-008, BUG-V7.1-005, BUG-V7.1-010 :
+# le LLM (MiniMax comme Claude) ignore systématiquement deux tools obligatoires.
+# On détecte l'intention utilisateur côté backend et on injecte un AIMessage
+# synthétique avec tool_calls avant l'appel LLM. Le ToolNode existant exécute
+# le tool ; le LLM reste responsable de la réponse finale post-ToolMessage.
+
+_FORCE_CREDIT_RE = re.compile(
+    r"(\b[ée]value[rz]?\b|\bcalcule[rz]?\b|\bg[ée]n[eè]re[rz]?\b|\bdonne[rz]?\b|\bfais\b|\bfaire\b)"
+    r".{0,40}\b(solvabilit[ée]|score|cr[ée]dit)\b",
+    re.IGNORECASE,
+)
+_FORCE_CARBON_FINALIZE_RE = re.compile(
+    r"\b(finalise[rz]?|terminer?|valide[rz]?|confirme[rz]?|cl[oô]ture[rz]?|boucle[rz]?)\b"
+    r".{0,40}\b(bilan|carbone)\b",
+    re.IGNORECASE,
+)
+
+
+def _last_human_message_in_turn(messages: list) -> object | None:
+    """Retourne le dernier HumanMessage du tour courant (i.e. le tout dernier message s'il est Human)."""
+    if not messages:
+        return None
+    last = messages[-1]
+    if isinstance(last, HumanMessage):
+        return last
+    return None
+
+
+def _tool_already_called_in_turn(messages: list, tool_name: str) -> bool:
+    """Vrai si un ToolMessage de nom `tool_name` existe dans le tour courant.
+
+    Le « tour courant » = tous les messages situés *après* le dernier HumanMessage.
+    Un ToolMessage situé avant le dernier HumanMessage appartient à un tour
+    précédent et ne doit pas bloquer un nouveau forçage.
+    """
+    from langchain_core.messages import ToolMessage
+
+    last_human_idx: int | None = None
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            last_human_idx = i
+            break
+    if last_human_idx is None:
+        return False
+    for msg in messages[last_human_idx + 1:]:
+        if isinstance(msg, ToolMessage) and getattr(msg, "name", "") == tool_name:
+            return True
+    return False
+
+
+def _should_force_credit_score(state: ConversationState) -> bool:
+    """Détecte si le credit_node doit forcer l'appel à `generate_credit_score`.
+
+    Pré-conditions :
+      - `state.user_id` non nul (le tool en a besoin via get_db_and_user).
+      - Dernier message est un HumanMessage et matche `_FORCE_CREDIT_RE`.
+      - Aucun ToolMessage `generate_credit_score` déjà présent dans le tour courant.
+    """
+    if not state.get("user_id"):
+        return False
+    messages = state.get("messages") or []
+    last = _last_human_message_in_turn(messages)
+    if last is None:
+        return False
+    content = getattr(last, "content", "") or ""
+    if not isinstance(content, str) or not _FORCE_CREDIT_RE.search(content):
+        return False
+    if _tool_already_called_in_turn(messages, "generate_credit_score"):
+        return False
+    return True
+
+
+def _should_force_finalize_carbon(
+    state: ConversationState,
+) -> tuple[bool, str | None]:
+    """Détecte si le carbon_node doit forcer l'appel à `finalize_carbon_assessment`.
+
+    Pré-conditions :
+      - Dernier message est un HumanMessage et matche `_FORCE_CARBON_FINALIZE_RE`.
+      - `carbon_data.assessment_id` présent et différent de `"pending"`.
+      - Toutes les `applicable_categories` sont dans `completed_categories`.
+      - Aucun ToolMessage `finalize_carbon_assessment` déjà présent dans le tour courant.
+
+    Retourne `(True, assessment_id)` si toutes les conditions sont remplies,
+    sinon `(False, None)`.
+    """
+    messages = state.get("messages") or []
+    last = _last_human_message_in_turn(messages)
+    if last is None:
+        return False, None
+    content = getattr(last, "content", "") or ""
+    if not isinstance(content, str) or not _FORCE_CARBON_FINALIZE_RE.search(content):
+        return False, None
+
+    carbon_data = state.get("carbon_data") or {}
+    assessment_id = carbon_data.get("assessment_id")
+    if not assessment_id or assessment_id == "pending":
+        return False, None
+
+    # F3 (review V8-AXE3) : valider que l'UUID est parseable avant de l'injecter
+    # dans tool_calls. Sinon `uuid.UUID(...)` côté tool lèverait ValueError, classé
+    # non-transient par with_retry → message d'erreur opaque pour l'utilisateur.
+    import uuid as _uuid_validate
+    try:
+        _uuid_validate.UUID(str(assessment_id))
+    except (ValueError, TypeError, AttributeError):
+        return False, None
+
+    applicable = set(carbon_data.get("applicable_categories") or [])
+    completed = set(carbon_data.get("completed_categories") or [])
+    if not applicable or not applicable.issubset(completed):
+        return False, None
+
+    if _tool_already_called_in_turn(messages, "finalize_carbon_assessment"):
+        return False, None
+
+    return True, str(assessment_id)
+
+
 # Mapping module actif → flag de routing correspondant
 # TODO Epic 11 S1 : ajouter "project": "_route_project" avant d'activer
 # le routing projet (cf. project_node Story 10.2). Checklist coherence :
@@ -755,7 +876,41 @@ async def carbon_node(state: ConversationState) -> ConversationState:
     et utilise un prompt specialise carbone pour interagir avec l'utilisateur.
     Genere des visualisations inline (chart, gauge, table, timeline).
     """
+    import uuid as _uuid_mod
+
+    from langchain_core.messages import AIMessage
+
     from app.prompts.carbon import build_carbon_prompt
+
+    # V8-AXE3 : forçage déterministe de finalize_carbon_assessment.
+    # Si l'utilisateur demande explicitement de finaliser et que toutes les
+    # catégories applicables sont complétées, on injecte un AIMessage avec
+    # tool_calls pour que le ToolNode exécute le tool sans dépendre du LLM
+    # (qui ignore systématiquement cet appel — BUG-V7-006 / BUG-V7.1-005).
+    _should_force, _forced_assessment_id = _should_force_finalize_carbon(state)
+    if _should_force:
+        logger.info("Forced tool invocation: finalize_carbon_assessment in carbon_node")
+        forced_response = AIMessage(
+            content="",
+            tool_calls=[{
+                "name": "finalize_carbon_assessment",
+                "args": {"assessment_id": _forced_assessment_id},
+                "id": str(_uuid_mod.uuid4()),
+            }],
+        )
+        carbon_data = state.get("carbon_data") or {}
+        return {
+            "messages": [forced_response],
+            "carbon_data": carbon_data,
+            "active_module": "carbon",
+            "active_module_data": {
+                "assessment_id": carbon_data.get("assessment_id"),
+                "entries_collected": carbon_data.get("completed_categories", []),
+                "current_category": carbon_data.get("current_category"),
+            },
+            # F1 (review V8-AXE3) : compteur cohérent avec _should_continue_tool_loop
+            "tool_call_count": (state.get("tool_call_count") or 0) + 1,
+        }
 
     llm = get_llm()
     user_profile = state.get("user_profile") or {}
@@ -1112,10 +1267,38 @@ async def credit_node(state: ConversationState) -> ConversationState:
     Utilise les tools generate_credit_score, get_credit_score et
     generate_credit_certificate pour calculer et consulter le score.
     """
+    import uuid as _uuid_mod
+
+    from langchain_core.messages import AIMessage
+
     from app.graph.tools.credit_tools import CREDIT_TOOLS
     from app.graph.tools.guided_tour_tools import GUIDED_TOUR_TOOLS
     from app.graph.tools.interactive_tools import INTERACTIVE_TOOLS
     from app.prompts.credit import build_credit_prompt
+
+    # V8-AXE3 : forçage déterministe de generate_credit_score.
+    # Avant tout appel LLM, si l'utilisateur demande explicitement un score
+    # de crédit / solvabilité et que les pré-conditions sont remplies, on
+    # injecte un AIMessage synthétique avec tool_calls. Le ToolNode existant
+    # exécute le tool ; le LLM est rappelé ensuite pour formuler la réponse.
+    if _should_force_credit_score(state):
+        logger.info("Forced tool invocation: generate_credit_score in credit_node")
+        forced_response = AIMessage(
+            content="",
+            tool_calls=[{
+                "name": "generate_credit_score",
+                "args": {},
+                "id": str(_uuid_mod.uuid4()),
+            }],
+        )
+        return {
+            "messages": [forced_response],
+            "credit_data": state.get("credit_data"),
+            "active_module": "credit",
+            "active_module_data": {"session_id": None},
+            # F1 (review V8-AXE3) : compteur cohérent avec _should_continue_tool_loop
+            "tool_call_count": (state.get("tool_call_count") or 0) + 1,
+        }
 
     llm = get_llm()
 

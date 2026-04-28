@@ -85,3 +85,100 @@ class TestCarbonNodeHelpers:
         from app.modules.carbon.service import get_next_category
 
         assert get_next_category("unknown", ["energy", "transport"]) is None
+
+
+# === V8-AXE3 : forçage déterministe finalize_carbon_assessment ===
+
+
+class TestCarbonNodeForceFinalize:
+    """Tests runtime : carbon_node injecte un AIMessage(tool_calls=[finalize_carbon_assessment])
+    sans appeler le LLM quand l'utilisateur demande explicitement la finalisation et que toutes
+    les catégories applicables sont complétées (BUG-V7-006 / BUG-V7.1-005)."""
+
+    @pytest.mark.asyncio
+    async def test_carbon_node_forces_finalize_without_calling_llm(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from langchain_core.messages import HumanMessage
+
+        from app.graph.nodes import carbon_node
+        from tests.conftest import make_conversation_state
+
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Oui, finalise ce bilan")],
+            carbon_data={
+                "assessment_id": "11111111-1111-1111-1111-111111111111",
+                "status": "in_progress",
+                "applicable_categories": ["energy", "transport", "waste"],
+                "completed_categories": ["energy", "transport", "waste"],
+                "current_category": "waste",
+                "entries": [],
+                "total_emissions_tco2e": 12.5,
+                "sector": "services",
+                "year": 2026,
+            },
+            user_profile={"company_name": "Test", "sector": "services"},
+        )
+
+        with patch("app.graph.nodes.get_llm") as mock_llm_fn:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock()
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_fn.return_value = mock_llm
+
+            result = await carbon_node(state)
+
+            # Le LLM ne doit JAMAIS être invoqué quand le forçage déclenche.
+            mock_llm.ainvoke.assert_not_called()
+
+        assert "messages" in result and len(result["messages"]) == 1
+        forced = result["messages"][0]
+        assert hasattr(forced, "tool_calls") and forced.tool_calls
+        assert forced.tool_calls[0]["name"] == "finalize_carbon_assessment"
+        assert forced.tool_calls[0]["args"] == {"assessment_id": "11111111-1111-1111-1111-111111111111"}
+        assert result["active_module"] == "carbon"
+        # F1 (review V8-AXE3) : compteur de tool_call incrémenté.
+        assert result["tool_call_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_carbon_node_no_force_when_categories_incomplete(self) -> None:
+        """Pas de forçage si completed_categories incomplet → comportement normal (LLM appelé)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        from app.graph.nodes import carbon_node
+        from tests.conftest import make_conversation_state
+
+        state = make_conversation_state(
+            messages=[HumanMessage(content="Oui, finalise ce bilan")],
+            carbon_data={
+                "assessment_id": "11111111-1111-1111-1111-111111111111",
+                "status": "in_progress",
+                "applicable_categories": ["energy", "transport", "waste"],
+                "completed_categories": ["energy"],  # incomplet
+                "current_category": "transport",
+                "entries": [],
+                "total_emissions_tco2e": 0.0,
+                "sector": "services",
+                "year": 2026,
+            },
+            user_profile={"company_name": "Test", "sector": "services"},
+        )
+
+        with patch("app.graph.nodes.get_llm") as mock_llm_fn:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock(return_value=AIMessage(
+                content="Il manque transport et waste avant de finaliser."
+            ))
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_fn.return_value = mock_llm
+
+            result = await carbon_node(state)
+
+            # Le LLM DOIT être appelé (comportement normal préservé).
+            mock_llm.ainvoke.assert_called_once()
+
+        # La réponse vient du LLM (pas un AIMessage avec tool_calls forcé).
+        forced_or_text = result["messages"][0]
+        assert not getattr(forced_or_text, "tool_calls", None)

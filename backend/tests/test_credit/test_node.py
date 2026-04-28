@@ -142,6 +142,107 @@ class TestCreditNode:
         assert len(result["messages"]) == 1
 
     @pytest.mark.asyncio
+    async def test_credit_node_forces_generate_score_without_calling_llm(self) -> None:
+        """V8-AXE3 : credit_node injecte un AIMessage(tool_calls=[generate_credit_score])
+        sans appeler le LLM quand l'utilisateur demande explicitement le calcul.
+
+        Régression BUG-V7-008 / BUG-V7.1-010 : le LLM (MiniMax comme Claude) refuse
+        d'invoquer generate_credit_score. On force l'appel côté backend."""
+        from app.graph.nodes import credit_node
+
+        state = make_conversation_state(
+            messages=[HumanMessage(content="évalue ma solvabilité")],
+            user_profile={"company_name": "Test", "sector": "agriculture"},
+            credit_data=None,
+            user_id="user-123",
+        )
+
+        with patch("app.graph.nodes.get_llm") as mock_llm_fn:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock()
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_fn.return_value = mock_llm
+
+            with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
+                mock_ctx.return_value = ("Aucun score genere.", [])
+
+                result = await credit_node(state)
+
+                # Le LLM ne doit JAMAIS être invoqué quand le forçage déclenche.
+                mock_llm.ainvoke.assert_not_called()
+
+        assert "messages" in result and len(result["messages"]) == 1
+        forced = result["messages"][0]
+        assert hasattr(forced, "tool_calls") and forced.tool_calls
+        assert forced.tool_calls[0]["name"] == "generate_credit_score"
+        assert forced.tool_calls[0]["args"] == {}
+        assert result["active_module"] == "credit"
+        # F1 (review V8-AXE3) : compteur de tool_call incrémenté.
+        assert result["tool_call_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_credit_node_no_force_when_informational_question(self) -> None:
+        """Question informationnelle → pas de forçage, LLM appelé normalement."""
+        from app.graph.nodes import credit_node
+
+        state = make_conversation_state(
+            messages=[HumanMessage(content="C'est quoi un score crédit vert ?")],
+            user_profile={"company_name": "Test"},
+            credit_data=None,
+            user_id="user-123",
+        )
+
+        with patch("app.graph.nodes.get_llm") as mock_llm_fn:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock(return_value=AIMessage(
+                content="Le score crédit vert mesure votre solvabilité combinée à votre impact environnemental."
+            ))
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_fn.return_value = mock_llm
+
+            with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
+                mock_ctx.return_value = ("Aucun score genere.", [])
+
+                result = await credit_node(state)
+
+                # Le LLM DOIT être appelé (comportement normal préservé).
+                mock_llm.ainvoke.assert_called_once()
+
+        forced_or_text = result["messages"][0]
+        assert not getattr(forced_or_text, "tool_calls", None)
+
+    @pytest.mark.asyncio
+    async def test_credit_node_no_force_when_user_id_absent(self) -> None:
+        """user_id absent → pas de forçage (le tool échouerait sinon)."""
+        from app.graph.nodes import credit_node
+
+        state = make_conversation_state(
+            messages=[HumanMessage(content="évalue ma solvabilité")],
+            user_profile={"company_name": "Test"},
+            credit_data=None,
+            user_id=None,
+        )
+
+        with patch("app.graph.nodes.get_llm") as mock_llm_fn:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock(return_value=AIMessage(
+                content="Veuillez vous connecter pour obtenir votre score."
+            ))
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_fn.return_value = mock_llm
+
+            with patch("app.graph.nodes._fetch_credit_scoring_context", new_callable=AsyncMock) as mock_ctx:
+                mock_ctx.return_value = ("Aucun score genere.", [])
+
+                result = await credit_node(state)
+
+                # Le LLM DOIT être appelé (comportement normal préservé).
+                mock_llm.ainvoke.assert_called_once()
+
+        forced_or_text = result["messages"][0]
+        assert not getattr(forced_or_text, "tool_calls", None)
+
+    @pytest.mark.asyncio
     async def test_credit_node_preserves_credit_data(self) -> None:
         """credit_node preserve credit_data dans le state."""
         from app.graph.nodes import credit_node
