@@ -26,7 +26,14 @@ def mock_db() -> AsyncMock:
     db.add = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
-    db.execute = AsyncMock()
+    # Par défaut, db.execute(...) retourne un Result vide (None partout) afin
+    # que les nouvelles gardes runtime (BUG-V6) prennent le chemin "pas de
+    # ligne existante" sans casser les tests qui ne se soucient pas de execute.
+    _empty_result = MagicMock()
+    _empty_result.scalar_one_or_none = MagicMock(return_value=None)
+    _empty_result.scalar = MagicMock(return_value=None)
+    _empty_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+    db.execute = AsyncMock(return_value=_empty_result)
     db.commit = AsyncMock()
     db.rollback = AsyncMock()
     return db

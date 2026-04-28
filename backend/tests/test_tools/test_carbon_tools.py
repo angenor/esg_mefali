@@ -487,3 +487,176 @@ async def test_get_carbon_summary_falls_back_to_latest_completed(mock_config):
     assert data["summary"]["status"] == "completed"
     mock_resumable.assert_awaited_once()
     mock_latest.assert_awaited_once()
+
+
+# ---------- BUG-V6-002 : garde runtime dedup save_emission_entry ----------
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_idempotent_no_duplicate(mock_config):
+    """Garde runtime : 2eme appel meme (assessment, category, subcategory) -> UPDATE pas duplicate INSERT."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    # Simuler une entree existante pour ce couple (category, subcategory).
+    existing_entry = MagicMock()
+    existing_entry.quantity = 30000.0
+    existing_entry.unit = "L"
+    existing_entry.emission_factor = 2.31
+    existing_entry.emissions_tco2e = 69.3
+    existing_entry.source_description = "Ancien"
+
+    # Configurer le mock execute pour retourner l'entree existante.
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none = MagicMock(return_value=existing_entry)
+    mock_config["configurable"]["db"].execute = AsyncMock(return_value=result_mock)
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}._compute_total_emissions",
+            new_callable=AsyncMock,
+            return_value=83.16,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+        ) as mock_add,
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "transport",
+                "subcategory": "gasoline",
+                "quantity": 36000.0,
+                "unit": "L",
+                "source_description": "Carburant flotte (corrige)",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["deduped"] is True
+    assert "[DEDUP]" in data["message"]
+    # AUCUN INSERT via add_entries — l'entree existante a ete mise a jour.
+    mock_add.assert_not_awaited()
+    # Les attributs de l'entree existante ont ete mis a jour (last-write-wins).
+    assert existing_entry.quantity == 36000.0
+    assert existing_entry.source_description == "Carburant flotte (corrige)"
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_distinct_subcategories_create_separate_rows(mock_config):
+    """Sous-categories differentes -> INSERT chacune (pas de fausse dedup)."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    # Aucune entree existante -> scalar_one_or_none = None (defaut conftest).
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+            return_value=(1, 12.5, ["transport"]),
+        ) as mock_add,
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "transport",
+                "subcategory": "diesel_truck",
+                "quantity": 5000.0,
+                "unit": "L",
+                "source_description": "Camions livraison",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["deduped"] is False
+    mock_add.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_rejects_incomplete_payload_unknown_factor(mock_config):
+    """Defense en profondeur : sous-categorie inconnue + categorie inconnue -> erreur explicite, pas d'INSERT."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+        ) as mock_add,
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "fictive_category",
+                "subcategory": "fictive_sub",
+                "quantity": 100.0,
+                "unit": "kg",
+                "source_description": "Test invalide",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "error"
+    assert "Aucun facteur" in data["message"]
+    mock_add.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_dedup_message_contains_dedup_marker(mock_config):
+    """Message dedup expose explicitement le marqueur [DEDUP] pour le LLM."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    existing_entry = MagicMock(quantity=10.0, unit="kg", emission_factor=0.5,
+                               emissions_tco2e=5.0, source_description="prev")
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none = MagicMock(return_value=existing_entry)
+    mock_config["configurable"]["db"].execute = AsyncMock(return_value=result_mock)
+
+    with (
+        patch(f"{_CARBON_SVC}.get_assessment", new_callable=AsyncMock,
+              return_value=fake_assessment),
+        patch(f"{_CARBON_SVC}._compute_total_emissions", new_callable=AsyncMock,
+              return_value=12.5),
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "waste",
+                "subcategory": "landfill",
+                "quantity": 25.0,
+                "unit": "kg",
+                "source_description": "Dechets corriges",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["deduped"] is True
+    assert "[DEDUP]" in data["message"]
+    assert "Mise a jour" in data["message"]

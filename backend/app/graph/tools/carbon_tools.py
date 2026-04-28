@@ -126,24 +126,57 @@ async def save_emission_entry(
     emission_factor = factor_info["factor"]
     emissions_tco2e = compute_emissions_tco2e(quantity, emission_factor)
 
-    entry_data = {
-        "category": category,
-        "subcategory": factor_key,
-        "quantity": quantity,
-        "unit": unit,
-        "emission_factor": emission_factor,
-        "emissions_tco2e": emissions_tco2e,
-        "source_description": source_description,
-    }
+    # CONTROLE RUNTIME : dedup (assessment_id, category, subcategory) avant INSERT.
+    # Si une entree existe deja pour ce couple, on UPDATE au lieu de creer un doublon
+    # (regression BUG-V6-002 : doublons transport / dechets quand le LLM ne respecte
+    # pas la consigne "1 saisie par sous-categorie"). Last-write-wins.
+    from sqlalchemy import select as _select
 
-    added_count, total, completed_cats = await add_entries(
-        db=db,
-        assessment=assessment,
-        entries_data=[entry_data],
+    from app.models.carbon import CarbonEmissionEntry as _Entry
+
+    existing = (
+        await db.execute(
+            _select(_Entry).where(
+                _Entry.assessment_id == assessment.id,
+                _Entry.category == category,
+                _Entry.subcategory == factor_key,
+            )
+        )
+    ).scalar_one_or_none()
+
+    deduped = False
+    if existing is not None:
+        existing.quantity = quantity
+        existing.unit = unit
+        existing.emission_factor = emission_factor
+        existing.emissions_tco2e = emissions_tco2e
+        existing.source_description = source_description
+        await db.flush()
+        from app.modules.carbon.service import _compute_total_emissions
+        total = await _compute_total_emissions(db, assessment.id)
+        assessment.total_emissions_tco2e = total
+        deduped = True
+    else:
+        entry_data = {
+            "category": category,
+            "subcategory": factor_key,
+            "quantity": quantity,
+            "unit": unit,
+            "emission_factor": emission_factor,
+            "emissions_tco2e": emissions_tco2e,
+            "source_description": source_description,
+        }
+        _, total, _ = await add_entries(
+            db=db, assessment=assessment, entries_data=[entry_data],
+        )
+
+    base_msg = (
+        f"Entree enregistree : {quantity} {unit} de {factor_info['label']}"
+        f" = {emissions_tco2e} tCO2e. Total actuel : {total} tCO2e."
     )
-
     return json.dumps({
         "status": "success",
+        "deduped": deduped,
         "entry": {
             "category": category,
             "subcategory": factor_key,
@@ -155,9 +188,9 @@ async def save_emission_entry(
         },
         "total_emissions_tco2e": total,
         "message": (
-            f"Entree enregistree : {quantity} {unit} de {factor_info['label']}"
-            f" = {emissions_tco2e} tCO2e. Total actuel : {total} tCO2e."
-        ),
+            f"[DEDUP] Entree deja saisie pour cette categorie/sous-categorie. "
+            f"Mise a jour appliquee. {base_msg}"
+        ) if deduped else base_msg,
     }, ensure_ascii=False)
 
 
