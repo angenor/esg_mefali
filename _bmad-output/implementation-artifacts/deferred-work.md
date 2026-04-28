@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from BUG-V6-001 PDF executive_summary timeout (2026-04-28)
+
+- **DEF-BUG-V6-1-1 — Cache de résumé exécutif sur `(assessment_id, version)`** — Si le LLM réussit puis WeasyPrint échoue (rare mais possible), `report.status=failed` est écrit, le retry user re-paie l'appel LLM (coût + latence). Pré-existant au patch BUG-V6-001, surfacé par la review edge-case. **Path** : sauvegarder le `executive_summary` reçu en BDD ou en cache Redis avec clé `(assessment_id, prompt_hash)`, court-circuiter l'appel LLM si déjà disponible. Coût : 1-2 h. **Trigger** : pic d'incidents `report.status=failed` après succès LLM, ou plainte utilisateur sur double-facturation OpenRouter. [backend/app/modules/reports/service.py]
+
 ## Deferred from BUG-V5-003 ESG pillar validation runtime (2026-04-25)
 
 - **DEF-BUG-V5-3-1 — Validation des bornes de `score` dans batch_save_esg_criteria** — Le tool persiste `score` tel quel ; un LLM aberrant peut envoyer -5, 100, `None`, `"7"`, `7.5` et corrompre `compute_overall_score`. Pré-existant au patch BUG-V5-003 mais surfacé par la review. **Path** : ajouter une validation Pydantic `int` 0≤score≤10 dans le schéma de tool, ou défensive dans `_validate_pillar_completeness`. Coût : 30 min. [backend/app/graph/tools/esg_tools.py]

@@ -67,10 +67,16 @@ class TestExecutiveSummaryGuardsIntegration:
             assert mock_llm.ainvoke.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_hallucinated_summary_triggers_retry_then_fails(
+    async def test_hallucinated_summary_triggers_retry_then_fallback(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """AC7 + AC9 : hallucination -> retry -> 500 + logs structures."""
+        """AC7 + AC9 + BUG-V6-001 : hallucination -> retry -> fallback (pas 500).
+
+        BUG-V6-001 : la 500 historique remontee par run_guarded_llm_call est
+        desormais capturee dans generate_executive_summary, qui retourne un
+        resume deterministe. Les metriques llm_guard_failure restent emises
+        (recovered + failed) pour la telemetrie Grafana.
+        """
         with patch("app.modules.reports.service.ChatOpenAI") as mock_llm_cls:
             mock_llm = MagicMock()
             mock_llm.ainvoke = AsyncMock(
@@ -79,22 +85,28 @@ class TestExecutiveSummaryGuardsIntegration:
             mock_llm_cls.return_value = mock_llm
 
             with caplog.at_level("WARNING"):
-                with pytest.raises(HTTPException) as exc:
-                    await generate_executive_summary(
-                        company_name="ACME",
-                        sector="textile",
-                        overall_score=54.0,
-                        environment_score=60.0,
-                        social_score=48.0,
-                        governance_score=54.0,
-                        strengths=[],
-                        gaps=[],
-                        benchmark_position="average",
-                        user_id="user-1",
-                    )
-                assert exc.value.status_code == 500
+                result = await generate_executive_summary(
+                    company_name="ACME",
+                    sector="textile",
+                    overall_score=54.0,
+                    environment_score=60.0,
+                    social_score=48.0,
+                    governance_score=54.0,
+                    strengths=[],
+                    gaps=[],
+                    benchmark_position="average",
+                    user_id="user-1",
+                )
 
-            assert mock_llm.ainvoke.call_count == 2  # base + retry
+            # Fallback deterministe retourne (pas d'exception)
+            assert isinstance(result, str)
+            assert "ACME" in result
+            assert "54" in result  # score global present
+
+            # Le LLM a bien ete appele 2x (base + retry) avant le fallback
+            assert mock_llm.ainvoke.call_count == 2
+
+            # Metriques llm_guard_failure preservees (telemetrie inchangee)
             guard_logs = [
                 r for r in caplog.records
                 if getattr(r, "metric", None) == "llm_guard_failure"
@@ -104,6 +116,14 @@ class TestExecutiveSummaryGuardsIntegration:
             assert guard_logs[-1].target == "executive_summary"
             # AC9 : prompt_hash present, pas le prompt brut
             assert hasattr(guard_logs[-1], "prompt_hash")
+
+            # Nouvelle metrique BUG-V6-001 : fallback emis
+            fallback_logs = [
+                r for r in caplog.records
+                if getattr(r, "metric", None) == "executive_summary_fallback"
+            ]
+            assert len(fallback_logs) == 1
+            assert fallback_logs[0].cause == "HTTPException"
 
     @pytest.mark.asyncio
     async def test_first_fail_then_retry_recovers(self) -> None:
