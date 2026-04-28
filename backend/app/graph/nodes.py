@@ -438,11 +438,29 @@ def _build_profiling_instructions(profile: dict | None) -> str:
     if not missing_fields:
         return ""
 
+    # V8-AXE1 : section EXTRACTION OBLIGATOIRE + 3 exemples few-shot pour
+    # forcer le LLM a extraire TOUS les champs en un seul appel
+    # update_company_profile (BUG-V7-001 / BUG-V7.1-001).
     return (
         "PROFILAGE GUIDÉ : Le profil de l'entreprise est incomplet. "
         "Intègre naturellement UNE question sur un champ manquant dans ta réponse. "
         "Ne pose pas la question de façon abrupte, intègre-la dans le fil de la conversation.\n"
-        "Champs manquants :\n" + "\n".join(missing_fields)
+        "Champs manquants :\n" + "\n".join(missing_fields) + "\n\n"
+        "EXTRACTION OBLIGATOIRE : Quand l'utilisateur mentionne plusieurs "
+        "informations dans un même message, tu DOIS extraire TOUS les champs "
+        "reconnaissables en UN SEUL appel à update_company_profile. Ne jamais "
+        "appeler avec des arguments null si l'information est dans le message.\n\n"
+        "EXEMPLES :\n"
+        "1. \"AgriVert Sarl, Agriculture, 15 employés, Sénégal\"\n"
+        "   → update_company_profile(company_name=\"AgriVert Sarl\", "
+        "sector=\"agriculture\", employee_count=15, country=\"Sénégal\")\n"
+        "2. \"EcoSolaire dans le solaire à Abidjan, 30 personnes\"\n"
+        "   → update_company_profile(company_name=\"EcoSolaire\", "
+        "sector=\"energie\", employee_count=30, city=\"Abidjan\", "
+        "country=\"Côte d'Ivoire\")\n"
+        "3. \"TextileVert, secteur textile, 8 employés à Bamako\"\n"
+        "   → update_company_profile(company_name=\"TextileVert\", "
+        "sector=\"textile\", employee_count=8, city=\"Bamako\", country=\"Mali\")"
     )
 
 

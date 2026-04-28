@@ -6,6 +6,7 @@ Deux tools exposés au LLM :
 """
 
 import json
+import logging
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -13,6 +14,38 @@ from langchain_core.tools import tool
 from app.graph.tools.common import get_db_and_user, with_retry
 from app.modules.company.schemas import CompanyProfileUpdate
 from app.modules.company.service import FIELD_LABELS, compute_completion
+from app.services.profile_extraction import extract_profile_from_text
+
+logger = logging.getLogger(__name__)
+
+# V8-AXE1 : seuil de declenchement du fallback regex deterministe.
+# >= 2 args null/whitespace indique un echec d'extraction massif (BUG-V7-001 /
+# BUG-V7.1-001), pas une omission intentionnelle d'un seul champ par le LLM.
+_REGEX_FALLBACK_NULL_THRESHOLD = 2
+
+# Champs eligibles au merge regex (strictement alignes sur les cles renvoyees
+# par extract_profile_from_text). `city` n'est volontairement PAS dans le
+# fallback : extract_profile_from_text ne le couvre pas (trop de faux positifs
+# avec un dict statique), donc l'inclure introduisait un biais de seuil
+# (review V8-AXE1 MOYEN-2).
+_REGEX_FALLBACK_FIELDS = frozenset(
+    {"company_name", "sector", "employee_count", "country"}
+)
+
+
+def _is_effectively_null(value: object) -> bool:
+    """True si la valeur LLM est None ou une chaine vide/whitespace.
+
+    Le contrôle existant (BUG-V6-011) considere "" et "   " comme equivalents
+    a None. Pour le seuil de fallback, ces valeurs doivent etre comptees comme
+    nulles afin de ne pas masquer un echec d'extraction massif (review V8-AXE1
+    MOYEN-1 : LLM passant 5 chaines vides equivaut a 5 nulls).
+    """
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
 
 
 @tool
@@ -41,6 +74,26 @@ async def update_company_profile(
     nom, secteur, nombre d'employés, chiffre d'affaires, localisation,
     ou des pratiques ESG (gestion déchets, politique énergétique, genre, etc.).
     Seuls les champs fournis seront mis à jour, les autres restent inchangés.
+
+    EXTRACTION OBLIGATOIRE — Quand l'utilisateur mentionne plusieurs informations
+    dans un seul message, tu DOIS extraire TOUS les champs reconnaissables en
+    UN SEUL appel à cet outil. Ne jamais appeler avec des arguments null si
+    l'information est présente dans le message.
+
+    EXEMPLES :
+
+    1. User : "AgriVert Sarl, Agriculture, 15 employés, Sénégal"
+       → update_company_profile(company_name="AgriVert Sarl", sector="agriculture",
+                                employee_count=15, country="Sénégal")
+
+    2. User : "Mon entreprise EcoSolaire dans le solaire à Abidjan, 30 personnes"
+       → update_company_profile(company_name="EcoSolaire", sector="energie",
+                                employee_count=30, city="Abidjan",
+                                country="Côte d'Ivoire")
+
+    3. User : "Je suis Mariam de TextileVert, secteur textile, 8 employés à Bamako"
+       → update_company_profile(company_name="TextileVert", sector="textile",
+                                employee_count=8, city="Bamako", country="Mali")
     """
     from app.modules.company import service as company_service
 
@@ -66,6 +119,45 @@ async def update_company_profile(
         "environmental_practices": environmental_practices,
         "social_practices": social_practices,
     }
+
+    # V8-AXE1 : fallback regex deterministe quand le LLM extrait mal les
+    # champs structures depuis le langage naturel (BUG-V7-001 / BUG-V7.1-001).
+    # Active si >= 2 des 5 champs cibles sont None ET que le dernier message
+    # utilisateur est disponible dans le RunnableConfig. Le LLM gagne toujours
+    # sur le regex (les valeurs LLM non-null ne sont jamais ecrasees).
+    null_target_count = sum(
+        1 for f in _REGEX_FALLBACK_FIELDS if _is_effectively_null(local_vars.get(f))
+    )
+    if null_target_count >= _REGEX_FALLBACK_NULL_THRESHOLD:
+        configurable = (config or {}).get("configurable", {}) if config else {}
+        last_user_message = configurable.get("last_user_message") or ""
+        if isinstance(last_user_message, str) and last_user_message.strip():
+            regex_extracted = extract_profile_from_text(last_user_message)
+            filled_by_regex: list[str] = []
+            for field_name, regex_value in regex_extracted.items():
+                # LLM > regex : ne combler QUE si la valeur LLM est null/vide.
+                if _is_effectively_null(local_vars.get(field_name)):
+                    local_vars[field_name] = regex_value
+                    filled_by_regex.append(field_name)
+            if filled_by_regex:
+                # Tronquer user_id pour ne pas exposer l'UUID complet en logs
+                # (review V8-AXE1 ÉLEVÉ-3 : PII RGPD).
+                user_id_log = str(user_id)[:8]
+                logger.info(
+                    "regex_fallback_triggered tool=update_company_profile "
+                    "user_id=%s null_field_count=%d regex_filled_fields=%s",
+                    user_id_log,
+                    null_target_count,
+                    filled_by_regex,
+                    extra={
+                        "metric": "regex_fallback_triggered",
+                        "tool_name": "update_company_profile",
+                        "user_id": user_id_log,
+                        "null_field_count": null_target_count,
+                        "regex_filled_fields": filled_by_regex,
+                    },
+                )
+
     for field_name, value in local_vars.items():
         if value is not None:
             raw_updates[field_name] = value

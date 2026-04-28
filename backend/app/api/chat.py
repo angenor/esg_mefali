@@ -179,6 +179,10 @@ async def stream_graph_events(
             "db": db,
             "conversation_id": uuid.UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id,
             "widget_response": widget_response,
+            # V8-AXE1 : exposer le dernier message utilisateur aux tools (utile
+            # au fallback regex de update_company_profile quand le LLM extrait
+            # mal les champs structures depuis le langage naturel).
+            "last_user_message": content if isinstance(content, str) else "",
         },
     }
 
