@@ -73,6 +73,26 @@ async def update_company_profile(
     if not raw_updates:
         return "Aucun champ fourni pour la mise à jour."
 
+    # CONTROLE RUNTIME : rejeter les payloads compose's exclusivement de
+    # chaines vides ou whitespace-only (BUG-V6-011 : LLM appelle le tool
+    # avec des champs "  " ou "" sans valeur reelle).
+    cleaned: dict = {}
+    for field_name, value in raw_updates.items():
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                continue
+            cleaned[field_name] = stripped
+        else:
+            cleaned[field_name] = value
+    if not cleaned:
+        return (
+            "ERREUR : aucun champ utile fourni (valeurs vides ou espaces). "
+            "Verifie l'extraction depuis la conversation avant de rappeler "
+            "update_company_profile."
+        )
+    raw_updates = cleaned
+
     updates = CompanyProfileUpdate(**raw_updates)
     profile = await company_service.get_or_create_profile(db, user_id)
     updated_profile, changed_fields, skipped_fields = await company_service.update_profile(

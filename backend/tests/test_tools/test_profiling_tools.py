@@ -159,6 +159,99 @@ class TestUpdateCompanyProfile:
         result = await update_company_profile.ainvoke({}, config=mock_config)
         assert "Aucun champ fourni" in result
 
+    # ---------- BUG-V6-011 : garde runtime whitespace-only ----------
+
+    @pytest.mark.asyncio
+    @patch("app.modules.company.service.update_profile", new_callable=AsyncMock)
+    @patch("app.modules.company.service.get_or_create_profile", new_callable=AsyncMock)
+    async def test_rejects_whitespace_only_payload(
+        self,
+        mock_get_or_create,
+        mock_update,
+        mock_config,
+    ):
+        """Payload entierement whitespace -> ERREUR, aucun appel update_profile."""
+        result = await update_company_profile.ainvoke(
+            {"company_name": "   ", "sector": "", "city": "  "},
+            config=mock_config,
+        )
+
+        assert "ERREUR" in result
+        assert "aucun champ utile" in result.lower()
+        mock_get_or_create.assert_not_awaited()
+        mock_update.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("app.graph.tools.profiling_tools.compute_completion")
+    @patch("app.modules.company.service.update_profile", new_callable=AsyncMock)
+    @patch("app.modules.company.service.get_or_create_profile", new_callable=AsyncMock)
+    async def test_strips_whitespace_keeps_other_fields(
+        self,
+        mock_get_or_create,
+        mock_update,
+        mock_compute,
+        mock_config,
+    ):
+        """Le whitespace est strip + champ vide ignore mais champs valides preserves."""
+        profile = _make_profile(company_name="AgriVert")
+        mock_get_or_create.return_value = profile
+        mock_update.return_value = (
+            profile,
+            [{"field": "company_name", "value": "AgriVert", "label": "Nom de l'entreprise"}],
+            [],
+        )
+        mock_compute.return_value = _make_completion(identity_pct=15.0, overall_pct=7.5)
+
+        result = await update_company_profile.ainvoke(
+            {"company_name": "  AgriVert  ", "sector": "  ", "city": ""},
+            config=mock_config,
+        )
+
+        assert "AgriVert" in result
+        assert "ERREUR" not in result
+        # update_profile a recu uniquement le champ valide stripe.
+        mock_update.assert_awaited_once()
+        sent_updates = mock_update.await_args.args[2]
+        assert sent_updates.company_name == "AgriVert"
+        # sector etait whitespace -> filtre (None par defaut sur Pydantic).
+        assert sent_updates.sector is None
+
+    @pytest.mark.asyncio
+    @patch("app.graph.tools.profiling_tools.compute_completion")
+    @patch("app.modules.company.service.update_profile", new_callable=AsyncMock)
+    @patch("app.modules.company.service.get_or_create_profile", new_callable=AsyncMock)
+    async def test_creates_company_when_missing(
+        self,
+        mock_get_or_create,
+        mock_update,
+        mock_compute,
+        mock_config,
+    ):
+        """Profil inexistant -> get_or_create_profile cree la ligne, puis update applique
+        les champs (regression BUG-V6-011 : AgriVert mentionne chat sans creation BDD)."""
+        # Simulate company creation: get_or_create_profile retourne le profil tout neuf.
+        new_profile = _make_profile(company_name="AgriVert", sector=None)
+        mock_get_or_create.return_value = new_profile
+        mock_update.return_value = (
+            new_profile,
+            [
+                {"field": "company_name", "value": "AgriVert", "label": "Nom de l'entreprise"},
+                {"field": "sector", "value": "agriculture", "label": "Secteur"},
+            ],
+            [],
+        )
+        mock_compute.return_value = _make_completion(identity_pct=30.0, overall_pct=15.0)
+
+        result = await update_company_profile.ainvoke(
+            {"company_name": "AgriVert", "sector": "agriculture"},
+            config=mock_config,
+        )
+
+        assert "AgriVert" in result
+        assert "agriculture" in result.lower() or "Secteur" in result
+        mock_get_or_create.assert_awaited_once()  # Creation transparente.
+        mock_update.assert_awaited_once()
+
     @pytest.mark.asyncio
     @patch("app.modules.company.service.update_profile", new_callable=AsyncMock)
     @patch("app.modules.company.service.get_or_create_profile", new_callable=AsyncMock)
