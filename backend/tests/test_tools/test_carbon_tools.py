@@ -660,3 +660,120 @@ async def test_save_emission_entry_dedup_message_contains_dedup_marker(mock_conf
     assert data["deduped"] is True
     assert "[DEDUP]" in data["message"]
     assert "Mise a jour" in data["message"]
+
+
+# ---------- V8-AXE4 : mapping deterministe FR→canonical (BUG-V7-005, BUG-V7.1-007) ----------
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_v8_axe4_riz_pluvial_resolves_to_rice_rainfed(mock_config):
+    """BUG-V7-005 : 'riz pluvial' agriculture (subcategory=null) doit resoudre rice_rainfed."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+            return_value=(1, 0.725, ["agriculture"]),
+        ),
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "agriculture",
+                "quantity": 500.0,
+                "unit": "kg",
+                "source_description": "500 kg de riz pluvial recolte cette saison",
+                # subcategory volontairement absent : reproduit le comportement LLM defaillant.
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["entry"]["subcategory"] == "rice_rainfed"
+    # 500 * 1.45 / 1000 = 0.725
+    assert data["entry"]["emissions_tco2e"] == 0.725
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_v8_axe4_diesel_does_not_collide_with_gasoline(mock_config):
+    """BUG-V7.1-007 : 'diesel' doit resoudre 'diesel' (PAS 'gasoline')."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+            return_value=(1, 0.536, ["energy"]),
+        ),
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "energy",
+                "subcategory": "diesel",
+                "quantity": 200.0,
+                "unit": "L",
+                "source_description": "Diesel pour generateur",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["entry"]["subcategory"] == "diesel"
+    # Facteur 2.68 PAS 2.31 (gasoline).
+    assert data["entry"]["emission_factor_kgco2e"] == 2.68
+
+
+@pytest.mark.asyncio
+async def test_save_emission_entry_v8_axe4_compostage_does_not_collide_with_landfill(mock_config):
+    """BUG-V7.1-007 : 'compostage' dechets doit resoudre waste_compost (PAS waste_landfill)."""
+    fake_assessment = MagicMock()
+    fake_assessment.id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
+    fake_assessment.status.value = "in_progress"
+
+    with (
+        patch(
+            f"{_CARBON_SVC}.get_assessment",
+            new_callable=AsyncMock,
+            return_value=fake_assessment,
+        ),
+        patch(
+            f"{_CARBON_SVC}.add_entries",
+            new_callable=AsyncMock,
+            return_value=(1, 0.0025, ["waste"]),
+        ),
+    ):
+        result = await save_emission_entry.ainvoke(
+            {
+                "assessment_id": "aaaaaaaa-0000-0000-0000-000000000001",
+                "category": "waste",
+                "subcategory": "compostage",
+                "quantity": 50.0,
+                "unit": "kg",
+                "source_description": "Compostage des dechets organiques",
+            },
+            config=mock_config,
+        )
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert data["entry"]["subcategory"] == "waste_compost"
+    # Facteur 0.05 PAS 0.5 (waste_landfill).
+    assert data["entry"]["emission_factor_kgco2e"] == 0.05

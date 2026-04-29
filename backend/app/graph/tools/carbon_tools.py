@@ -90,6 +90,7 @@ async def save_emission_entry(
     """
     from app.modules.carbon.emission_factors import EMISSION_FACTORS, compute_emissions_tco2e
     from app.modules.carbon.service import add_entries, get_assessment
+    from app.services.carbon_mapping import resolve_subcategory
 
     db, user_id = get_db_and_user(config)
 
@@ -102,16 +103,39 @@ async def save_emission_entry(
         }, ensure_ascii=False)
 
     # Rechercher le facteur d'emission
+    # Strategie en 3 paliers (V8-AXE4 — BUG-V7-005, BUG-V7.1-006, BUG-V7.1-007) :
+    # 1) Chemin rapide : subcategory deja canonique et present dans EMISSION_FACTORS.
+    # 2) Mapping deterministe FR→canonique via resolve_subcategory (sur subcategory
+    #    brut, puis sur source_description si necessaire).
+    # 3) Fallback historique : premier facteur de la categorie.
     factor_key = subcategory
+    factor_info = None
+
     if factor_key and factor_key in EMISSION_FACTORS:
         factor_info = EMISSION_FACTORS[factor_key]
     else:
-        # Chercher par categorie : prendre le premier facteur correspondant
-        factor_info = None
+        for hint in (subcategory, source_description):
+            resolved, _alternatives = resolve_subcategory(category, hint)
+            if resolved and resolved in EMISSION_FACTORS:
+                factor_key = resolved
+                factor_info = EMISSION_FACTORS[resolved]
+                logger.info(
+                    "Carbon subcategory resolved via mapping: category=%s hint=%r → %s",
+                    category, hint, resolved,
+                )
+                break
+
+    if factor_info is None:
+        # Fallback historique : premier facteur de la categorie.
         for key, info in EMISSION_FACTORS.items():
             if info.get("category") == category:
                 factor_info = info
                 factor_key = key
+                logger.warning(
+                    "Carbon subcategory unresolved, fallback to first match: "
+                    "category=%s subcategory=%r source_description=%r → %s",
+                    category, subcategory, source_description, key,
+                )
                 break
 
         if factor_info is None:
@@ -225,6 +249,11 @@ async def finalize_carbon_assessment(
         }, ensure_ascii=False)
 
     completed = await complete_assessment(db=db, assessment=assessment)
+
+    # BUG-V7.1-013 : declencher l'attribution du badge first_carbon
+    # (et eventuellement full_journey si toutes les conditions sont remplies).
+    from app.modules.action_plan.badges import safe_check_and_award_badges
+    await safe_check_and_award_badges(db, user_id)
 
     return json.dumps({
         "status": "success",
