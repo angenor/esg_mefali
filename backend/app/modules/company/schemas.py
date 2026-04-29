@@ -79,6 +79,38 @@ class CompanyProfileUpdate(BaseModel):
     year_founded: int | None = Field(None, ge=1900, le=2100)
 
     @field_validator(
+        "company_name",
+        "sub_sector",
+        "city",
+        "country",
+        "governance_structure",
+        "environmental_practices",
+        "social_practices",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def _strip_or_reject_blank(cls, value: object) -> object:
+        # BUG-V7.1-002 / V7-002 : defense en profondeur cote REST contre
+        # whitespace-only ou empty string qui ecrasaient les valeurs en BDD
+        # (le tool LLM update_company_profile etait deja durci par BUG-V6-011).
+        # V8-AXE5 review : strip etend aux caracteres invisibles (zero-width
+        # space, BOM, word joiner) que str.strip() ignore par defaut et qui
+        # rendraient un payload "​" visuellement vide mais accepte.
+        if value is None:
+            return None
+        if isinstance(value, str):
+            # V8-AXE5 review : zero-width / BOM / word joiner / NBSP
+            invisible_chars = "​‌‍⁠﻿ "
+            stripped = value.strip().strip(invisible_chars).strip()
+            if not stripped:
+                raise ValueError(
+                    "Le champ ne peut pas etre vide ou contenir uniquement des espaces"
+                )
+            return stripped
+        return value
+
+    @field_validator(
         "employee_count", "annual_revenue_xof", "year_founded",
         mode="before",
     )

@@ -751,4 +751,9 @@ async def generate_credit_score(
     db.add(credit_score)
     await db.flush()
 
+    # BUG-V7.1-013 : declencher l'attribution des badges (full_journey peut
+    # devenir eligible apres calcul du score credit). Fire-and-forget.
+    from app.modules.action_plan.badges import safe_check_and_award_badges
+    await safe_check_and_award_badges(db, user_id)
+
     return credit_score

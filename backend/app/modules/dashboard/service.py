@@ -95,20 +95,35 @@ async def _get_esg_summary(db: AsyncSession, user_id: uuid.UUID) -> dict | None:
 
 
 async def _get_carbon_summary(db: AsyncSession, user_id: uuid.UUID) -> dict | None:
-    """Récupérer le résumé carbone pour l'utilisateur."""
+    """Récupérer le résumé carbone pour l'utilisateur.
+
+    BUG-V7.1-014 : inclure aussi les bilans `status='in_progress'` quand
+    `total_emissions_tco2e IS NOT NULL` (sinon la carte affiche
+    "Aucune donnée" alors que la BDD contient des entries valides).
+    Le flag `in_progress` est ajoute au dict retourne pour permettre au
+    frontend d'afficher un marqueur "(en cours)".
+    """
     from app.models.carbon import CarbonAssessment, CarbonStatusEnum, CarbonEmissionEntry
 
-    # Deux derniers bilans complétés (ordonnés par année desc)
+    # Deux derniers bilans avec total non-null (completed OU in_progress).
+    # V8-AXE5 review : tri secondaire (completed avant in_progress, puis
+    # updated_at desc) pour deterministe quand 2 bilans existent pour la
+    # meme annee — ex: brouillon abandonne + reprise.
     stmt = (
         select(CarbonAssessment)
         .where(
             and_(
                 CarbonAssessment.user_id == user_id,
-                CarbonAssessment.status == CarbonStatusEnum.completed,
+                CarbonAssessment.status.in_(
+                    [CarbonStatusEnum.completed, CarbonStatusEnum.in_progress]
+                ),
                 CarbonAssessment.total_emissions_tco2e.is_not(None),
             )
         )
-        .order_by(CarbonAssessment.year.desc())
+        .order_by(
+            CarbonAssessment.year.desc(),
+            CarbonAssessment.updated_at.desc(),
+        )
         .limit(2)
     )
     result = await db.execute(stmt)
@@ -152,6 +167,7 @@ async def _get_carbon_summary(db: AsyncSession, user_id: uuid.UUID) -> dict | No
         "variation_percent": variation_percent,
         "top_category": top_category,
         "categories": categories,
+        "in_progress": latest.status == CarbonStatusEnum.in_progress,
     }
 
 

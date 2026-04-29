@@ -222,6 +222,11 @@ async def finalize_esg_assessment(
         criteria_scores=criteria_scores,
     )
 
+    # BUG-V7.1-013 : declencher l'attribution du badge esg_above_50
+    # (et eventuellement full_journey).
+    from app.modules.action_plan.badges import safe_check_and_award_badges
+    await safe_check_and_award_badges(db, user_id)
+
     benchmark_info = ""
     if finalized.sector_benchmark:
         position = finalized.sector_benchmark.get("position", "N/A")

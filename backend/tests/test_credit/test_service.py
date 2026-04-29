@@ -688,6 +688,10 @@ class TestAsyncGenerateCreditScore:
             "app.modules.credit.service.get_next_version",
             new_callable=AsyncMock,
             return_value=1,
+        ), patch(
+            "app.modules.action_plan.badges.safe_check_and_award_badges",
+            new_callable=AsyncMock,
+            return_value=[],
         ):
             result = await generate_credit_score(mock_db, user_id)
 

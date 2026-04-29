@@ -198,6 +198,10 @@ async def create_fund_application(
         intermediary_id=interm_uuid,
     )
 
+    # BUG-V7.1-013 : declencher l'attribution du badge first_application.
+    from app.modules.action_plan.badges import safe_check_and_award_badges
+    await safe_check_and_award_badges(db, user_id)
+
     return (
         f"Dossier de candidature cree avec succes !\n"
         f"- ID : {application.id}\n"

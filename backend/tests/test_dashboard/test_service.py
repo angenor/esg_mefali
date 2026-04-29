@@ -187,6 +187,54 @@ class TestGetDashboardSummaryWithData:
         assert result["carbon"] is not None
         assert result["carbon"]["total_tco2e"] == 120.5
         assert result["carbon"]["year"] == 2024
+        # BUG-V7.1-014 : flag in_progress doit etre False pour status=completed.
+        assert result["carbon"]["in_progress"] is False
+
+    @pytest.mark.asyncio
+    async def test_carbon_summary_in_progress_with_total(self, db_session):
+        """BUG-V7.1-014 : bilan in_progress avec total → affiche les donnees."""
+        from app.models.carbon import CarbonAssessment, CarbonStatusEnum
+
+        user_id = uuid.uuid4()
+        assessment = CarbonAssessment(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            year=2026,
+            sector="agriculture",
+            total_emissions_tco2e=16.9,
+            status=CarbonStatusEnum.in_progress,
+        )
+        db_session.add(assessment)
+        await db_session.flush()
+
+        result = await get_dashboard_summary(db_session, user_id)
+
+        assert result["carbon"] is not None, "Carte carbone doit afficher les donnees in_progress"
+        assert result["carbon"]["total_tco2e"] == 16.9
+        assert result["carbon"]["year"] == 2026
+        assert result["carbon"]["in_progress"] is True
+
+    @pytest.mark.asyncio
+    async def test_carbon_summary_in_progress_without_total_returns_none(self, db_session):
+        """BUG-V7.1-014 : bilan in_progress sans total_emissions → renvoie None."""
+        from app.models.carbon import CarbonAssessment, CarbonStatusEnum
+
+        user_id = uuid.uuid4()
+        assessment = CarbonAssessment(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            year=2026,
+            sector="agriculture",
+            total_emissions_tco2e=None,
+            status=CarbonStatusEnum.in_progress,
+        )
+        db_session.add(assessment)
+        await db_session.flush()
+
+        result = await get_dashboard_summary(db_session, user_id)
+
+        # Sans total, le dashboard reste a None — la carte affiche "Aucune donnee".
+        assert result["carbon"] is None
 
     @pytest.mark.asyncio
     async def test_credit_summary_populated(self, db_session):

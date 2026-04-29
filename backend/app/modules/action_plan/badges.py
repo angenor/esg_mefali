@@ -131,6 +131,36 @@ async def check_and_award_badges(
     return new_badges
 
 
+async def safe_check_and_award_badges(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[Badge]:
+    """Variante fire-and-forget de `check_and_award_badges`.
+
+    BUG-V7.1-013 : appelee aux call-sites de finalization (carbon, esg,
+    application, credit) pour declencher l'attribution des badges sans
+    bloquer le tool si la verification echoue (ex: rollback de session
+    en cours, erreur transient BDD). Loggue un warning et retourne une
+    liste vide en cas d'echec.
+
+    Returns:
+        Liste des nouveaux badges attribues (vide si verification echoue).
+    """
+    # V8-AXE5 review : fast-fail si user_id est None pour eviter
+    # une insertion Badge.user_id=NULL silencieuse.
+    if user_id is None:
+        return []
+    try:
+        return await check_and_award_badges(db, user_id)
+    except Exception:
+        logger.warning(
+            "Erreur verification badges (non bloquant) pour user_id=%s",
+            user_id,
+            exc_info=True,
+        )
+        return []
+
+
 async def get_user_badges(
     db: AsyncSession,
     user_id: uuid.UUID,
