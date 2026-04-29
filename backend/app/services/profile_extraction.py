@@ -53,6 +53,33 @@ COUNTRIES_UEMOA: dict[str, list[str]] = {
     "Guinée-Bissau": ["guinee-bissau", "guinee bissau"],
 }
 
+# Villes francophones Afrique (UEMOA/CEDEAO/Maghreb) prioritaires pour PME cibles.
+# Synonymes en forme normalisée NFD lower (cf. _normalize) pour matching robuste.
+# Limite assumée : pas de désambiguïsation ville/pays (« Saint-Louis » accepté).
+CITIES_FR: dict[str, list[str]] = {
+    "Dakar": ["dakar"],
+    "Abidjan": ["abidjan"],
+    "Bamako": ["bamako"],
+    "Ouagadougou": ["ouagadougou", "ouaga"],
+    "Cotonou": ["cotonou"],
+    "Lomé": ["lome"],
+    "Niamey": ["niamey"],
+    "Bissau": ["bissau"],
+    "Conakry": ["conakry"],
+    "Accra": ["accra"],
+    "Lagos": ["lagos"],
+    "Kinshasa": ["kinshasa"],
+    "Douala": ["douala"],
+    "Yaoundé": ["yaounde"],
+    "Casablanca": ["casablanca"],
+    "Tunis": ["tunis"],
+    "Alger": ["alger"],
+    "Saint-Louis": ["saint-louis"],
+    "Thiès": ["thies"],
+    "Ziguinchor": ["ziguinchor"],
+    "Bouaké": ["bouake"],
+}
+
 # Pattern entreprise : 1 ou 2 mots capitalises consecutifs + forme juridique.
 # Limiter a 2 mots avant la forme juridique evite de capter les prefixes
 # phrastiques (« Mon Entreprise AgriVert Sarl » → AgriVert Sarl, pas la phrase
@@ -144,12 +171,24 @@ def _extract_country(normalized: str) -> str | None:
     return None
 
 
+def _extract_city(normalized: str) -> str | None:
+    """Premier match canonique parmi CITIES_FR. Word-boundary stricte.
+
+    BUG-V8-001 : capture la ville absente de l'extraction V8-AXE1 initiale.
+    """
+    for canonical, synonyms in CITIES_FR.items():
+        for syn in synonyms:
+            if re.search(rf"\b{re.escape(syn)}\b", normalized):
+                return canonical
+    return None
+
+
 def extract_profile_from_text(text: str) -> ExtractedProfile:
     """Extraire les champs profil détectables depuis ``text``.
 
     Retourne un dict avec uniquement les clés effectivement matchées (pas de
-    ``None`` explicites). Champ ``city`` non couvert par cette V8-AXE1
-    (réservé au LLM ; trop de faux positifs avec un dict statique).
+    ``None`` explicites). Champ ``city`` couvert depuis V8.1 (BUG-V8-001) via
+    dict ``CITIES_FR`` aligné sur la zone CEDEAO/UEMOA/Maghreb.
 
     Args:
         text: Message utilisateur brut (peut être vide / None-like → {}).
@@ -182,5 +221,9 @@ def extract_profile_from_text(text: str) -> ExtractedProfile:
     country = _extract_country(normalized)
     if country:
         result["country"] = country
+
+    city = _extract_city(normalized)
+    if city:
+        result["city"] = city
 
     return result

@@ -360,8 +360,17 @@ def _detect_action_plan_request(text: str) -> bool:
 
 
 def _detect_credit_request(text: str) -> bool:
-    """Detecter si un message est une demande de scoring credit vert."""
-    return any(pattern.search(text) for pattern in _CREDIT_PATTERNS)
+    """Detecter si un message est une demande de scoring credit vert.
+
+    BUG-V8-002 : aligne le router sur le forçage `_FORCE_CREDIT_RE` du
+    `credit_node`. Sans cet alignement, « évalue ma solvabilité » échouait à
+    matcher `_CREDIT_PATTERNS` (qui exigent le mot « score » à proximité), le
+    router routait vers chat_node et le forçage déterministe n'était jamais
+    consulté.
+    """
+    if any(pattern.search(text) for pattern in _CREDIT_PATTERNS):
+        return True
+    return bool(_FORCE_CREDIT_RE.search(text))
 
 
 def _detect_financing_request(text: str) -> bool:

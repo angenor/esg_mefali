@@ -174,6 +174,49 @@ class TestCountry:
         assert "country" not in result
 
 
+class TestCity:
+    """BUG-V8-001 : extraction city via dict CITIES_FR."""
+
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("AgriVert Sarl, Agriculture, 15 employés, Sénégal, Dakar", "Dakar"),
+            ("base a Abidjan", "Abidjan"),
+            ("a Bamako", "Bamako"),
+            ("Ouagadougou centre", "Ouagadougou"),
+            ("siege a Ouaga", "Ouagadougou"),
+            ("base a Lome", "Lomé"),
+            ("basé à Lomé", "Lomé"),
+            ("a Cotonou", "Cotonou"),
+            ("Yaoundé Cameroun", "Yaoundé"),
+            ("yaounde sans accent", "Yaoundé"),
+            ("Casablanca Maroc", "Casablanca"),
+            ("Saint-Louis du Senegal", "Saint-Louis"),
+            ("Thiès region", "Thiès"),
+            ("Bouaké centre", "Bouaké"),
+        ],
+    )
+    def test_extracts_canonical_city(self, text: str, expected: str):
+        assert extract_profile_from_text(text)["city"] == expected
+
+    def test_no_match_unknown_city(self):
+        result = extract_profile_from_text("Nous sommes a Tombouctou")
+        assert "city" not in result
+
+    def test_empty_text_no_city(self):
+        assert extract_profile_from_text("") == {}
+
+    def test_full_phrase_extracts_all_five_fields(self):
+        """Régression T-V8-PROFILE-01 : 5 champs sur la phrase complète."""
+        text = "AgriVert Sarl, Agriculture, 15 employés, Sénégal, Dakar"
+        result = extract_profile_from_text(text)
+        assert result.get("company_name") == "AgriVert Sarl"
+        assert result.get("sector") == "agriculture"
+        assert result.get("employee_count") == 15
+        assert result.get("country") == "Sénégal"
+        assert result.get("city") == "Dakar"
+
+
 class TestCompanyName:
     """Pattern nom + forme juridique."""
 
